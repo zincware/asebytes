@@ -158,3 +158,21 @@ def test_nested_dict_with_dot_in_key(ethanol):
     byte_data = asebytes.to_bytes(atoms)
     recovered_atoms = asebytes.from_bytes(byte_data)
     assert atoms.info["data"] == recovered_atoms.info["data"]
+
+
+def test_calc_is_none_after_round_trip(ethanol):
+    """Test that atoms.calc is None after round trip when no calculator was present."""
+    atoms = ethanol[0]
+    # Ensure no calculator is attached
+    assert atoms.calc is None
+
+    # Round trip
+    byte_data = asebytes.to_bytes(atoms)
+    recovered_atoms = asebytes.from_bytes(byte_data)
+
+    # Verify calc is still None after round trip
+    assert recovered_atoms.calc is None
+
+    # Verify no calc.* keys were serialized
+    calc_keys = [key for key in byte_data if key.startswith(b"calc.")]
+    assert len(calc_keys) == 0

@@ -43,7 +43,8 @@ def from_bytes(data: dict[bytes, bytes], fast: bool = True) -> ase.Atoms:
         atoms.arrays = {'numbers': numbers_array}
         atoms.info = {}
         atoms.constraints = []
-        atoms._celldisp = np.zeros(3)  # Cell displacement
+        atoms._celldisp = np.zeros(3)
+        atoms._calc = None
     else:
         # Use standard Atoms constructor
         atoms = ase.Atoms(
