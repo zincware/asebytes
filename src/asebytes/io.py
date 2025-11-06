@@ -17,7 +17,21 @@ class BytesIO(MutableSequence):
 
     def __setitem__(self, index: int, data: dict[bytes, bytes]) -> None:
         with self.env.begin(write=True) as txn:
-            # TODO: must remove all existing keys for this index first
+            # First, remove all existing keys for this index
+            cursor = txn.cursor()
+            prefix = self.prefix + str(index).encode() + b"-"
+            keys_to_delete = []
+            if cursor.set_range(prefix):
+                for key, value in cursor:
+                    if not key.startswith(prefix):
+                        break
+                    keys_to_delete.append(key)
+
+            # Delete all old keys
+            for key in keys_to_delete:
+                txn.delete(key)
+
+            # Write new data
             for key, value in data.items():
                 txn.put(self.prefix + str(index).encode() + b"-" + key, value)
 
