@@ -148,6 +148,47 @@ class BytesIO(MutableSequence):
         self._set_next_sort_key(txn, next_key + 1)
         return next_key
 
+    # Metadata helpers for field keys
+    def _get_field_keys_metadata(self, txn, sort_key: int) -> list[bytes] | None:
+        """Get the list of field keys for a sort key from metadata.
+
+        Args:
+            txn: LMDB transaction
+            sort_key: The sort key to query
+
+        Returns:
+            List of field keys (without prefix) or None if not found
+        """
+        metadata_key = self.prefix + b"__keys__" + str(sort_key).encode()
+        metadata_bytes = txn.get(metadata_key)
+        if metadata_bytes is None:
+            return None
+        # Deserialize the list of keys (stored as newline-separated bytes)
+        return metadata_bytes.split(b"\n") if metadata_bytes else []
+
+    def _set_field_keys_metadata(self, txn, sort_key: int, field_keys: list[bytes]) -> None:
+        """Store the list of field keys for a sort key in metadata.
+
+        Args:
+            txn: LMDB transaction
+            sort_key: The sort key
+            field_keys: List of field keys (without prefix)
+        """
+        metadata_key = self.prefix + b"__keys__" + str(sort_key).encode()
+        # Serialize as newline-separated bytes
+        metadata_bytes = b"\n".join(field_keys)
+        txn.put(metadata_key, metadata_bytes)
+
+    def _delete_field_keys_metadata(self, txn, sort_key: int) -> None:
+        """Delete the field keys metadata for a sort key.
+
+        Args:
+            txn: LMDB transaction
+            sort_key: The sort key
+        """
+        metadata_key = self.prefix + b"__keys__" + str(sort_key).encode()
+        txn.delete(metadata_key)
+
     def __setitem__(self, index: int, data: dict[bytes, bytes]) -> None:
         with self.env.begin(write=True) as txn:
             current_count = self._get_count(txn)
@@ -160,29 +201,29 @@ class BytesIO(MutableSequence):
                 # Allocate new unique sort key
                 sort_key = self._allocate_sort_key(txn)
                 self._set_mapping(txn, index, sort_key)
-
-            # Delete existing data keys with this sort key
-            cursor = txn.cursor()
-            sort_key_str = str(sort_key).encode()
-            prefix = self.prefix + sort_key_str + b"-"
-            keys_to_delete = []
-
-            if cursor.set_range(prefix):
-                for key, value in cursor:
-                    if not key.startswith(prefix):
-                        break
-                    keys_to_delete.append(key)
-
-            for key in keys_to_delete:
-                txn.delete(key)
+            else:
+                # Delete existing data keys if overwriting
+                try:
+                    _, _, keys_to_delete = self._get_full_keys(txn, index)
+                    for key in keys_to_delete:
+                        txn.delete(key)
+                except KeyError:
+                    # No existing data, continue
+                    pass
 
             # Write new data with sort key prefix using putmulti
+            sort_key_str = str(sort_key).encode()
             items_to_insert = [
                 (self.prefix + sort_key_str + b"-" + key, value)
                 for key, value in data.items()
             ]
             if items_to_insert:
+                cursor = txn.cursor()
                 cursor.putmulti(items_to_insert, dupdata=False)
+
+            # Store metadata for field keys
+            field_keys = list(data.keys())
+            self._set_field_keys_metadata(txn, sort_key, field_keys)
 
             # Update count if needed (when index == current_count, we're appending)
             if is_new_index and index >= current_count:
@@ -207,23 +248,23 @@ class BytesIO(MutableSequence):
         if sort_key is None:
             raise KeyError(f"Index {index} not found")
 
-        # Build prefix and scan for all keys
+        # Build prefix
         sort_key_str = str(sort_key).encode()
         prefix = self.prefix + sort_key_str + b"-"
 
-        keys_to_fetch = []
-        cursor = txn.cursor()
-        if cursor.set_range(prefix):
-            for key, _ in cursor:
-                if not key.startswith(prefix):
-                    break
-                keys_to_fetch.append(key)
+        # Get field keys from metadata
+        field_keys = self._get_field_keys_metadata(txn, sort_key)
+        if field_keys is None:
+            raise KeyError(f"Metadata not found for index {index} (sort_key {sort_key})")
+
+        # Build full keys with prefix
+        keys_to_fetch = [prefix + field_key for field_key in field_keys]
 
         return sort_key, prefix, keys_to_fetch
 
     def __getitem__(self, index: int) -> dict[bytes, bytes]:
         with self.env.begin() as txn:
-            sort_key, prefix, keys_to_fetch = self._get_full_keys(txn, index)
+            _, prefix, keys_to_fetch = self._get_full_keys(txn, index)
 
             # Use getmulti for efficient batch retrieval
             result = {}
@@ -297,10 +338,13 @@ class BytesIO(MutableSequence):
             if key < 0 or key >= current_count:
                 raise IndexError(f"Index {key} out of range [0, {current_count})")
 
-            # Get the sort key for this index
+            # Get the sort key for this index and data keys before deleting mapping
             sort_key = self._get_mapping(txn, key)
             if sort_key is None:
                 raise KeyError(f"Index {key} not found")
+
+            # Get the data keys to delete before modifying mappings
+            _, _, keys_to_delete = self._get_full_keys(txn, key)
 
             # Collect all mappings that need to be shifted
             # We need to shift indices [key+1, key+2, ..., count-1] down by 1
@@ -322,21 +366,12 @@ class BytesIO(MutableSequence):
                 new_index = old_index - 1
                 self._set_mapping(txn, new_index, sk)
 
-            # Optionally delete the data keys (lazy deletion strategy)
-            # For now, we'll delete them to keep the database clean
-            cursor = txn.cursor()
-            sort_key_str = str(sort_key).encode()
-            prefix = self.prefix + sort_key_str + b"-"
-            keys_to_delete = []
-
-            if cursor.set_range(prefix):
-                for k, value in cursor:
-                    if not k.startswith(prefix):
-                        break
-                    keys_to_delete.append(k)
-
+            # Delete the data keys
             for k in keys_to_delete:
                 txn.delete(k)
+
+            # Delete metadata for field keys
+            self._delete_field_keys_metadata(txn, sort_key)
 
             # Update count
             self._set_count(txn, current_count - 1)
@@ -383,6 +418,10 @@ class BytesIO(MutableSequence):
                 cursor = txn.cursor()
                 cursor.putmulti(items_to_insert, dupdata=False)
 
+            # Store metadata for field keys
+            field_keys = list(input.keys())
+            self._set_field_keys_metadata(txn, sort_key, field_keys)
+
             # Update count
             self._set_count(txn, current_count + 1)
 
@@ -394,24 +433,30 @@ class BytesIO(MutableSequence):
         with self.env.begin(write=True) as txn:
             current_count = self._get_count(txn)
 
-            # Prepare all items with their mappings and data keys
+            # Prepare all items with their mappings, data keys, and metadata
             items_to_insert = []
 
             for idx, item in enumerate(items):
                 logical_index = current_count + idx
                 sort_key = self._allocate_sort_key(txn)
+                sort_key_str = str(sort_key).encode()
 
                 # Add mapping entry
                 mapping_key = self.prefix + b"__idx__" + str(logical_index).encode()
-                items_to_insert.append((mapping_key, str(sort_key).encode()))
+                items_to_insert.append((mapping_key, sort_key_str))
 
-                # Add data entries for each field
-                sort_key_str = str(sort_key).encode()
+                # Collect field keys and add data entries
+                field_keys = list(item.keys())
                 for field_key, field_value in item.items():
                     data_key = self.prefix + sort_key_str + b"-" + field_key
                     items_to_insert.append((data_key, field_value))
 
-            # Bulk insert all items
+                # Add metadata entry (inline with other inserts for single putmulti)
+                metadata_key = self.prefix + b"__keys__" + sort_key_str
+                metadata_value = b"\n".join(field_keys)
+                items_to_insert.append((metadata_key, metadata_value))
+
+            # Bulk insert all items (mappings + data + metadata) in one call
             cursor = txn.cursor()
             cursor.putmulti(items_to_insert, dupdata=False)
 
