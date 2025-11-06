@@ -30,7 +30,7 @@ def encode(atoms: ase.Atoms) -> dict[bytes, bytes]:
     data: dict[bytes, bytes] = {}
     cell: np.ndarray = atoms.get_cell().array
     data[b"cell"] = msgpack.packb(cell, default=m.encode)
-    data[b"pbc"] = msgpack.packb(atoms.get_pbc().tobytes())
+    data[b"pbc"] = msgpack.packb(atoms.get_pbc(), default=m.encode)
 
     for key in atoms.arrays:
         if "." in key:

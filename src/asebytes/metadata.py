@@ -67,29 +67,9 @@ def _get_value_metadata(value) -> dict:
             "dtype": value.dtype.name,
         }
 
-    # Special handling for bytes that represent numpy arrays (like pbc)
-    # pbc is stored as: msgpack.packb(atoms.get_pbc().tobytes())
-    # When unpacked, it's bytes that can be converted back to ndarray
-    # TODO: remove this check and just store cell as pbc as well.
-    # saving the shape info here can not be that expensive?!
     if isinstance(value, bytes):
-        # Try to interpret as numpy bool array (pbc case)
-        # pbc arrays are specifically 3 bool values (one for each dimension)
-        try:
-            arr = np.frombuffer(value, dtype=np.bool_)
-            if len(arr) == 3:
-                return {
-                    "type": "ndarray",
-                    "dtype": "bool",
-                    "shape": (3,),
-                }
-        except (ValueError, TypeError):
-            pass
-        # If not a special numpy array case, return as bytes type
         return {"type": "bytes"}
-
-    # Python primitive types
-    if value is None:
+    elif value is None:
         return {"type": "NoneType"}
     elif isinstance(value, bool):
         return {"type": "bool"}

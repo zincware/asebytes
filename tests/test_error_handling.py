@@ -94,18 +94,22 @@ def test_calc_results_key_with_dot_raises_valueerror():
 # =============================================================================
 
 
-def test_decode_missing_cell_raises_keyerror():
-    """Test that missing cell key raises KeyError."""
+def test_decode_missing_cell_uses_default():
+    """Test that missing cell key uses default empty cell."""
+    import msgpack
+    import msgpack_numpy as m
+
     data = {
-        b"pbc": b"test",
-        b"arrays.numbers": b"test",
+        b"arrays.numbers": msgpack.packb(np.array([1]), default=m.encode),
     }
-    with pytest.raises(KeyError, match="b'cell'"):
-        asebytes.decode(data)
+    # Should not raise - cell is now optional
+    atoms = asebytes.decode(data)
+    assert atoms.cell is not None
+    assert np.allclose(atoms.cell.array, np.zeros((3, 3)))
 
 
-def test_decode_missing_pbc_raises_keyerror():
-    """Test that missing pbc key raises KeyError."""
+def test_decode_missing_pbc_uses_default():
+    """Test that missing pbc key uses default (False, False, False)."""
     import msgpack
     import msgpack_numpy as m
 
@@ -113,12 +117,13 @@ def test_decode_missing_pbc_raises_keyerror():
         b"cell": msgpack.packb(np.eye(3), default=m.encode),
         b"arrays.numbers": msgpack.packb(np.array([1]), default=m.encode),
     }
-    with pytest.raises(KeyError, match="b'pbc'"):
-        asebytes.decode(data)
+    # Should not raise - pbc is now optional
+    atoms = asebytes.decode(data)
+    assert list(atoms.pbc) == [False, False, False]
 
 
-def test_decode_missing_numbers_raises_keyerror():
-    """Test that missing arrays.numbers key raises KeyError."""
+def test_decode_missing_numbers_creates_empty_atoms():
+    """Test that missing arrays.numbers creates an empty Atoms object."""
     import msgpack
     import msgpack_numpy as m
 
@@ -126,8 +131,9 @@ def test_decode_missing_numbers_raises_keyerror():
         b"cell": msgpack.packb(np.eye(3), default=m.encode),
         b"pbc": msgpack.packb(np.array([True, True, True]).tobytes()),
     }
-    with pytest.raises(KeyError, match="b'arrays.numbers'"):
-        asebytes.decode(data)
+    # Should now create an empty atoms object instead of raising
+    atoms = asebytes.decode(data)
+    assert len(atoms) == 0
 
 
 def test_decode_with_unknown_key_raises_valueerror():
@@ -159,18 +165,18 @@ def test_decode_with_invalid_prefix_raises_valueerror():
 
 
 @pytest.mark.parametrize("fast", [True, False])
-def test_decode_missing_required_keys_both_modes(fast):
-    """Test that missing required keys raise errors in both fast modes."""
+def test_decode_empty_atoms_both_modes(fast):
+    """Test that empty data creates empty atoms in both fast modes."""
     import msgpack
     import msgpack_numpy as m
 
     data = {
         b"cell": msgpack.packb(np.eye(3), default=m.encode),
         b"pbc": msgpack.packb(np.array([True, True, True]).tobytes()),
-        # Missing arrays.numbers
+        # Missing arrays.numbers - should create empty atoms
     }
-    with pytest.raises(KeyError):
-        asebytes.decode(data, fast=fast)
+    atoms = asebytes.decode(data, fast=fast)
+    assert len(atoms) == 0
 
 
 # =============================================================================

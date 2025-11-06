@@ -363,9 +363,9 @@ def test_aseio_get_with_empty_keys_list(tmp_path):
     atoms = Atoms("H", positions=[[0, 0, 0]])
     io[0] = atoms
 
-    # With empty keys list, decode will fail because required keys are missing
-    with pytest.raises(KeyError):
-        io.get(0, keys=[])
+    # With empty keys list, decode will create an empty atoms object
+    recovered = io.get(0, keys=[])
+    assert len(recovered) == 0  # Empty atoms since no data was retrieved
 
 
 def test_aseio_get_only_required_keys(tmp_path):

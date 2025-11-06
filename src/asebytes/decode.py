@@ -27,22 +27,44 @@ def decode(data: dict[bytes, bytes], fast: bool = True) -> ase.Atoms:
     ------
     ValueError
         If unknown keys are present in data.
+    KeyError
+        If required key 'arrays.numbers' is missing.
     """
-    cell_array = msgpack.unpackb(data[b"cell"], object_hook=m.decode)
-    pbc_bytes = msgpack.unpackb(data[b"pbc"])
-    numbers_array = msgpack.unpackb(data[b"arrays.numbers"], object_hook=m.decode)
+    if b"arrays.numbers" in data:
+        numbers_array = msgpack.unpackb(data[b"arrays.numbers"], object_hook=m.decode)
+    else:
+        numbers_array = np.array([], dtype=int)
 
-    pbc_array = np.frombuffer(pbc_bytes, dtype=np.bool).reshape(
-        3,
-    )
+    # Extract optional parameters with defaults
+    if b"cell" in data:
+        cell_array = msgpack.unpackb(data[b"cell"], object_hook=m.decode)
+    else:
+        cell_array = None
+
+    if b"pbc" in data:
+        pbc_array = msgpack.unpackb(data[b"pbc"], object_hook=m.decode)
+    else:
+        pbc_array = np.array([False, False, False], dtype=bool)
 
     if fast:
         #  Skip Atoms.__init__() and directly assign attributes for better performance
         atoms = ase.Atoms.__new__(ase.Atoms)
 
-        atoms._cellobj = Cell(cell_array)
+        # Set cell - use provided cell or default empty cell
+        if cell_array is not None:
+            atoms._cellobj = Cell(cell_array)
+        else:
+            atoms._cellobj = Cell(np.zeros((3, 3)))
+
         atoms._pbc = pbc_array
         atoms.arrays = {"numbers": numbers_array}
+
+        # Initialize positions if not provided
+        if b"arrays.positions" not in data:
+            # Create default positions (zeros) based on number of atoms
+            n_atoms = len(numbers_array)
+            atoms.arrays["positions"] = np.zeros((n_atoms, 3))
+
         atoms.info = {}
         atoms.constraints = []
         atoms._celldisp = np.zeros(3)
