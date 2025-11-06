@@ -15,6 +15,58 @@ class BytesIO(MutableSequence):
             # meminit=False,
         )
 
+    # Metadata helpers
+    def _get_count(self, txn) -> int:
+        """Get the current count from metadata. Returns 0 if not set."""
+        count_key = self.prefix + b"__meta__count"
+        count_bytes = txn.get(count_key)
+        if count_bytes is None:
+            return 0
+        return int(count_bytes.decode())
+
+    def _set_count(self, txn, count: int) -> None:
+        """Set the count in metadata."""
+        count_key = self.prefix + b"__meta__count"
+        txn.put(count_key, str(count).encode())
+
+    def _get_next_sort_key(self, txn) -> int:
+        """Get the next available sort key counter. Returns 0 if not set."""
+        key = self.prefix + b"__meta__next_sort_key"
+        value = txn.get(key)
+        if value is None:
+            return 0
+        return int(value.decode())
+
+    def _set_next_sort_key(self, txn, value: int) -> None:
+        """Set the next available sort key counter."""
+        key = self.prefix + b"__meta__next_sort_key"
+        txn.put(key, str(value).encode())
+
+    # Mapping helpers (logical_index → sort_key)
+    def _get_mapping(self, txn, logical_index: int) -> int | None:
+        """Get sort_key for a logical index. Returns None if not found."""
+        mapping_key = self.prefix + b"__idx__" + str(logical_index).encode()
+        sort_key_bytes = txn.get(mapping_key)
+        if sort_key_bytes is None:
+            return None
+        return int(sort_key_bytes.decode())
+
+    def _set_mapping(self, txn, logical_index: int, sort_key: int) -> None:
+        """Set the mapping from logical_index to sort_key."""
+        mapping_key = self.prefix + b"__idx__" + str(logical_index).encode()
+        txn.put(mapping_key, str(sort_key).encode())
+
+    def _delete_mapping(self, txn, logical_index: int) -> None:
+        """Delete the mapping for a logical index."""
+        mapping_key = self.prefix + b"__idx__" + str(logical_index).encode()
+        txn.delete(mapping_key)
+
+    def _allocate_sort_key(self, txn) -> int:
+        """Allocate a new unique sort key by incrementing the counter."""
+        next_key = self._get_next_sort_key(txn)
+        self._set_next_sort_key(txn, next_key + 1)
+        return next_key
+
     def __setitem__(self, index: int, data: dict[bytes, bytes]) -> None:
         with self.env.begin(write=True) as txn:
             # First, remove all existing keys for this index

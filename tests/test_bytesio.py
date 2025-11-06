@@ -59,3 +59,25 @@ def test_iter(io, ethanol):
         io[i] = asebytes.to_bytes(atom)
     atoms = [asebytes.from_bytes(data) for data in io]
     assert atoms == list(ethanol)
+
+def test_counter_mapping(io):
+    # Test that we can store and retrieve mapping
+    # This is an internal test - users won't call these methods directly
+    with io.env.begin(write=True) as txn:
+        # Store mappings with integer sort keys
+        io._set_mapping(txn, 0, 100)
+        io._set_mapping(txn, 1, 101)
+        io._set_count(txn, 2)
+        io._set_next_sort_key(txn, 102)
+
+    with io.env.begin() as txn:
+        assert io._get_mapping(txn, 0) == 100
+        assert io._get_mapping(txn, 1) == 101
+        assert io._get_count(txn) == 2
+        assert io._get_next_sort_key(txn) == 102
+
+        # Test allocation
+    with io.env.begin(write=True) as txn:
+        new_key = io._allocate_sort_key(txn)
+        assert new_key == 102
+        assert io._get_next_sort_key(txn) == 103
