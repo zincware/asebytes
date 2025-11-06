@@ -129,27 +129,54 @@ class BytesIO(MutableSequence):
     
     def __delitem__(self, key: int) -> None:
         with self.env.begin(write=True) as txn:
-            # remove the item and shift all subsequent items one position to the left
+            current_count = self._get_count(txn)
+
+            if key < 0 or key >= current_count:
+                raise IndexError(f"Index {key} out of range [0, {current_count})")
+
+            # Get the sort key for this index
+            sort_key = self._get_mapping(txn, key)
+            if sort_key is None:
+                raise KeyError(f"Index {key} not found")
+
+            # Collect all mappings that need to be shifted
+            # We need to shift indices [key+1, key+2, ..., count-1] down by 1
+            mappings_to_shift = []
+            for i in range(key + 1, current_count):
+                sk = self._get_mapping(txn, i)
+                if sk is not None:
+                    mappings_to_shift.append((i, sk))
+
+            # Delete the mapping for the deleted index
+            self._delete_mapping(txn, key)
+
+            # Shift all subsequent mappings down by 1
+            # Delete old mappings first, then write new ones
+            for old_index, sk in mappings_to_shift:
+                self._delete_mapping(txn, old_index)
+
+            for old_index, sk in mappings_to_shift:
+                new_index = old_index - 1
+                self._set_mapping(txn, new_index, sk)
+
+            # Optionally delete the data keys (lazy deletion strategy)
+            # For now, we'll delete them to keep the database clean
             cursor = txn.cursor()
-            keys_to_move = []
-            prefix = self.prefix + str(key).encode() + b"-"
+            sort_key_str = str(sort_key).encode()
+            prefix = self.prefix + sort_key_str + b"-"
+            keys_to_delete = []
+
             if cursor.set_range(prefix):
                 for k, value in cursor:
-                    if not k.startswith(self.prefix):
+                    if not k.startswith(prefix):
                         break
-                    index_str = k[len(self.prefix):].split(b"-", 1)[0]
-                    current_index = int(index_str)
-                    if current_index >= key:
-                        keys_to_move.append((k, value))
-            for k, value in keys_to_move:
-                index_str = k[len(self.prefix):].split(b"-", 1)[0]
-                current_index = int(index_str)
-                if current_index == key:
-                    txn.delete(k)
-                else:
-                    new_key = self.prefix + str(current_index - 1).encode() + b"-" + k[len(self.prefix) + len(index_str) + 1:]
-                    txn.put(new_key, value)
-                    txn.delete(k)
+                    keys_to_delete.append(k)
+
+            for k in keys_to_delete:
+                txn.delete(k)
+
+            # Update count
+            self._set_count(txn, current_count - 1)
 
     def insert(self, index: int, input: dict[bytes, bytes]) -> None:
         with self.env.begin(write=True) as txn:
