@@ -16,18 +16,10 @@ def test_get_metadata_basic_structure(ethanol):
     assert all(isinstance(key, str) for key in metadata.keys())
 
     # Check cell metadata
-    assert metadata["cell"] == {
-        "type": "ndarray",
-        "dtype": "float64",
-        "shape": (3, 3)
-    }
+    assert metadata["cell"] == {"type": "ndarray", "dtype": "float64", "shape": (3, 3)}
 
     # Check pbc metadata
-    assert metadata["pbc"] == {
-        "type": "ndarray",
-        "dtype": "bool",
-        "shape": (3,)
-    }
+    assert metadata["pbc"] == {"type": "ndarray", "dtype": "bool", "shape": (3,)}
 
     # Check arrays.numbers metadata
     assert metadata["arrays.numbers"]["type"] == "ndarray"
@@ -84,7 +76,10 @@ def test_get_metadata_numpy_scalars(ethanol):
     metadata = asebytes.get_metadata(byte_data)
 
     assert metadata["info.bool_scalar"] == {"type": "numpy_scalar", "dtype": "bool"}
-    assert metadata["info.float32_scalar"] == {"type": "numpy_scalar", "dtype": "float32"}
+    assert metadata["info.float32_scalar"] == {
+        "type": "numpy_scalar",
+        "dtype": "float32",
+    }
     assert metadata["info.int32_scalar"] == {"type": "numpy_scalar", "dtype": "int32"}
 
 
@@ -103,17 +98,17 @@ def test_get_metadata_numpy_arrays_various_shapes(ethanol):
     assert metadata["info.array_1d"] == {
         "type": "ndarray",
         "dtype": "int16",
-        "shape": (3,)
+        "shape": (3,),
     }
     assert metadata["info.array_2d"] == {
         "type": "ndarray",
         "dtype": "int32",
-        "shape": (2, 3)
+        "shape": (2, 3),
     }
     assert metadata["info.array_3d"] == {
         "type": "ndarray",
         "dtype": "int64",
-        "shape": (2, 2, 2)
+        "shape": (2, 2, 2),
     }
 
 
@@ -133,7 +128,7 @@ def test_get_metadata_with_calc_results(ethanol):
     assert metadata["calc.forces"] == {
         "type": "ndarray",
         "dtype": "float64",
-        "shape": (3, 3)
+        "shape": (3, 3),
     }
 
 

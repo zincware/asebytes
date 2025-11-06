@@ -66,7 +66,11 @@ def parse_benchmarks(data: dict) -> dict:
     return results
 
 
-def create_comparison_figure(results: dict, output_path: str = "benchmark_comparison.png", use_log_scale: bool = True):
+def create_comparison_figure(
+    results: dict,
+    output_path: str = "benchmark_comparison.png",
+    use_log_scale: bool = True,
+):
     """Create a comprehensive comparison figure.
 
     Args:
@@ -75,8 +79,11 @@ def create_comparison_figure(results: dict, output_path: str = "benchmark_compar
         use_log_scale: If True, use log scale for y-axis (better for wide range of values)
     """
     fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-    fig.suptitle("ASE Atoms Storage Backend Performance Comparison\n1000 Ethanol Molecules",
-                 fontsize=14, fontweight="bold")
+    fig.suptitle(
+        "ASE Atoms Storage Backend Performance Comparison\n1000 Ethanol Molecules",
+        fontsize=14,
+        fontweight="bold",
+    )
 
     # Define colors for each backend
     colors = {
@@ -84,7 +91,7 @@ def create_comparison_figure(results: dict, output_path: str = "benchmark_compar
         "ASE LMDB": "#3498db",
         "LMDB+Pickle": "#e74c3c",
         "XYZ": "#f39c12",
-        "SQLite": "#9b59b6"
+        "SQLite": "#9b59b6",
     }
 
     # 1. Write Performance (left)
@@ -95,8 +102,9 @@ def create_comparison_figure(results: dict, output_path: str = "benchmark_compar
     stds = [write_data[b]["stddev"] for b in backends]
 
     x = np.arange(len(backends))
-    bars = ax.bar(x, means, yerr=stds, capsize=5, alpha=0.8,
-                  color=[colors[b] for b in backends])
+    bars = ax.bar(
+        x, means, yerr=stds, capsize=5, alpha=0.8, color=[colors[b] for b in backends]
+    )
 
     ax.set_ylabel("Time / s", fontweight="bold")
     ax.set_title("Write Performance", fontweight="bold")
@@ -108,13 +116,11 @@ def create_comparison_figure(results: dict, output_path: str = "benchmark_compar
         ax.set_yscale("log")
         # Add value labels on bars for log scale
         for i, mean in enumerate(means):
-            ax.text(i, mean, f"{mean:.3f}s",
-                    ha="center", va="bottom", fontsize=9)
+            ax.text(i, mean, f"{mean:.3f}s", ha="center", va="bottom", fontsize=9)
     else:
         # Add value labels on bars
         for i, (mean, std) in enumerate(zip(means, stds)):
-            ax.text(i, mean + std, f"{mean:.3f}s",
-                    ha="center", va="bottom", fontsize=9)
+            ax.text(i, mean + std, f"{mean:.3f}s", ha="center", va="bottom", fontsize=9)
 
     # 2. Read Performance (center)
     ax = axes[1]
@@ -124,8 +130,9 @@ def create_comparison_figure(results: dict, output_path: str = "benchmark_compar
     stds = [read_data[b]["stddev"] for b in backends]
 
     x = np.arange(len(backends))
-    bars = ax.bar(x, means, yerr=stds, capsize=5, alpha=0.8,
-                  color=[colors[b] for b in backends])
+    bars = ax.bar(
+        x, means, yerr=stds, capsize=5, alpha=0.8, color=[colors[b] for b in backends]
+    )
 
     ax.set_ylabel("Time / s", fontweight="bold")
     ax.set_title("Read Performance", fontweight="bold")
@@ -137,29 +144,33 @@ def create_comparison_figure(results: dict, output_path: str = "benchmark_compar
         ax.set_yscale("log")
         # Add value labels on bars for log scale
         for i, mean in enumerate(means):
-            ax.text(i, mean, f"{mean:.3f}s",
-                    ha="center", va="bottom", fontsize=9)
+            ax.text(i, mean, f"{mean:.3f}s", ha="center", va="bottom", fontsize=9)
     else:
         # Add value labels on bars
         for i, (mean, std) in enumerate(zip(means, stds)):
-            ax.text(i, mean + std, f"{mean:.3f}s",
-                    ha="center", va="bottom", fontsize=9)
+            ax.text(i, mean + std, f"{mean:.3f}s", ha="center", va="bottom", fontsize=9)
 
     # 3. Per-molecule Time (right)
     ax = axes[2]
 
     num_molecules = 1000
     write_backends = list(write_data.keys())
-    write_per_mol = [write_data[b]["mean"] / num_molecules * 1000 for b in write_backends]  # ms
-    read_per_mol = [read_data[b]["mean"] / num_molecules * 1000 for b in write_backends]  # ms
+    write_per_mol = [
+        write_data[b]["mean"] / num_molecules * 1000 for b in write_backends
+    ]  # ms
+    read_per_mol = [
+        read_data[b]["mean"] / num_molecules * 1000 for b in write_backends
+    ]  # ms
 
     x = np.arange(len(write_backends))
     width = 0.35
 
     # Use distinct colors that don't overlap with backend colors
     # Teal for write, coral for read - both visually distinct
-    ax.bar(x - width/2, write_per_mol, width, label="Write", alpha=0.8, color="#00CED1")
-    ax.bar(x + width/2, read_per_mol, width, label="Read", alpha=0.8, color="#FF7F50")
+    ax.bar(
+        x - width / 2, write_per_mol, width, label="Write", alpha=0.8, color="#00CED1"
+    )
+    ax.bar(x + width / 2, read_per_mol, width, label="Read", alpha=0.8, color="#FF7F50")
 
     ax.set_ylabel("Time / ms", fontweight="bold")
     ax.set_title("Time per Molecule", fontweight="bold")
@@ -180,24 +191,28 @@ def create_comparison_figure(results: dict, output_path: str = "benchmark_compar
 
 def create_detailed_stats_table(results: dict):
     """Print detailed statistics table."""
-    print("\n" + "="*100)
+    print("\n" + "=" * 100)
     print("DETAILED BENCHMARK STATISTICS")
-    print("="*100)
+    print("=" * 100)
 
     for operation in ["write", "read"]:
         print(f"\n{operation.upper()} PERFORMANCE:")
         print("-" * 100)
-        print(f"{'Backend':<20} {'Mean (s)':<12} {'StdDev (s)':<12} {'Min (s)':<12} "
-              f"{'Max (s)':<12} {'Rounds':<10}")
+        print(
+            f"{'Backend':<20} {'Mean (s)':<12} {'StdDev (s)':<12} {'Min (s)':<12} "
+            f"{'Max (s)':<12} {'Rounds':<10}"
+        )
         print("-" * 100)
 
         for backend, stats in results[operation].items():
-            print(f"{backend:<20} {stats['mean']:<12.4f} {stats['stddev']:<12.4f} "
-                  f"{stats['min']:<12.4f} {stats['max']:<12.4f} {stats['rounds']:<10}")
+            print(
+                f"{backend:<20} {stats['mean']:<12.4f} {stats['stddev']:<12.4f} "
+                f"{stats['min']:<12.4f} {stats['max']:<12.4f} {stats['rounds']:<10}"
+            )
 
-    print("\n" + "="*100)
+    print("\n" + "=" * 100)
     print("SPEEDUP ANALYSIS (Relative to ASEIO)")
-    print("="*100)
+    print("=" * 100)
 
     if "ASEIO" in results["write"] and "ASEIO" in results["read"]:
         aseio_write = results["write"]["ASEIO"]["mean"]
@@ -216,7 +231,7 @@ def create_detailed_stats_table(results: dict):
 
                 print(f"{backend:<20} {write_str:<20} {read_str:<20}")
 
-    print("="*100 + "\n")
+    print("=" * 100 + "\n")
 
 
 def main():
@@ -224,25 +239,24 @@ def main():
         description="Visualize pytest-benchmark results for ASE storage backends"
     )
     parser.add_argument(
-        "benchmark_json",
-        type=str,
-        help="Path to benchmark results JSON file"
+        "benchmark_json", type=str, help="Path to benchmark results JSON file"
     )
     parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         type=str,
         default="benchmark_comparison.png",
-        help="Output figure path (default: benchmark_comparison.png)"
+        help="Output figure path (default: benchmark_comparison.png)",
     )
     parser.add_argument(
         "--linear",
         action="store_true",
-        help="Use linear scale instead of log scale (default: log scale)"
+        help="Use linear scale instead of log scale (default: log scale)",
     )
     parser.add_argument(
         "--split-view",
         action="store_true",
-        help="Create separate panels for fast and slow backends"
+        help="Create separate panels for fast and slow backends",
     )
 
     args = parser.parse_args()
@@ -251,7 +265,9 @@ def main():
     if not Path(args.benchmark_json).exists():
         print(f"Error: Benchmark file '{args.benchmark_json}' not found!")
         print("\nPlease run benchmarks first:")
-        print("  uv run pytest -m benchmark --benchmark-only --benchmark-json=benchmark_results.json")
+        print(
+            "  uv run pytest -m benchmark --benchmark-only --benchmark-json=benchmark_results.json"
+        )
         return 1
 
     # Load and parse results

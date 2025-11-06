@@ -7,13 +7,13 @@ This module tests:
 - Prefix functionality
 - Large data handling
 """
+
 import numpy as np
 import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
 import asebytes
-
 
 # =============================================================================
 # Edge cases for to_bytes and from_bytes
@@ -108,7 +108,11 @@ def test_atoms_with_empty_calc_results():
 
     # Empty calc results means no calc keys in byte_data, so calc won't be set
     # In fast mode, _calc attribute may not be set at all
-    assert not hasattr(recovered, "_calc") or recovered.calc is None or len(recovered.calc.results) == 0
+    assert (
+        not hasattr(recovered, "_calc")
+        or recovered.calc is None
+        or len(recovered.calc.results) == 0
+    )
 
 
 def test_atoms_with_empty_string_in_info():
@@ -372,7 +376,9 @@ def test_aseio_get_only_required_keys(tmp_path):
     io[0] = atoms
 
     # Get only required keys (cell, pbc, numbers, positions)
-    recovered = io.get(0, keys=[b"cell", b"pbc", b"arrays.numbers", b"arrays.positions"])
+    recovered = io.get(
+        0, keys=[b"cell", b"pbc", b"arrays.numbers", b"arrays.positions"]
+    )
     assert len(recovered) == 1
     assert "extra" not in recovered.info
 

@@ -1,4 +1,5 @@
 """Tests for constraint serialization and deserialization."""
+
 import numpy as np
 import pytest
 from ase import Atoms

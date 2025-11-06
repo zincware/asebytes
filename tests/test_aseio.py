@@ -101,8 +101,8 @@ def test_get_with_info_keys(io, ethanol):
 
 def test_get_with_calc_keys(io, ethanol):
     # Test that get() includes requested calc keys
-    from ase.calculators.singlepoint import SinglePointCalculator
     import numpy as np
+    from ase.calculators.singlepoint import SinglePointCalculator
 
     atoms = ethanol[0].copy()
     atoms.calc = SinglePointCalculator(atoms)

@@ -32,7 +32,9 @@ def from_bytes(data: dict[bytes, bytes], fast: bool = True) -> ase.Atoms:
     pbc_bytes = msgpack.unpackb(data[b"pbc"])
     numbers_array = msgpack.unpackb(data[b"arrays.numbers"], object_hook=m.decode)
 
-    pbc_array = np.frombuffer(pbc_bytes, dtype=np.bool).reshape(3,)
+    pbc_array = np.frombuffer(pbc_bytes, dtype=np.bool).reshape(
+        3,
+    )
 
     if fast:
         #  Skip Atoms.__init__() and directly assign attributes for better performance
@@ -40,16 +42,14 @@ def from_bytes(data: dict[bytes, bytes], fast: bool = True) -> ase.Atoms:
 
         atoms._cellobj = Cell(cell_array)
         atoms._pbc = pbc_array
-        atoms.arrays = {'numbers': numbers_array}
+        atoms.arrays = {"numbers": numbers_array}
         atoms.info = {}
         atoms.constraints = []
         atoms._celldisp = np.zeros(3)
         atoms._calc = None
     else:
         # Use standard Atoms constructor
-        atoms = ase.Atoms(
-            numbers=numbers_array, cell=cell_array, pbc=pbc_array
-        )
+        atoms = ase.Atoms(numbers=numbers_array, cell=cell_array, pbc=pbc_array)
 
     for key in data:
         if key in [b"cell", b"pbc", b"arrays.numbers"]:

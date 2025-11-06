@@ -19,6 +19,7 @@ class ASEIO(MutableSequence):
     prefix : bytes, default=b""
         Key prefix for namespacing entries.
     """
+
     def __init__(self, file: str, prefix: bytes = b""):
         self.io = BytesIO(file, prefix)
 
@@ -119,6 +120,7 @@ class BytesIO(MutableSequence):
     prefix : bytes, default=b""
         Key prefix for namespacing entries.
     """
+
     def __init__(self, file: str, prefix: bytes = b""):
         self.file = file
         self.prefix = prefix
@@ -208,7 +210,9 @@ class BytesIO(MutableSequence):
         # Deserialize the list of keys (stored as newline-separated bytes)
         return metadata_bytes.split(b"\n") if metadata_bytes else []
 
-    def _set_field_keys_metadata(self, txn, sort_key: int, field_keys: list[bytes]) -> None:
+    def _set_field_keys_metadata(
+        self, txn, sort_key: int, field_keys: list[bytes]
+    ) -> None:
         """
         Store field keys for a sort key in metadata.
 
@@ -314,7 +318,9 @@ class BytesIO(MutableSequence):
         # Get field keys from metadata
         field_keys = self._get_field_keys_metadata(txn, sort_key)
         if field_keys is None:
-            raise KeyError(f"Metadata not found for index {index} (sort_key {sort_key})")
+            raise KeyError(
+                f"Metadata not found for index {index} (sort_key {sort_key})"
+            )
 
         # Build full keys with prefix
         keys_to_fetch = [prefix + field_key for field_key in field_keys]

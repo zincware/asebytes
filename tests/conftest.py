@@ -60,9 +60,12 @@ def empty_atoms() -> ase.Atoms:
 @pytest.fixture
 def atoms_with_pbc() -> ase.Atoms:
     """Return Atoms object with periodic boundary conditions."""
-    atoms = ase.Atoms("H", positions=[[0, 0, 0]],
-                     cell=[[10, 0, 0], [0, 10, 0], [0, 0, 10]],
-                     pbc=[True, True, False])
+    atoms = ase.Atoms(
+        "H",
+        positions=[[0, 0, 0]],
+        cell=[[10, 0, 0], [0, 10, 0], [0, 0, 10]],
+        pbc=[True, True, False],
+    )
     return atoms
 
 
@@ -81,6 +84,7 @@ def atoms_with_constraints() -> ase.Atoms:
 def bytesio_instance(tmp_path):
     """Return a BytesIO instance for testing."""
     import asebytes
+
     return asebytes.BytesIO(str(tmp_path / "test.db"))
 
 
@@ -88,4 +92,5 @@ def bytesio_instance(tmp_path):
 def aseio_instance(tmp_path):
     """Return an ASEIO instance for testing."""
     import asebytes
+
     return asebytes.ASEIO(str(tmp_path / "test.db"))

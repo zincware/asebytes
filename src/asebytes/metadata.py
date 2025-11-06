@@ -70,7 +70,7 @@ def _get_value_metadata(value) -> dict:
     # Special handling for bytes that represent numpy arrays (like pbc)
     # pbc is stored as: msgpack.packb(atoms.get_pbc().tobytes())
     # When unpacked, it's bytes that can be converted back to ndarray
-    # TODO: remove this check and just store cell as pbc as well. 
+    # TODO: remove this check and just store cell as pbc as well.
     # saving the shape info here can not be that expensive?!
     if isinstance(value, bytes):
         # Try to interpret as numpy bool array (pbc case)
