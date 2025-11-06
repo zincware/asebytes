@@ -1,13 +1,14 @@
-# BytesIO Fractional Indexing Implementation Plan
+# BytesIO Counter-Based Indexing Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Fix failing tests and optimize BytesIO for 100M+ item datasets by introducing fractional indexing with LMDB-stored mapping. Eliminates expensive data shifts while maintaining fast O(log n) random access.
+**Goal:** Fix failing tests and optimize BytesIO for 100M+ item datasets by introducing counter-based indexing with LMDB-stored mapping. Eliminates expensive data shifts while maintaining fast O(log n) random access.
 
 **Architecture:**
-- Store logical index → sort key mapping: `{prefix}__idx__{logical_index}` → `{sort_key}`
-- Store data with sort key prefix: `{prefix}{sort_key}-{field}` → `{data}`
+- Store logical index → sort key mapping: `{prefix}__idx__{logical_index}` → `{sort_key_int}`
+- Store data with sort key prefix: `{prefix}{sort_key_int}-{field}` → `{data}`
 - Store count metadata: `{prefix}__meta__count` for O(1) length
+- Store next sort key counter: `{prefix}__meta__next_sort_key` for unique ID generation
 - Insert/delete only updates mapping (no data shifts)
 - LMDB memory-maps the mapping, so scales to billions of items
 
@@ -18,6 +19,7 @@
 - Extend(n): O(n) - just write data and mappings
 - Insert: O(log n) + O(fields) - one mapping update, no data shifts
 - Delete: O(log n) + O(fields) - remove mapping, lazy data cleanup
+- Iteration: O(n log n) - lookup mapping for each item (acceptable tradeoff)
 - Memory: LMDB pages loaded on-demand (~4KB pages)
 
 ---
@@ -89,24 +91,32 @@ git commit -m "fix: remove existing keys in __setitem__ before overwrite
 Add new test in `tests/test_bytesio.py` after test_iter:
 
 ```python
-def test_fractional_mapping(io):
+def test_counter_mapping(io):
     # Test that we can store and retrieve mapping
     # This is an internal test - users won't call these methods directly
     with io.env.begin(write=True) as txn:
-        # Store a mapping
-        io._set_mapping(txn, 0, 0.0)
-        io._set_mapping(txn, 1, 1.0)
+        # Store mappings with integer sort keys
+        io._set_mapping(txn, 0, 100)
+        io._set_mapping(txn, 1, 101)
         io._set_count(txn, 2)
+        io._set_next_sort_key(txn, 102)
 
     with io.env.begin() as txn:
-        assert io._get_mapping(txn, 0) == 0.0
-        assert io._get_mapping(txn, 1) == 1.0
+        assert io._get_mapping(txn, 0) == 100
+        assert io._get_mapping(txn, 1) == 101
         assert io._get_count(txn) == 2
+        assert io._get_next_sort_key(txn) == 102
+
+        # Test allocation
+    with io.env.begin(write=True) as txn:
+        new_key = io._allocate_sort_key(txn)
+        assert new_key == 102
+        assert io._get_next_sort_key(txn) == 103
 ```
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest tests/test_bytesio.py::test_fractional_mapping -v`
+Run: `uv run pytest tests/test_bytesio.py::test_counter_mapping -v`
 
 Expected: `FAILED` with `AttributeError` (methods don't exist yet)
 
@@ -129,65 +139,48 @@ def _set_count(self, txn, count: int) -> None:
     count_key = self.prefix + b"__meta__count"
     txn.put(count_key, str(count).encode())
 
+def _get_next_sort_key(self, txn) -> int:
+    """Get the next available sort key counter. Returns 0 if not set."""
+    key = self.prefix + b"__meta__next_sort_key"
+    value = txn.get(key)
+    if value is None:
+        return 0
+    return int(value.decode())
+
+def _set_next_sort_key(self, txn, value: int) -> None:
+    """Set the next available sort key counter."""
+    key = self.prefix + b"__meta__next_sort_key"
+    txn.put(key, str(value).encode())
+
 # Mapping helpers (logical_index → sort_key)
-def _get_mapping(self, txn, logical_index: int) -> float | None:
+def _get_mapping(self, txn, logical_index: int) -> int | None:
     """Get sort_key for a logical index. Returns None if not found."""
     mapping_key = self.prefix + b"__idx__" + str(logical_index).encode()
     sort_key_bytes = txn.get(mapping_key)
     if sort_key_bytes is None:
         return None
-    return float(sort_key_bytes.decode())
+    return int(sort_key_bytes.decode())
 
-def _set_mapping(self, txn, logical_index: int, sort_key: float) -> None:
+def _set_mapping(self, txn, logical_index: int, sort_key: int) -> None:
     """Set the mapping from logical_index to sort_key."""
     mapping_key = self.prefix + b"__idx__" + str(logical_index).encode()
-    # Use 15 decimal places for precision
-    txn.put(mapping_key, f"{sort_key:.15f}".encode())
+    txn.put(mapping_key, str(sort_key).encode())
 
 def _delete_mapping(self, txn, logical_index: int) -> None:
     """Delete the mapping for a logical index."""
     mapping_key = self.prefix + b"__idx__" + str(logical_index).encode()
     txn.delete(mapping_key)
 
-def _generate_sort_key(self, txn, logical_index: int) -> float:
-    """Generate a sort key for a new item at logical_index.
-
-    For appends, use the logical index as the sort key.
-    For inserts, find the gap and use the midpoint.
-    """
-    current_count = self._get_count(txn)
-
-    # Appending to the end
-    if logical_index >= current_count:
-        return float(logical_index)
-
-    # Inserting in the middle - find adjacent sort keys
-    # Get sort key at insertion point
-    next_sort_key = self._get_mapping(txn, logical_index)
-
-    if logical_index == 0:
-        # Insert at beginning
-        prev_sort_key = next_sort_key - 1.0
-    else:
-        # Insert between prev and next
-        prev_sort_key = self._get_mapping(txn, logical_index - 1)
-
-    # Generate midpoint
-    new_sort_key = (prev_sort_key + next_sort_key) / 2.0
-
-    # Check if we have precision issues
-    if new_sort_key == prev_sort_key or new_sort_key == next_sort_key:
-        raise ValueError(
-            f"Fractional precision exhausted between {prev_sort_key} and {next_sort_key}. "
-            "Reindexing required but not yet implemented."
-        )
-
-    return new_sort_key
+def _allocate_sort_key(self, txn) -> int:
+    """Allocate a new unique sort key by incrementing the counter."""
+    next_key = self._get_next_sort_key(txn)
+    self._set_next_sort_key(txn, next_key + 1)
+    return next_key
 ```
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest tests/test_bytesio.py::test_fractional_mapping -v`
+Run: `uv run pytest tests/test_bytesio.py::test_counter_mapping -v`
 
 Expected output: `PASSED`
 
@@ -195,17 +188,17 @@ Expected output: `PASSED`
 
 ```bash
 git add src/asebytes/io.py tests/test_bytesio.py
-git commit -m "feat: add fractional indexing infrastructure
+git commit -m "feat: add counter-based indexing infrastructure
 
-- Add metadata helpers for count tracking
-- Add mapping helpers for logical_index → sort_key
-- Add sort key generation with midpoint strategy
+- Add metadata helpers for count and next_sort_key tracking
+- Add mapping helpers for logical_index → sort_key (integer)
+- Add _allocate_sort_key for unique ID generation
 - Foundation for eliminating data shifts on insert/delete"
 ```
 
 ---
 
-## Task 3: Update `__setitem__` to Use Fractional Indexing
+## Task 3: Update `__setitem__` to Use Counter-Based Indexing
 
 **Files:**
 - Modify: `src/asebytes/io.py:18-22` (already modified in Task 1)
@@ -216,7 +209,7 @@ Run: `uv run pytest tests/test_bytesio.py::test_set_overwrite -v`
 
 Expected output: `PASSED`
 
-**Step 2: Update __setitem__ to use sort keys**
+**Step 2: Update __setitem__ to use counter-based sort keys**
 
 Replace the `__setitem__` method completely:
 
@@ -225,18 +218,18 @@ def __setitem__(self, index: int, data: dict[bytes, bytes]) -> None:
     with self.env.begin(write=True) as txn:
         current_count = self._get_count(txn)
 
-        # Get or create sort key for this index
+        # Get or allocate sort key for this index
         sort_key = self._get_mapping(txn, index)
         is_new_index = sort_key is None
 
         if is_new_index:
-            # Generate new sort key
-            sort_key = self._generate_sort_key(txn, index)
+            # Allocate new unique sort key
+            sort_key = self._allocate_sort_key(txn)
             self._set_mapping(txn, index, sort_key)
 
         # Delete existing data keys with this sort key
         cursor = txn.cursor()
-        sort_key_str = f"{sort_key:.15f}".encode()
+        sort_key_str = str(sort_key).encode()
         prefix = self.prefix + sort_key_str + b"-"
         keys_to_delete = []
 
@@ -268,17 +261,17 @@ Expected output: Both `PASSED`
 
 ```bash
 git add src/asebytes/io.py
-git commit -m "refactor: update __setitem__ to use fractional indexing
+git commit -m "refactor: update __setitem__ to use counter-based indexing
 
-- Use mapping to get/create sort keys
-- Store data with sort_key prefix instead of logical index
+- Use mapping to get/allocate sort keys
+- Store data with integer sort_key prefix
 - Maintains backward compatibility with existing tests
 - Preparation for shift-free insert/delete"
 ```
 
 ---
 
-## Task 4: Update `__getitem__` to Use Fractional Indexing
+## Task 4: Update `__getitem__` to Use Counter-Based Indexing
 
 **Files:**
 - Modify: `src/asebytes/io.py:24-34`
@@ -289,7 +282,7 @@ Run: `uv run pytest tests/test_bytesio.py::test_set_get -v`
 
 Expected output: `PASSED`
 
-**Step 2: Update __getitem__ to use sort keys**
+**Step 2: Update __getitem__ to use counter-based sort keys**
 
 Replace the `__getitem__` method:
 
@@ -305,7 +298,7 @@ def __getitem__(self, index: int) -> dict[bytes, bytes]:
         # Scan for all data keys with this sort key prefix
         result = {}
         cursor = txn.cursor()
-        sort_key_str = f"{sort_key:.15f}".encode()
+        sort_key_str = str(sort_key).encode()
         prefix = self.prefix + sort_key_str + b"-"
 
         if cursor.set_range(prefix):
@@ -329,10 +322,10 @@ Expected output: `PASSED`
 
 ```bash
 git add src/asebytes/io.py
-git commit -m "refactor: update __getitem__ to use fractional indexing
+git commit -m "refactor: update __getitem__ to use counter-based indexing
 
 - Lookup mapping to get sort key
-- Range scan with sort_key prefix to get data
+- Range scan with integer sort_key prefix to get data
 - Maintains O(log n) + O(fields) access time
 - All basic tests still passing"
 ```
@@ -431,7 +424,7 @@ def __delitem__(self, key: int) -> None:
         # Optionally delete the data keys (lazy deletion strategy)
         # For now, we'll delete them to keep the database clean
         cursor = txn.cursor()
-        sort_key_str = f"{sort_key:.15f}".encode()
+        sort_key_str = str(sort_key).encode()
         prefix = self.prefix + sort_key_str + b"-"
         keys_to_delete = []
 
@@ -458,10 +451,10 @@ Expected output: `PASSED`
 
 ```bash
 git add src/asebytes/io.py
-git commit -m "feat: implement shift-free __delitem__ with fractional indexing
+git commit -m "feat: implement shift-free __delitem__ with counter-based indexing
 
 - Only shift mappings (lightweight), not data keys
-- Data keys stay in place with their sort keys
+- Data keys stay in place with their integer sort keys
 - O(items_after) mapping updates, no data movement
 - Fixes test_delete
 - Major performance win for large datasets"
@@ -514,12 +507,12 @@ def insert(self, index: int, input: dict[bytes, bytes]) -> None:
             new_index = old_index + 1
             self._set_mapping(txn, new_index, sk)
 
-        # Generate sort key for the new item
-        sort_key = self._generate_sort_key(txn, index)
+        # Allocate a new sort key for the new item
+        sort_key = self._allocate_sort_key(txn)
         self._set_mapping(txn, index, sort_key)
 
         # Write the new data with sort key prefix
-        sort_key_str = f"{sort_key:.15f}".encode()
+        sort_key_str = str(sort_key).encode()
         for key, value in input.items():
             txn.put(self.prefix + sort_key_str + b"-" + key, value)
 
@@ -537,10 +530,10 @@ Expected output: `PASSED`
 
 ```bash
 git add src/asebytes/io.py
-git commit -m "feat: implement shift-free insert with fractional indexing
+git commit -m "feat: implement shift-free insert with counter-based indexing
 
 - Only shift mappings (lightweight), not data keys
-- Generate fractional sort key in the gap
+- Allocate unique integer sort key from counter
 - Data keys written once with sort key prefix
 - O(items_after) mapping updates, no data movement
 - Fixes test_insert
@@ -549,7 +542,7 @@ git commit -m "feat: implement shift-free insert with fractional indexing
 
 ---
 
-## Task 8: Update `__iter__` to Use Fractional Indexing
+## Task 8: Update `__iter__` to Use Counter-Based Indexing
 
 **Files:**
 - Modify: `src/asebytes/io.py:84-86`
@@ -585,9 +578,9 @@ git add src/asebytes/io.py
 git commit -m "refactor: update __iter__ to use logical indices
 
 - Iterate through logical indices 0 to count-1
-- Each __getitem__ call uses mapping lookup
+- Each __getitem__ call uses mapping lookup (O(log n) each)
 - Maintains sequential iteration behavior
-- Compatible with fractional indexing"
+- Compatible with counter-based indexing"
 ```
 
 ---
@@ -603,7 +596,7 @@ Expected output: All 26+ tests should `PASSED`, including:
 - `test_delete` ✓
 - `test_insert` ✓
 - `test_len` ✓ (now O(1))
-- `test_fractional_mapping` ✓
+- `test_counter_mapping` ✓
 - All other existing tests ✓
 
 **Step 2: Write performance comparison test**
@@ -703,9 +696,9 @@ git commit -m "test: add performance tests for fractional indexing
 3. ✓ `insert` works correctly without data corruption
 
 **Architecture Changes:**
-1. ✓ Fractional indexing eliminates data shifts on insert/delete
+1. ✓ Counter-based indexing eliminates data shifts on insert/delete
 2. ✓ Logical index → sort key mapping stored in LMDB
-3. ✓ Data keys use sort key prefix for stable storage
+3. ✓ Data keys use integer sort key prefix for stable storage
 4. ✓ LMDB memory-mapping scales to 100M+ items
 
 **Performance Improvements:**
@@ -714,17 +707,18 @@ git commit -m "test: add performance tests for fractional indexing
 3. ✓ `insert`: O(n·m data shifts) → O(n mapping updates)
 4. ✓ Random access: O(1) → O(log n) but no data copies
 5. ✓ Extend: Still O(n) for n items
+6. ✓ Iteration: O(n log n) via mapping lookups (acceptable tradeoff)
 
 **Trade-offs:**
 - Random access slightly slower (O(log n) vs O(1)) but acceptable for the gains
-- Occasional reindexing needed when fractional precision exhausted (rare)
-- Slightly more LMDB space for mapping storage (~8 bytes per item)
+- Iteration is O(n log n) instead of O(n) but much simpler than fractional approach
+- Slightly more LMDB space for mapping storage (~8-16 bytes per item)
 
 **Future Optimization Opportunities:**
-- Implement reindexing when fractional precision exhausted
 - Use `Cursor.putmulti()` for bulk operations in `extend()`
 - Add lazy data cleanup option for deleted items
 - Add background compaction job for unreferenced data keys
+- Consider batch operations for insert/delete of multiple items
 
 ---
 
@@ -732,7 +726,7 @@ git commit -m "test: add performance tests for fractional indexing
 
 - All modifications maintain backward compatibility with existing API
 - Metadata keys use `__meta__` prefix, mapping keys use `__idx__` prefix
-- Fractional sort keys use 15 decimal places for precision
+- Sort keys are simple incrementing integers
 - Mapping updates are lightweight (8-16 bytes per index shift)
 - Data keys never move once written (stable sort key prefix)
 - All operations remain ACID-compliant within LMDB transactions
