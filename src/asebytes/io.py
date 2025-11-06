@@ -180,19 +180,8 @@ class BytesIO(MutableSequence):
             yield self[i]
     
     def __len__(self) -> int:
-        count = 0
         with self.env.begin() as txn:
-            cursor = txn.cursor()
-            prefix = self.prefix
-            if cursor.first():
-                for key, value in cursor:
-                    if not key.startswith(prefix):
-                        continue
-                    index_str = key[len(prefix):].split(b"-", 1)[0]
-                    index = int(index_str)
-                    if index + 1 > count:
-                        count = index + 1
-        return count
+            return self._get_count(txn)
     
 
 
