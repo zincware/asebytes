@@ -1,5 +1,32 @@
 from collections.abc import MutableSequence
+from typing import Iterator
 import lmdb
+from asebytes.to_bytes import to_bytes
+from asebytes.from_bytes import from_bytes
+import ase
+
+class ASEIO(MutableSequence):
+    def __init__(self, file: str, prefix: bytes = b""):
+        self.io = BytesIO(file, prefix)
+
+    def __getitem__(self, index: int) -> ase.Atoms:
+        data = self.io[index]
+        return from_bytes(data)
+    def __setitem__(self, index: int, value: ase.Atoms) -> None:
+        data = to_bytes(value)
+        self.io[index] = data
+    def __delitem__(self, index: int) -> None:
+        del self.io[index]
+    def insert(self, index: int, value: ase.Atoms) -> None:
+        data = to_bytes(value)
+        self.io.insert(index, data)
+    def __len__(self) -> int:
+        return len(self.io)
+    
+    def __iter__(self) -> Iterator:
+        for i in range(len(self)):
+            yield self[i]
+
 
 class BytesIO(MutableSequence):
     def __init__(self, file: str, prefix: bytes = b""):
