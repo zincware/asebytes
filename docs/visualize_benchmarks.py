@@ -27,14 +27,16 @@ def load_benchmark_results(json_path: str) -> dict:
 
 def parse_benchmarks(data: dict) -> dict:
     """Parse benchmark data into organized structure."""
-    results = {"read": {}, "write": {}}
+    results = {"read": {}, "write": {}, "random_access": {}}
 
     for benchmark in data["benchmarks"]:
         name = benchmark["name"]
         stats = benchmark["stats"]
 
         # Extract backend type and operation
-        if "read" in name:
+        if "random_access" in name:
+            operation = "random_access"
+        elif "read" in name:
             operation = "read"
         elif "write" in name:
             operation = "write"
@@ -78,7 +80,11 @@ def create_comparison_figure(
         output_path: Path to save the figure
         use_log_scale: If True, use log scale for y-axis (better for wide range of values)
     """
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+    # Check if we have random_access data
+    has_random_access = bool(results.get("random_access"))
+    num_panels = 4 if has_random_access else 3
+
+    fig, axes = plt.subplots(1, num_panels, figsize=(20 if has_random_access else 16, 5))
     fig.suptitle(
         "ASE Atoms Storage Backend Performance Comparison\n1000 Ethanol Molecules",
         fontsize=14,
@@ -150,8 +156,37 @@ def create_comparison_figure(
         for i, (mean, std) in enumerate(zip(means, stds)):
             ax.text(i, mean + std, f"{mean:.3f}s", ha="center", va="bottom", fontsize=9)
 
-    # 3. Per-molecule Time (right)
-    ax = axes[2]
+    # 3. Random Access Performance (if available)
+    if has_random_access:
+        ax = axes[2]
+        random_data = results["random_access"]
+        backends = list(random_data.keys())
+        means = [random_data[b]["mean"] for b in backends]
+        stds = [random_data[b]["stddev"] for b in backends]
+
+        x = np.arange(len(backends))
+        bars = ax.bar(
+            x, means, yerr=stds, capsize=5, alpha=0.8, color=[colors[b] for b in backends]
+        )
+
+        ax.set_ylabel("Time / s", fontweight="bold")
+        ax.set_title("Random Access Performance", fontweight="bold")
+        ax.set_xticks(x)
+        ax.set_xticklabels(backends, rotation=15, ha="right")
+        ax.grid(axis="y", alpha=0.3)
+
+        if use_log_scale:
+            ax.set_yscale("log")
+            # Add value labels on bars for log scale
+            for i, mean in enumerate(means):
+                ax.text(i, mean, f"{mean:.3f}s", ha="center", va="bottom", fontsize=9)
+        else:
+            # Add value labels on bars
+            for i, (mean, std) in enumerate(zip(means, stds)):
+                ax.text(i, mean + std, f"{mean:.3f}s", ha="center", va="bottom", fontsize=9)
+
+    # 4. Per-molecule Time (right)
+    ax = axes[3 if has_random_access else 2]
 
     num_molecules = 1000
     write_backends = list(write_data.keys())
@@ -195,8 +230,15 @@ def create_detailed_stats_table(results: dict):
     print("DETAILED BENCHMARK STATISTICS")
     print("=" * 100)
 
-    for operation in ["write", "read"]:
-        print(f"\n{operation.upper()} PERFORMANCE:")
+    operations = ["write", "read"]
+    if results.get("random_access"):
+        operations.append("random_access")
+
+    for operation in operations:
+        if operation not in results or not results[operation]:
+            continue
+
+        print(f"\n{operation.upper().replace('_', ' ')} PERFORMANCE:")
         print("-" * 100)
         print(
             f"{'Backend':<20} {'Mean (s)':<12} {'StdDev (s)':<12} {'Min (s)':<12} "
@@ -217,9 +259,16 @@ def create_detailed_stats_table(results: dict):
     if "ASEIO" in results["write"] and "ASEIO" in results["read"]:
         aseio_write = results["write"]["ASEIO"]["mean"]
         aseio_read = results["read"]["ASEIO"]["mean"]
+        has_random = results.get("random_access") and "ASEIO" in results["random_access"]
+        aseio_random = results["random_access"]["ASEIO"]["mean"] if has_random else None
 
-        print(f"{'Backend':<20} {'Write Speedup':<20} {'Read Speedup':<20}")
-        print("-" * 60)
+        # Print header based on available data
+        if has_random:
+            print(f"{'Backend':<20} {'Write Speedup':<20} {'Read Speedup':<20} {'Random Access Speedup':<25}")
+            print("-" * 85)
+        else:
+            print(f"{'Backend':<20} {'Write Speedup':<20} {'Read Speedup':<20}")
+            print("-" * 60)
 
         for backend in results["write"].keys():
             if backend != "ASEIO":
@@ -229,7 +278,12 @@ def create_detailed_stats_table(results: dict):
                 write_str = f"{write_speedup:.2f}x {'(slower)' if write_speedup > 1 else '(faster)'}"
                 read_str = f"{read_speedup:.2f}x {'(slower)' if read_speedup > 1 else '(faster)'}"
 
-                print(f"{backend:<20} {write_str:<20} {read_str:<20}")
+                if has_random and backend in results["random_access"]:
+                    random_speedup = results["random_access"][backend]["mean"] / aseio_random
+                    random_str = f"{random_speedup:.2f}x {'(slower)' if random_speedup > 1 else '(faster)'}"
+                    print(f"{backend:<20} {write_str:<20} {read_str:<20} {random_str:<25}")
+                else:
+                    print(f"{backend:<20} {write_str:<20} {read_str:<20}")
 
     print("=" * 100 + "\n")
 
