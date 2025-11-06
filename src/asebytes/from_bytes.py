@@ -55,7 +55,13 @@ def from_bytes(data: dict[bytes, bytes], fast: bool = True) -> ase.Atoms:
             calc_key = key.decode().split("calc.")[1]
             calc_array = msgpack.unpackb(data[key], object_hook=m.decode)
             atoms.calc.results[calc_key] = calc_array
-
+        elif key == b"constraints":
+            constraints_data = msgpack.unpackb(data[key], object_hook=m.decode)
+            constraints = []
+            for constraint_dict in constraints_data:
+                constraint = ase.constraints.dict2constraint(constraint_dict)
+                constraints.append(constraint)
+            atoms.set_constraint(constraints)
         else:
             raise ValueError(f"Unknown key in data: {key}")
 

@@ -36,4 +36,13 @@ def to_bytes(atoms: ase.Atoms) -> dict[bytes, bytes]:
             value = atoms.calc.results[key]
             data[f"calc.{key}".encode()] = msgpack.packb(value, default=m.encode)
 
+    # Serialize constraints
+    if atoms.constraints:
+        constraints_data = []
+        for constraint in atoms.constraints:
+            if isinstance(constraint, ase.constraints.FixConstraint):
+                constraints_data.append(constraint.todict())
+        if constraints_data:
+            data[b"constraints"] = msgpack.packb(constraints_data, default=m.encode)
+
     return data
