@@ -3,23 +3,19 @@ import msgpack
 import msgpack_numpy as m
 import numpy as np
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.cell import Cell
 
 
 def from_bytes(data: dict[bytes, bytes]) -> ase.Atoms:
-    cell_bytes = msgpack.unpackb(data[b"cell"])
+    cell_array = msgpack.unpackb(data[b"cell"], object_hook=m.decode)
     pbc_bytes = msgpack.unpackb(data[b"pbc"])
     numbers_array = msgpack.unpackb(data[b"arrays.numbers"], object_hook=m.decode)
 
-    cell_array = np.frombuffer(cell_bytes, dtype=np.float64).reshape(
-        6,
-    )
     pbc_array = np.frombuffer(pbc_bytes, dtype=np.bool).reshape(
         3,
     )
 
     atoms = ase.Atoms(
-        numbers=numbers_array, cell=Cell.fromcellpar(cell_array), pbc=pbc_array
+        numbers=numbers_array, cell=cell_array, pbc=pbc_array
     )
 
     for key in data:

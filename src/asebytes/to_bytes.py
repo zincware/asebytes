@@ -8,8 +8,8 @@ def to_bytes(atoms: ase.Atoms) -> dict[bytes, bytes]:
     if not isinstance(atoms, ase.Atoms):
         raise TypeError("Input must be an ase.Atoms object.")
     data: dict[bytes, bytes] = {}
-    cell: np.ndarray = atoms.get_cell().cellpar()
-    data[b"cell"] = msgpack.packb(cell.tobytes())
+    cell: np.ndarray = atoms.get_cell().array
+    data[b"cell"] = msgpack.packb(cell, default=m.encode)
     data[b"pbc"] = msgpack.packb(atoms.get_pbc().tobytes())
 
     for key in atoms.arrays:
