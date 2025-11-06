@@ -11,10 +11,10 @@ def test_round_trip(ethanol):
     assert byte_data.keys() == {
         b"cell",
         b"pbc",
-        b"arrays:numbers",
-        b"arrays:positions",
-        b"info:smiles",
-        b"info:connectivity",
+        b"arrays.numbers",
+        b"arrays.positions",
+        b"info.smiles",
+        b"info.connectivity",
     }
     recovered_atoms = asebytes.from_bytes(byte_data)
     assert atoms == recovered_atoms
@@ -35,7 +35,7 @@ def test_info_numpy_array(ethanol, value):
     atoms = ethanol[0]
     atoms.info["data"] = value
     byte_data = asebytes.to_bytes(atoms)
-    assert b"info:data" in byte_data
+    assert b"info.data" in byte_data
     recovered_atoms = asebytes.from_bytes(byte_data)
     assert np.array_equal(atoms.info["data"], recovered_atoms.info["data"])
 
@@ -56,7 +56,7 @@ def test_info_python_type(ethanol, value):
     atoms = ethanol[0]
     atoms.info["data"] = value
     byte_data = asebytes.to_bytes(atoms)
-    assert b"info:data" in byte_data
+    assert b"info.data" in byte_data
     recovered_atoms = asebytes.from_bytes(byte_data)
     assert atoms.info["data"] == recovered_atoms.info["data"]
 
@@ -78,7 +78,7 @@ def test_info_nested_numpy_array(ethanol, value):
     atoms = ethanol[0]
     atoms.info["data"] = value
     byte_data = asebytes.to_bytes(atoms)
-    assert b"info:data" in byte_data
+    assert b"info.data" in byte_data
     recovered_atoms = asebytes.from_bytes(byte_data)
     assert np.array_equal(
         atoms.info["data"]["array1"], recovered_atoms.info["data"]["array1"]
@@ -107,7 +107,7 @@ def test_calc_results(ethanol, value):
     atoms.calc.results = value
     byte_data = asebytes.to_bytes(atoms)
     for key in value:
-        assert f"calc:{key}".encode() in byte_data
+        assert f"calc.{key}".encode() in byte_data
     recovered_atoms = asebytes.from_bytes(byte_data)
     assert atoms.calc.results.keys() == recovered_atoms.calc.results.keys()
     for key in atoms.calc.results:
@@ -117,3 +117,44 @@ def test_calc_results(ethanol, value):
             assert np.array_equal(original, recovered)
         else:
             assert original == recovered
+
+
+def test_info_key_with_dot_raises_error(ethanol):
+    atoms = ethanol[0]
+    atoms.info["invalid.key"] = "some value"
+    with pytest.raises(
+        ValueError,
+        match="Key 'invalid.key' in atoms.info contains a dot \\(\\.\\), which is not allowed",
+    ):
+        asebytes.to_bytes(atoms)
+
+
+def test_arrays_key_with_dot_raises_error(ethanol):
+    atoms = ethanol[0]
+    atoms.arrays["invalid.array"] = np.array([1, 2, 3])
+    with pytest.raises(
+        ValueError,
+        match="Key 'invalid.array' in atoms.arrays contains a dot \\(\\.\\), which is not allowed",
+    ):
+        asebytes.to_bytes(atoms)
+
+
+def test_calc_results_key_with_dot_raises_error(ethanol):
+    atoms = ethanol[0]
+    atoms.calc = SinglePointCalculator(atoms)
+    atoms.calc.results["invalid.result"] = 42.0
+    with pytest.raises(
+        ValueError,
+        match="Key 'invalid.result' in atoms.calc.results contains a dot \\(\\.\\), which is not allowed",
+    ):
+        asebytes.to_bytes(atoms)
+
+
+def test_nested_dict_with_dot_in_key(ethanol):
+    atoms = ethanol[0]
+    atoms.info["data"] = {"nested.key": "value", "valid_key": "another value"}
+    # The nested dictionary's keys should be allowed to have dots
+    # Only the top-level keys are restricted
+    byte_data = asebytes.to_bytes(atoms)
+    recovered_atoms = asebytes.from_bytes(byte_data)
+    assert atoms.info["data"] == recovered_atoms.info["data"]
