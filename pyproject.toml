@@ -17,9 +17,22 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "ase-db-backends>=0.10.0",
     "ipykernel>=7.1.0",
     "matplotlib>=3.10.7",
     "molify>=0.0.1a0",
     "pandas>=2.3.3",
     "pytest>=8.4.2",
+    "pytest-benchmark>=5.2.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = ["-v", "--strict-markers", "-m", "not benchmark"]
+
+markers = [
+    "benchmark: marks tests as benchmark tests (deselect with '-m \"not benchmark\"')",
 ]
