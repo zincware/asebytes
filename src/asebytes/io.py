@@ -27,6 +27,21 @@ class ASEIO(MutableSequence):
         data = to_bytes(value)
         self.io.insert(index, data)
 
+    def extend(self, values: list[ase.Atoms]) -> None:
+        """Efficiently extend with multiple Atoms objects using bulk operations.
+
+        This method serializes all Atoms objects first, then calls BytesIO.extend()
+        which performs a single bulk transaction. This is much faster than calling
+        append() in a loop, which creates one transaction per item.
+
+        Args:
+            values: List of ase.Atoms objects to append
+        """
+        # Serialize all atoms objects first
+        serialized_data = [to_bytes(atoms) for atoms in values]
+        # Use BytesIO's bulk extend (single transaction)
+        self.io.extend(serialized_data)
+
     def __len__(self) -> int:
         return len(self.io)
 
