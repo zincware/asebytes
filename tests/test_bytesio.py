@@ -142,3 +142,29 @@ def test_get_nonexistent_index(io):
     # Test that get() raises KeyError for non-existent index
     with pytest.raises(KeyError, match="Index 0 not found"):
         io.get(0)
+
+
+def test_get_available_keys(io, ethanol):
+    # Test that get_available_keys() returns all keys for an index
+    io[0] = asebytes.to_bytes(ethanol[0])
+    keys = io.get_available_keys(0)
+    assert b"cell" in keys
+    assert b"pbc" in keys
+    assert b"arrays.positions" in keys
+    assert b"arrays.numbers" in keys
+    assert b"info.smiles" in keys
+    assert b"info.connectivity" in keys
+
+
+def test_get_available_keys_nonexistent_index(io):
+    # Test that get_available_keys() raises KeyError for non-existent index
+    with pytest.raises(KeyError, match="Index 0 not found"):
+        io.get_available_keys(0)
+
+
+def test_get_available_keys_empty_data(io):
+    # Test with minimal atoms data
+    minimal_data = {b"cell": b"test", b"pbc": b"test"}
+    io[0] = minimal_data
+    keys = io.get_available_keys(0)
+    assert keys == [b"cell", b"pbc"]

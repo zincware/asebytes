@@ -34,6 +34,20 @@ class ASEIO(MutableSequence):
         for i in range(len(self)):
             yield self[i]
 
+    def get_available_keys(self, index: int) -> list[bytes]:
+        """Get list of all available keys for a given index.
+
+        Args:
+            index: The logical index to query
+
+        Returns:
+            List of available keys at the index
+
+        Raises:
+            KeyError: If the index does not exist
+        """
+        return self.io.get_available_keys(index)
+
     def get(self, index: int, keys: list[bytes] | None = None) -> ase.Atoms:
         """Get Atoms object at index, optionally filtering to specific keys.
 
@@ -159,29 +173,71 @@ class BytesIO(MutableSequence):
             if is_new_index and index >= current_count:
                 self._set_count(txn, index + 1)
 
+    def _get_full_keys(self, txn, index: int) -> tuple[int, bytes, list[bytes]]:
+        """Internal method to get sort key, prefix, and all full keys for an index.
+
+        Args:
+            txn: LMDB transaction
+            index: The logical index to query
+
+        Returns:
+            Tuple of (sort_key, prefix, list of full keys including prefix)
+
+        Raises:
+            KeyError: If the index does not exist
+        """
+        # Look up the sort key for this logical index
+        sort_key = self._get_mapping(txn, index)
+
+        if sort_key is None:
+            raise KeyError(f"Index {index} not found")
+
+        # Build prefix and scan for all keys
+        sort_key_str = str(sort_key).encode()
+        prefix = self.prefix + sort_key_str + b"-"
+
+        keys_to_fetch = []
+        cursor = txn.cursor()
+        if cursor.set_range(prefix):
+            for key, _ in cursor:
+                if not key.startswith(prefix):
+                    break
+                keys_to_fetch.append(key)
+
+        return sort_key, prefix, keys_to_fetch
+
     def __getitem__(self, index: int) -> dict[bytes, bytes]:
         with self.env.begin() as txn:
-            # Look up the sort key for this logical index
-            sort_key = self._get_mapping(txn, index)
+            sort_key, prefix, keys_to_fetch = self._get_full_keys(txn, index)
 
-            if sort_key is None:
-                raise KeyError(f"Index {index} not found")
-
-            # Scan for all data keys with this sort key prefix
+            # Use getmulti for efficient batch retrieval
             result = {}
-            cursor = txn.cursor()
-            sort_key_str = str(sort_key).encode()
-            prefix = self.prefix + sort_key_str + b"-"
-
-            if cursor.set_range(prefix):
-                for key, value in cursor:
-                    if not key.startswith(prefix):
-                        break
+            if keys_to_fetch:
+                cursor = txn.cursor()
+                for key, value in cursor.getmulti(keys_to_fetch):
                     # Extract the field name after the sort_key prefix
                     field_name = key[len(prefix) :]
                     result[field_name] = value
 
             return result
+
+    def get_available_keys(self, index: int) -> list[bytes]:
+        """Get list of all available keys for a given index.
+
+        Args:
+            index: The logical index to query
+
+        Returns:
+            List of available keys at the index
+
+        Raises:
+            KeyError: If the index does not exist
+        """
+        with self.env.begin() as txn:
+            _, prefix, keys_to_fetch = self._get_full_keys(txn, index)
+
+            # Extract field names from full keys
+            return [key[len(prefix) :] for key in keys_to_fetch]
 
     def get(self, index: int, keys: list[bytes] | None = None) -> dict[bytes, bytes]:
         """Get data at index, optionally filtering to specific keys.
@@ -198,31 +254,24 @@ class BytesIO(MutableSequence):
             KeyError: If the index does not exist
         """
         with self.env.begin() as txn:
-            # Look up the sort key for this logical index
-            sort_key = self._get_mapping(txn, index)
+            _, prefix, keys_to_fetch = self._get_full_keys(txn, index)
 
-            if sort_key is None:
-                raise KeyError(f"Index {index} not found")
+            # Filter keys if requested
+            if keys is not None:
+                keys_set = set(keys)
+                # Filter to only the requested keys
+                keys_to_fetch = [
+                    k for k in keys_to_fetch if k[len(prefix) :] in keys_set
+                ]
 
-            # Scan for all data keys with this sort key prefix
+            # Use getmulti for efficient batch retrieval
             result = {}
-            cursor = txn.cursor()
-            sort_key_str = str(sort_key).encode()
-            prefix = self.prefix + sort_key_str + b"-"
-
-            # Convert keys to a set for fast lookup
-            keys_set = set(keys) if keys is not None else None
-
-            if cursor.set_range(prefix):
-                for key, value in cursor:
-                    if not key.startswith(prefix):
-                        break
+            if keys_to_fetch:
+                cursor = txn.cursor()
+                for key, value in cursor.getmulti(keys_to_fetch):
                     # Extract the field name after the sort_key prefix
                     field_name = key[len(prefix) :]
-
-                    # If keys filter is specified, only include requested keys
-                    if keys_set is None or field_name in keys_set:
-                        result[field_name] = value
+                    result[field_name] = value
 
             return result
 
