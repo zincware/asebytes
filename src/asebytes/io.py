@@ -4,8 +4,8 @@ from typing import Iterator
 import ase
 import lmdb
 
-from asebytes.from_bytes import from_bytes
-from asebytes.to_bytes import to_bytes
+from asebytes.decode import decode
+from asebytes.encode import encode
 
 
 class ASEIO(MutableSequence):
@@ -25,17 +25,17 @@ class ASEIO(MutableSequence):
 
     def __getitem__(self, index: int) -> ase.Atoms:
         data = self.io[index]
-        return from_bytes(data)
+        return decode(data)
 
     def __setitem__(self, index: int, value: ase.Atoms) -> None:
-        data = to_bytes(value)
+        data = encode(value)
         self.io[index] = data
 
     def __delitem__(self, index: int) -> None:
         del self.io[index]
 
     def insert(self, index: int, value: ase.Atoms) -> None:
-        data = to_bytes(value)
+        data = encode(value)
         self.io.insert(index, data)
 
     def extend(self, values: list[ase.Atoms]) -> None:
@@ -51,7 +51,7 @@ class ASEIO(MutableSequence):
             Atoms objects to append.
         """
         # Serialize all atoms objects first
-        serialized_data = [to_bytes(atoms) for atoms in values]
+        serialized_data = [encode(atoms) for atoms in values]
         # Use BytesIO's bulk extend (single transaction)
         self.io.extend(serialized_data)
 
@@ -106,7 +106,7 @@ class ASEIO(MutableSequence):
             If the index does not exist.
         """
         data = self.io.get(index, keys=keys)
-        return from_bytes(data)
+        return decode(data)
 
 
 class BytesIO(MutableSequence):

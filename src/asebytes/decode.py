@@ -6,7 +6,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from ase.cell import Cell
 
 
-def from_bytes(data: dict[bytes, bytes], fast: bool = True) -> ase.Atoms:
+def decode(data: dict[bytes, bytes], fast: bool = True) -> ase.Atoms:
     """
     Deserialize bytes into an ASE Atoms object.
 

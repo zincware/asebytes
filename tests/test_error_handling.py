@@ -15,45 +15,45 @@ from ase.calculators.singlepoint import SinglePointCalculator
 import asebytes
 
 # =============================================================================
-# Tests for to_bytes errors
+# Tests for encode errors
 # =============================================================================
 
 
-def test_to_bytes_with_non_atoms_string_raises_typeerror():
-    """Test that to_bytes raises TypeError for string input."""
+def test_encode_with_non_atoms_string_raises_typeerror():
+    """Test that encode raises TypeError for string input."""
     with pytest.raises(TypeError, match="Input must be an ase.Atoms object"):
-        asebytes.to_bytes("not an atoms object")
+        asebytes.encode("not an atoms object")
 
 
-def test_to_bytes_with_dict_raises_typeerror():
-    """Test that to_bytes raises TypeError for dict input."""
+def test_encode_with_dict_raises_typeerror():
+    """Test that encode raises TypeError for dict input."""
     with pytest.raises(TypeError, match="Input must be an ase.Atoms object"):
-        asebytes.to_bytes({"positions": [[0, 0, 0]]})
+        asebytes.encode({"positions": [[0, 0, 0]]})
 
 
-def test_to_bytes_with_list_raises_typeerror():
-    """Test that to_bytes raises TypeError for list input."""
+def test_encode_with_list_raises_typeerror():
+    """Test that encode raises TypeError for list input."""
     with pytest.raises(TypeError, match="Input must be an ase.Atoms object"):
-        asebytes.to_bytes([1, 2, 3])
+        asebytes.encode([1, 2, 3])
 
 
-def test_to_bytes_with_none_raises_typeerror():
-    """Test that to_bytes raises TypeError for None input."""
+def test_encode_with_none_raises_typeerror():
+    """Test that encode raises TypeError for None input."""
     with pytest.raises(TypeError, match="Input must be an ase.Atoms object"):
-        asebytes.to_bytes(None)
+        asebytes.encode(None)
 
 
-def test_to_bytes_with_numpy_array_raises_typeerror():
-    """Test that to_bytes raises TypeError for numpy array input."""
+def test_encode_with_numpy_array_raises_typeerror():
+    """Test that encode raises TypeError for numpy array input."""
     arr = np.array([[0, 0, 0], [1, 1, 1]])
     with pytest.raises(TypeError, match="Input must be an ase.Atoms object"):
-        asebytes.to_bytes(arr)
+        asebytes.encode(arr)
 
 
-def test_to_bytes_with_integer_raises_typeerror():
-    """Test that to_bytes raises TypeError for integer input."""
+def test_encode_with_integer_raises_typeerror():
+    """Test that encode raises TypeError for integer input."""
     with pytest.raises(TypeError, match="Input must be an ase.Atoms object"):
-        asebytes.to_bytes(42)
+        asebytes.encode(42)
 
 
 def test_arrays_key_with_dot_in_middle_raises_valueerror():
@@ -64,7 +64,7 @@ def test_arrays_key_with_dot_in_middle_raises_valueerror():
         ValueError,
         match="Key 'my\\.array\\.data' in atoms\\.arrays contains a dot",
     ):
-        asebytes.to_bytes(atoms)
+        asebytes.encode(atoms)
 
 
 def test_info_key_with_multiple_dots_raises_valueerror():
@@ -74,7 +74,7 @@ def test_info_key_with_multiple_dots_raises_valueerror():
     with pytest.raises(
         ValueError, match="Key 'a\\.b\\.c' in atoms\\.info contains a dot"
     ):
-        asebytes.to_bytes(atoms)
+        asebytes.encode(atoms)
 
 
 def test_calc_results_key_with_dot_raises_valueerror():
@@ -86,25 +86,25 @@ def test_calc_results_key_with_dot_raises_valueerror():
         ValueError,
         match="Key 'invalid\\.energy' in atoms\\.calc\\.results contains a dot",
     ):
-        asebytes.to_bytes(atoms)
+        asebytes.encode(atoms)
 
 
 # =============================================================================
-# Tests for from_bytes errors
+# Tests for decode errors
 # =============================================================================
 
 
-def test_from_bytes_missing_cell_raises_keyerror():
+def test_decode_missing_cell_raises_keyerror():
     """Test that missing cell key raises KeyError."""
     data = {
         b"pbc": b"test",
         b"arrays.numbers": b"test",
     }
     with pytest.raises(KeyError, match="b'cell'"):
-        asebytes.from_bytes(data)
+        asebytes.decode(data)
 
 
-def test_from_bytes_missing_pbc_raises_keyerror():
+def test_decode_missing_pbc_raises_keyerror():
     """Test that missing pbc key raises KeyError."""
     import msgpack
     import msgpack_numpy as m
@@ -114,10 +114,10 @@ def test_from_bytes_missing_pbc_raises_keyerror():
         b"arrays.numbers": msgpack.packb(np.array([1]), default=m.encode),
     }
     with pytest.raises(KeyError, match="b'pbc'"):
-        asebytes.from_bytes(data)
+        asebytes.decode(data)
 
 
-def test_from_bytes_missing_numbers_raises_keyerror():
+def test_decode_missing_numbers_raises_keyerror():
     """Test that missing arrays.numbers key raises KeyError."""
     import msgpack
     import msgpack_numpy as m
@@ -127,39 +127,39 @@ def test_from_bytes_missing_numbers_raises_keyerror():
         b"pbc": msgpack.packb(np.array([True, True, True]).tobytes()),
     }
     with pytest.raises(KeyError, match="b'arrays.numbers'"):
-        asebytes.from_bytes(data)
+        asebytes.decode(data)
 
 
-def test_from_bytes_with_unknown_key_raises_valueerror():
+def test_decode_with_unknown_key_raises_valueerror():
     """Test that unknown top-level keys raise ValueError."""
     import msgpack
     import msgpack_numpy as m
 
     atoms = Atoms("H", positions=[[0, 0, 0]])
-    data = asebytes.to_bytes(atoms)
+    data = asebytes.encode(atoms)
     # Add an unknown key
     data[b"unknown_key"] = msgpack.packb("value", default=m.encode)
 
     with pytest.raises(ValueError, match="Unknown key in data: b'unknown_key'"):
-        asebytes.from_bytes(data)
+        asebytes.decode(data)
 
 
-def test_from_bytes_with_invalid_prefix_raises_valueerror():
+def test_decode_with_invalid_prefix_raises_valueerror():
     """Test that keys with invalid prefixes raise ValueError."""
     import msgpack
     import msgpack_numpy as m
 
     atoms = Atoms("H", positions=[[0, 0, 0]])
-    data = asebytes.to_bytes(atoms)
+    data = asebytes.encode(atoms)
     # Add a key with invalid prefix
     data[b"invalid.prefix.key"] = msgpack.packb("value", default=m.encode)
 
     with pytest.raises(ValueError, match="Unknown key in data"):
-        asebytes.from_bytes(data)
+        asebytes.decode(data)
 
 
 @pytest.mark.parametrize("fast", [True, False])
-def test_from_bytes_missing_required_keys_both_modes(fast):
+def test_decode_missing_required_keys_both_modes(fast):
     """Test that missing required keys raise errors in both fast modes."""
     import msgpack
     import msgpack_numpy as m
@@ -170,7 +170,7 @@ def test_from_bytes_missing_required_keys_both_modes(fast):
         # Missing arrays.numbers
     }
     with pytest.raises(KeyError):
-        asebytes.from_bytes(data, fast=fast)
+        asebytes.decode(data, fast=fast)
 
 
 # =============================================================================

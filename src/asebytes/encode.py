@@ -4,7 +4,7 @@ import msgpack_numpy as m
 import numpy as np
 
 
-def to_bytes(atoms: ase.Atoms) -> dict[bytes, bytes]:
+def encode(atoms: ase.Atoms) -> dict[bytes, bytes]:
     """
     Serialize an ASE Atoms object into a dictionary of bytes.
 

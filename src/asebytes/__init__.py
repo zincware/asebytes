@@ -1,10 +1,10 @@
 import importlib.metadata
 
-from .from_bytes import from_bytes
+from .decode import decode
 from .io import ASEIO, BytesIO
 from .metadata import get_metadata
-from .to_bytes import to_bytes
+from .encode import encode
 
-__all__ = ["to_bytes", "from_bytes", "BytesIO", "ASEIO", "get_metadata"]
+__all__ = ["encode", "decode", "BytesIO", "ASEIO", "get_metadata"]
 
 __version__ = importlib.metadata.version("asebytes")

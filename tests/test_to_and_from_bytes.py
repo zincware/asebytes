@@ -7,7 +7,7 @@ import asebytes
 
 def test_round_trip(ethanol):
     atoms = ethanol[0]
-    byte_data = asebytes.to_bytes(atoms)
+    byte_data = asebytes.encode(atoms)
     assert byte_data.keys() == {
         b"cell",
         b"pbc",
@@ -16,7 +16,7 @@ def test_round_trip(ethanol):
         b"info.smiles",
         b"info.connectivity",
     }
-    recovered_atoms = asebytes.from_bytes(byte_data)
+    recovered_atoms = asebytes.decode(byte_data)
     assert atoms == recovered_atoms
 
 
@@ -34,9 +34,9 @@ def test_round_trip(ethanol):
 def test_info_numpy_array(ethanol, value):
     atoms = ethanol[0]
     atoms.info["data"] = value
-    byte_data = asebytes.to_bytes(atoms)
+    byte_data = asebytes.encode(atoms)
     assert b"info.data" in byte_data
-    recovered_atoms = asebytes.from_bytes(byte_data)
+    recovered_atoms = asebytes.decode(byte_data)
     assert np.array_equal(atoms.info["data"], recovered_atoms.info["data"])
 
 
@@ -55,9 +55,9 @@ def test_info_numpy_array(ethanol, value):
 def test_info_python_type(ethanol, value):
     atoms = ethanol[0]
     atoms.info["data"] = value
-    byte_data = asebytes.to_bytes(atoms)
+    byte_data = asebytes.encode(atoms)
     assert b"info.data" in byte_data
-    recovered_atoms = asebytes.from_bytes(byte_data)
+    recovered_atoms = asebytes.decode(byte_data)
     assert atoms.info["data"] == recovered_atoms.info["data"]
 
 
@@ -77,9 +77,9 @@ def test_info_python_type(ethanol, value):
 def test_info_nested_numpy_array(ethanol, value):
     atoms = ethanol[0]
     atoms.info["data"] = value
-    byte_data = asebytes.to_bytes(atoms)
+    byte_data = asebytes.encode(atoms)
     assert b"info.data" in byte_data
-    recovered_atoms = asebytes.from_bytes(byte_data)
+    recovered_atoms = asebytes.decode(byte_data)
     assert np.array_equal(
         atoms.info["data"]["array1"], recovered_atoms.info["data"]["array1"]
     )
@@ -105,10 +105,10 @@ def test_calc_results(ethanol, value):
     atoms = ethanol[0]
     atoms.calc = SinglePointCalculator(atoms)
     atoms.calc.results = value
-    byte_data = asebytes.to_bytes(atoms)
+    byte_data = asebytes.encode(atoms)
     for key in value:
         assert f"calc.{key}".encode() in byte_data
-    recovered_atoms = asebytes.from_bytes(byte_data)
+    recovered_atoms = asebytes.decode(byte_data)
     assert atoms.calc.results.keys() == recovered_atoms.calc.results.keys()
     for key in atoms.calc.results:
         original = atoms.calc.results[key]
@@ -126,7 +126,7 @@ def test_info_key_with_dot_raises_error(ethanol):
         ValueError,
         match="Key 'invalid.key' in atoms.info contains a dot \\(\\.\\), which is not allowed",
     ):
-        asebytes.to_bytes(atoms)
+        asebytes.encode(atoms)
 
 
 def test_arrays_key_with_dot_raises_error(ethanol):
@@ -136,7 +136,7 @@ def test_arrays_key_with_dot_raises_error(ethanol):
         ValueError,
         match="Key 'invalid.array' in atoms.arrays contains a dot \\(\\.\\), which is not allowed",
     ):
-        asebytes.to_bytes(atoms)
+        asebytes.encode(atoms)
 
 
 def test_calc_results_key_with_dot_raises_error(ethanol):
@@ -147,7 +147,7 @@ def test_calc_results_key_with_dot_raises_error(ethanol):
         ValueError,
         match="Key 'invalid.result' in atoms.calc.results contains a dot \\(\\.\\), which is not allowed",
     ):
-        asebytes.to_bytes(atoms)
+        asebytes.encode(atoms)
 
 
 def test_nested_dict_with_dot_in_key(ethanol):
@@ -155,8 +155,8 @@ def test_nested_dict_with_dot_in_key(ethanol):
     atoms.info["data"] = {"nested.key": "value", "valid_key": "another value"}
     # The nested dictionary's keys should be allowed to have dots
     # Only the top-level keys are restricted
-    byte_data = asebytes.to_bytes(atoms)
-    recovered_atoms = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered_atoms = asebytes.decode(byte_data)
     assert atoms.info["data"] == recovered_atoms.info["data"]
 
 
@@ -167,8 +167,8 @@ def test_calc_is_none_after_round_trip(ethanol):
     assert atoms.calc is None
 
     # Round trip
-    byte_data = asebytes.to_bytes(atoms)
-    recovered_atoms = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered_atoms = asebytes.decode(byte_data)
 
     # Verify calc is still None after round trip
     assert recovered_atoms.calc is None

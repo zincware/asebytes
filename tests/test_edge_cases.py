@@ -16,15 +16,15 @@ from ase.calculators.singlepoint import SinglePointCalculator
 import asebytes
 
 # =============================================================================
-# Edge cases for to_bytes and from_bytes
+# Edge cases for encode and decode
 # =============================================================================
 
 
 def test_empty_atoms_roundtrip():
     """Test serialization of empty Atoms object (no atoms)."""
     atoms = Atoms()
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert len(recovered) == 0
     assert len(recovered.arrays["numbers"]) == 0
@@ -33,8 +33,8 @@ def test_empty_atoms_roundtrip():
 def test_single_atom_roundtrip():
     """Test serialization of single atom."""
     atoms = Atoms("H", positions=[[0, 0, 0]])
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert len(recovered) == 1
     assert recovered.get_chemical_symbols() == ["H"]
@@ -44,8 +44,8 @@ def test_atoms_with_empty_info_roundtrip():
     """Test atoms with no info dictionary entries."""
     atoms = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
     atoms.info = {}
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert len(recovered.info) == 0
 
@@ -53,8 +53,8 @@ def test_atoms_with_empty_info_roundtrip():
 def test_atoms_with_nan_in_positions():
     """Test atoms with NaN in positions array."""
     atoms = Atoms("H", positions=[[np.nan, 0, 0]])
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert np.isnan(recovered.positions[0, 0])
 
@@ -62,8 +62,8 @@ def test_atoms_with_nan_in_positions():
 def test_atoms_with_inf_in_positions():
     """Test atoms with infinity in positions array."""
     atoms = Atoms("H2", positions=[[np.inf, 0, 0], [0, -np.inf, 0]])
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert np.isinf(recovered.positions[0, 0])
     assert np.isinf(recovered.positions[1, 1])
@@ -72,8 +72,8 @@ def test_atoms_with_inf_in_positions():
 def test_atoms_with_zero_cell():
     """Test atoms with zero-sized cell."""
     atoms = Atoms("H", positions=[[0, 0, 0]], cell=[[0, 0, 0], [0, 0, 0], [0, 0, 0]])
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert np.allclose(recovered.cell, 0)
 
@@ -81,8 +81,8 @@ def test_atoms_with_zero_cell():
 def test_atoms_with_mixed_pbc():
     """Test atoms with mixed periodic boundary conditions."""
     atoms = Atoms("H", positions=[[0, 0, 0]], pbc=[True, False, True])
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert list(recovered.pbc) == [True, False, True]
 
@@ -91,8 +91,8 @@ def test_atoms_with_no_calc():
     """Test atoms explicitly without calculator."""
     atoms = Atoms("H", positions=[[0, 0, 0]])
     atoms.calc = None
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     # In fast mode, _calc attribute may not be set at all
     assert not hasattr(recovered, "_calc") or recovered.calc is None
@@ -103,8 +103,8 @@ def test_atoms_with_empty_calc_results():
     atoms = Atoms("H", positions=[[0, 0, 0]])
     atoms.calc = SinglePointCalculator(atoms)
     atoms.calc.results = {}
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     # Empty calc results means no calc keys in byte_data, so calc won't be set
     # In fast mode, _calc attribute may not be set at all
@@ -119,8 +119,8 @@ def test_atoms_with_empty_string_in_info():
     """Test atoms with empty string value in info."""
     atoms = Atoms("H", positions=[[0, 0, 0]])
     atoms.info["empty"] = ""
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert recovered.info["empty"] == ""
 
@@ -130,8 +130,8 @@ def test_atoms_with_zero_in_info():
     atoms = Atoms("H", positions=[[0, 0, 0]])
     atoms.info["zero_int"] = 0
     atoms.info["zero_float"] = 0.0
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert recovered.info["zero_int"] == 0
     assert recovered.info["zero_float"] == 0.0
@@ -141,8 +141,8 @@ def test_atoms_with_very_large_numbers():
     """Test atoms with very large atomic numbers."""
     atoms = Atoms(numbers=[118, 118])  # Oganesson
     atoms.positions = [[0, 0, 0], [1, 1, 1]]
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert list(recovered.get_atomic_numbers()) == [118, 118]
 
@@ -151,8 +151,8 @@ def test_atoms_with_very_large_numbers():
 def test_minimal_atoms_both_modes(fast):
     """Test minimal atoms object in both fast modes."""
     atoms = Atoms("H")
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data, fast=fast)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data, fast=fast)
 
     assert len(recovered) == 1
 
@@ -363,7 +363,7 @@ def test_aseio_get_with_empty_keys_list(tmp_path):
     atoms = Atoms("H", positions=[[0, 0, 0]])
     io[0] = atoms
 
-    # With empty keys list, from_bytes will fail because required keys are missing
+    # With empty keys list, decode will fail because required keys are missing
     with pytest.raises(KeyError):
         io.get(0, keys=[])
 

@@ -9,65 +9,65 @@ def io(tmp_path):
 
 
 def test_set_get(io, ethanol):
-    io[0] = asebytes.to_bytes(ethanol[0])
+    io[0] = asebytes.encode(ethanol[0])
     data = io[0]
-    atoms = asebytes.from_bytes(data)
+    atoms = asebytes.decode(data)
     assert atoms == ethanol[0]
 
 
 def test_set_overwrite(io, ethanol):
     atoms = ethanol[0]
     atoms.info["test"] = 1
-    io[0] = asebytes.to_bytes(atoms)
+    io[0] = asebytes.encode(atoms)
     # overwrite with different info
-    io[0] = asebytes.to_bytes(ethanol[1])
-    atoms = asebytes.from_bytes(io[0])
+    io[0] = asebytes.encode(ethanol[1])
+    atoms = asebytes.decode(io[0])
     assert "test" not in atoms.info
 
 
 def test_len(io, ethanol):
     for i, atom in enumerate(ethanol):
-        io[i] = asebytes.to_bytes(atom)
+        io[i] = asebytes.encode(atom)
     assert len(io) == len(ethanol)
 
 
 def test_append(io, ethanol):
     for atom in ethanol:
-        io[len(io)] = asebytes.to_bytes(atom)
+        io[len(io)] = asebytes.encode(atom)
     assert len(io) == len(ethanol)
 
 
 def test_extend(io, ethanol):
-    batch = [asebytes.to_bytes(atom) for atom in ethanol]
+    batch = [asebytes.encode(atom) for atom in ethanol]
     io.extend(batch)
     assert len(io) == len(ethanol)
 
 
 def test_delete(io, ethanol):
     for i, atom in enumerate(ethanol):
-        io[i] = asebytes.to_bytes(atom)
+        io[i] = asebytes.encode(atom)
     del io[1]
     assert len(io) == len(ethanol) - 1
-    atoms = [asebytes.from_bytes(io[i]) for i in range(len(io))]
+    atoms = [asebytes.decode(io[i]) for i in range(len(io))]
     expected = [ethanol[0]] + ethanol[2:]
     assert atoms == expected
 
 
 def test_insert(io, ethanol):
     for i, atom in enumerate(ethanol):
-        io[i] = asebytes.to_bytes(atom)
-    new_atom = asebytes.to_bytes(ethanol[0])
+        io[i] = asebytes.encode(atom)
+    new_atom = asebytes.encode(ethanol[0])
     io.insert(1, new_atom)
     assert len(io) == len(ethanol) + 1
-    atoms = [asebytes.from_bytes(io[i]) for i in range(len(io))]
+    atoms = [asebytes.decode(io[i]) for i in range(len(io))]
     expected = [ethanol[0], ethanol[0]] + ethanol[1:]
     assert atoms == expected
 
 
 def test_iter(io, ethanol):
     for i, atom in enumerate(ethanol):
-        io[i] = asebytes.to_bytes(atom)
-    atoms = [asebytes.from_bytes(data) for data in io]
+        io[i] = asebytes.encode(atom)
+    atoms = [asebytes.decode(data) for data in io]
     assert atoms == list(ethanol)
 
 
@@ -96,7 +96,7 @@ def test_counter_mapping(io):
 
 def test_get_all_keys(io, ethanol):
     # Test that get() without keys parameter returns all data (same as __getitem__)
-    io[0] = asebytes.to_bytes(ethanol[0])
+    io[0] = asebytes.encode(ethanol[0])
     data_from_getitem = io[0]
     data_from_get = io.get(0)
     assert data_from_get == data_from_getitem
@@ -107,7 +107,7 @@ def test_get_all_keys(io, ethanol):
 
 def test_get_specific_keys(io, ethanol):
     # Test that get() with keys parameter returns only requested keys
-    io[0] = asebytes.to_bytes(ethanol[0])
+    io[0] = asebytes.encode(ethanol[0])
     data = io.get(0, keys=[b"cell", b"arrays.positions"])
     assert data.keys() == {b"cell", b"arrays.positions"}
     assert b"pbc" not in data
@@ -116,7 +116,7 @@ def test_get_specific_keys(io, ethanol):
 
 def test_get_single_key(io, ethanol):
     # Test that get() with a single key works
-    io[0] = asebytes.to_bytes(ethanol[0])
+    io[0] = asebytes.encode(ethanol[0])
     data = io.get(0, keys=[b"cell"])
     assert data.keys() == {b"cell"}
     assert b"pbc" not in data
@@ -124,7 +124,7 @@ def test_get_single_key(io, ethanol):
 
 def test_get_nonexistent_key(io, ethanol):
     # Test that get() with non-existent keys returns empty dict for those keys
-    io[0] = asebytes.to_bytes(ethanol[0])
+    io[0] = asebytes.encode(ethanol[0])
     data = io.get(0, keys=[b"cell", b"nonexistent.key"])
     assert b"cell" in data
     assert b"nonexistent.key" not in data
@@ -133,7 +133,7 @@ def test_get_nonexistent_key(io, ethanol):
 
 def test_get_empty_keys_list(io, ethanol):
     # Test that get() with empty keys list returns empty dict
-    io[0] = asebytes.to_bytes(ethanol[0])
+    io[0] = asebytes.encode(ethanol[0])
     data = io.get(0, keys=[])
     assert data == {}
 
@@ -146,7 +146,7 @@ def test_get_nonexistent_index(io):
 
 def test_get_available_keys(io, ethanol):
     # Test that get_available_keys() returns all keys for an index
-    io[0] = asebytes.to_bytes(ethanol[0])
+    io[0] = asebytes.encode(ethanol[0])
     keys = io.get_available_keys(0)
     assert b"cell" in keys
     assert b"pbc" in keys

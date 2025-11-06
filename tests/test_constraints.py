@@ -20,10 +20,10 @@ def test_fix_atoms_constraint_roundtrip():
     constraint = FixAtoms(indices=[0, 2])
     atoms.set_constraint(constraint)
 
-    byte_data = asebytes.to_bytes(atoms)
+    byte_data = asebytes.encode(atoms)
     assert b"constraints" in byte_data
 
-    recovered = asebytes.from_bytes(byte_data)
+    recovered = asebytes.decode(byte_data)
     assert len(recovered.constraints) == 1
     assert isinstance(recovered.constraints[0], FixAtoms)
     assert list(recovered.constraints[0].index) == [0, 2]
@@ -35,8 +35,8 @@ def test_fix_bond_length_constraint_roundtrip():
     constraint = FixBondLength(0, 1)
     atoms.set_constraint(constraint)
 
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert len(recovered.constraints) == 1
     assert isinstance(recovered.constraints[0], FixBondLengths)
@@ -49,8 +49,8 @@ def test_fixed_line_constraint_roundtrip():
     constraint = FixedLine(0, direction=[1, 0, 0])
     atoms.set_constraint(constraint)
 
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert len(recovered.constraints) == 1
     assert isinstance(recovered.constraints[0], FixedLine)
@@ -64,8 +64,8 @@ def test_fixed_plane_constraint_roundtrip():
     constraint = FixedPlane(0, direction=[0, 0, 1])
     atoms.set_constraint(constraint)
 
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert len(recovered.constraints) == 1
     assert isinstance(recovered.constraints[0], FixedPlane)
@@ -82,8 +82,8 @@ def test_multiple_constraints_roundtrip():
     ]
     atoms.set_constraint(constraints)
 
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert len(recovered.constraints) == 2
     assert isinstance(recovered.constraints[0], FixAtoms)
@@ -99,8 +99,8 @@ def test_constraints_with_fast_mode(fast):
     constraint = FixAtoms(indices=[0, 2])
     atoms.set_constraint(constraint)
 
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data, fast=fast)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data, fast=fast)
 
     assert len(recovered.constraints) == 1
     assert isinstance(recovered.constraints[0], FixAtoms)
@@ -117,8 +117,8 @@ def test_constraint_with_other_data_roundtrip():
     constraint = FixAtoms(indices=[0])
     atoms.set_constraint(constraint)
 
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert recovered.info["energy"] == -10.5
     np.testing.assert_array_equal(recovered.arrays["forces"], atoms.arrays["forces"])
@@ -132,7 +132,7 @@ def test_empty_constraints_list():
     atoms = Atoms("H2O", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
     atoms.set_constraint([])
 
-    byte_data = asebytes.to_bytes(atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms)
+    recovered = asebytes.decode(byte_data)
 
     assert len(recovered.constraints) == 0

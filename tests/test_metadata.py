@@ -8,7 +8,7 @@ import asebytes
 def test_get_metadata_basic_structure(ethanol):
     """Test get_metadata returns correct structure for basic atom data."""
     atoms = ethanol[0]
-    byte_data = asebytes.to_bytes(atoms)
+    byte_data = asebytes.encode(atoms)
 
     metadata = asebytes.get_metadata(byte_data)
 
@@ -42,7 +42,7 @@ def test_get_metadata_python_primitives(ethanol):
     atoms.info["bool_val"] = True
     atoms.info["none_val"] = None
 
-    byte_data = asebytes.to_bytes(atoms)
+    byte_data = asebytes.encode(atoms)
     metadata = asebytes.get_metadata(byte_data)
 
     assert metadata["info.string_val"] == {"type": "str"}
@@ -58,7 +58,7 @@ def test_get_metadata_collections(ethanol):
     atoms.info["list_val"] = [1, 2, 3, 4, 5]
     atoms.info["dict_val"] = {"a": 1, "b": [1, 2, 3], "c": {"nested": "dict"}}
 
-    byte_data = asebytes.to_bytes(atoms)
+    byte_data = asebytes.encode(atoms)
     metadata = asebytes.get_metadata(byte_data)
 
     assert metadata["info.list_val"] == {"type": "list"}
@@ -72,7 +72,7 @@ def test_get_metadata_numpy_scalars(ethanol):
     atoms.info["float32_scalar"] = np.float32(2.718)
     atoms.info["int32_scalar"] = np.int32(42)
 
-    byte_data = asebytes.to_bytes(atoms)
+    byte_data = asebytes.encode(atoms)
     metadata = asebytes.get_metadata(byte_data)
 
     assert metadata["info.bool_scalar"] == {"type": "numpy_scalar", "dtype": "bool"}
@@ -92,7 +92,7 @@ def test_get_metadata_numpy_arrays_various_shapes(ethanol):
         [[[1, 2], [3, 4]], [[5, 6], [7, 8]]], dtype=np.int64
     )
 
-    byte_data = asebytes.to_bytes(atoms)
+    byte_data = asebytes.encode(atoms)
     metadata = asebytes.get_metadata(byte_data)
 
     assert metadata["info.array_1d"] == {
@@ -121,7 +121,7 @@ def test_get_metadata_with_calc_results(ethanol):
         "forces": np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]]),
     }
 
-    byte_data = asebytes.to_bytes(atoms)
+    byte_data = asebytes.encode(atoms)
     metadata = asebytes.get_metadata(byte_data)
 
     assert metadata["calc.energy"] == {"type": "float"}
@@ -140,7 +140,7 @@ def test_get_metadata_nested_dict_with_arrays(ethanol):
         "array2": np.array([[5.0, 6.0], [7.0, 8.0]], dtype=np.float64),
     }
 
-    byte_data = asebytes.to_bytes(atoms)
+    byte_data = asebytes.encode(atoms)
     metadata = asebytes.get_metadata(byte_data)
 
     # Should just report as dict, not nested structure

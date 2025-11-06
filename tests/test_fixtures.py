@@ -69,31 +69,31 @@ def test_aseio_instance_fixture(aseio_instance, simple_atoms):
 
 def test_fixture_roundtrip_simple(simple_atoms):
     """Test roundtrip with simple_atoms fixture."""
-    byte_data = asebytes.to_bytes(simple_atoms)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(simple_atoms)
+    recovered = asebytes.decode(byte_data)
     assert recovered == simple_atoms
 
 
 def test_fixture_roundtrip_with_info(atoms_with_info):
     """Test roundtrip with atoms_with_info fixture."""
-    byte_data = asebytes.to_bytes(atoms_with_info)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms_with_info)
+    recovered = asebytes.decode(byte_data)
     assert recovered == atoms_with_info
 
 
 def test_fixture_roundtrip_with_calc(atoms_with_calc):
     """Test roundtrip with atoms_with_calc fixture."""
-    byte_data = asebytes.to_bytes(atoms_with_calc)
-    recovered = asebytes.from_bytes(byte_data)
+    byte_data = asebytes.encode(atoms_with_calc)
+    recovered = asebytes.decode(byte_data)
     assert recovered.calc.results["energy"] == atoms_with_calc.calc.results["energy"]
 
 
 def test_fixture_in_bytesio(bytesio_instance, h2o_atoms):
     """Test using fixture with BytesIO."""
-    byte_data = asebytes.to_bytes(h2o_atoms)
+    byte_data = asebytes.encode(h2o_atoms)
     bytesio_instance[0] = byte_data
     recovered_data = bytesio_instance[0]
-    recovered_atoms = asebytes.from_bytes(recovered_data)
+    recovered_atoms = asebytes.decode(recovered_data)
     assert recovered_atoms == h2o_atoms
 
 
