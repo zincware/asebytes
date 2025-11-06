@@ -1,7 +1,7 @@
 import ase
 import msgpack
-import numpy as np
 import msgpack_numpy as m
+import numpy as np
 
 
 def to_bytes(atoms: ase.Atoms) -> dict[bytes, bytes]:
@@ -18,15 +18,10 @@ def to_bytes(atoms: ase.Atoms) -> dict[bytes, bytes]:
         )
     for key in atoms.info:
         value = atoms.info[key]
-        data[f"info:{key}".encode()] = msgpack.packb(
-            value, default=m.encode
-        )
+        data[f"info:{key}".encode()] = msgpack.packb(value, default=m.encode)
     if atoms.calc is not None:
         for key in atoms.calc.results:
             value = atoms.calc.results[key]
-            data[f"calc:{key}".encode()] = msgpack.packb(
-                value, default=m.encode
-            )
-
+            data[f"calc:{key}".encode()] = msgpack.packb(value, default=m.encode)
 
     return data

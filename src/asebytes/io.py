@@ -1,9 +1,12 @@
 from collections.abc import MutableSequence
 from typing import Iterator
-import lmdb
-from asebytes.to_bytes import to_bytes
-from asebytes.from_bytes import from_bytes
+
 import ase
+import lmdb
+
+from asebytes.from_bytes import from_bytes
+from asebytes.to_bytes import to_bytes
+
 
 class ASEIO(MutableSequence):
     def __init__(self, file: str, prefix: bytes = b""):
@@ -12,17 +15,21 @@ class ASEIO(MutableSequence):
     def __getitem__(self, index: int) -> ase.Atoms:
         data = self.io[index]
         return from_bytes(data)
+
     def __setitem__(self, index: int, value: ase.Atoms) -> None:
         data = to_bytes(value)
         self.io[index] = data
+
     def __delitem__(self, index: int) -> None:
         del self.io[index]
+
     def insert(self, index: int, value: ase.Atoms) -> None:
         data = to_bytes(value)
         self.io.insert(index, data)
+
     def __len__(self) -> int:
         return len(self.io)
-    
+
     def __iter__(self) -> Iterator:
         for i in range(len(self)):
             yield self[i]
@@ -153,11 +160,11 @@ class BytesIO(MutableSequence):
                     if not key.startswith(prefix):
                         break
                     # Extract the field name after the sort_key prefix
-                    field_name = key[len(prefix):]
+                    field_name = key[len(prefix) :]
                     result[field_name] = value
 
             return result
-    
+
     def __delitem__(self, key: int) -> None:
         with self.env.begin(write=True) as txn:
             current_count = self._get_count(txn)
@@ -289,11 +296,7 @@ class BytesIO(MutableSequence):
     def __iter__(self):
         for i in range(len(self)):
             yield self[i]
-    
+
     def __len__(self) -> int:
         with self.env.begin() as txn:
             return self._get_count(txn)
-    
-
-
-    

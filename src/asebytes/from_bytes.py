@@ -1,10 +1,9 @@
 import ase
-from ase.cell import Cell
 import msgpack
 import msgpack_numpy as m
-from ase.calculators.singlepoint import SinglePointCalculator
-
 import numpy as np
+from ase.calculators.singlepoint import SinglePointCalculator
+from ase.cell import Cell
 
 
 def from_bytes(data: dict[bytes, bytes]) -> ase.Atoms:

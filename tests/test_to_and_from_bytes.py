@@ -1,7 +1,9 @@
-import asebytes
 import numpy as np
 import pytest
 from ase.calculators.singlepoint import SinglePointCalculator
+
+import asebytes
+
 
 def test_round_trip(ethanol):
     atoms = ethanol[0]
@@ -16,7 +18,6 @@ def test_round_trip(ethanol):
     }
     recovered_atoms = asebytes.from_bytes(byte_data)
     assert atoms == recovered_atoms
-
 
 
 @pytest.mark.parametrize(
@@ -60,7 +61,6 @@ def test_info_python_type(ethanol, value):
     assert atoms.info["data"] == recovered_atoms.info["data"]
 
 
-
 @pytest.mark.parametrize(
     "value",
     [
@@ -86,6 +86,7 @@ def test_info_nested_numpy_array(ethanol, value):
     assert np.array_equal(
         atoms.info["data"]["array2"], recovered_atoms.info["data"]["array2"]
     )
+
 
 @pytest.mark.parametrize(
     "value",
