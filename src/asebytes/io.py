@@ -104,16 +104,28 @@ class BytesIO(MutableSequence):
                 self._set_count(txn, index + 1)
 
     def __getitem__(self, index: int) -> dict[bytes, bytes]:
-        result = {}
         with self.env.begin() as txn:
+            # Look up the sort key for this logical index
+            sort_key = self._get_mapping(txn, index)
+
+            if sort_key is None:
+                raise KeyError(f"Index {index} not found")
+
+            # Scan for all data keys with this sort key prefix
+            result = {}
             cursor = txn.cursor()
-            prefix = self.prefix + str(index).encode() + b"-"
+            sort_key_str = str(sort_key).encode()
+            prefix = self.prefix + sort_key_str + b"-"
+
             if cursor.set_range(prefix):
                 for key, value in cursor:
                     if not key.startswith(prefix):
                         break
-                    result[key[len(prefix):]] = value
-        return result
+                    # Extract the field name after the sort_key prefix
+                    field_name = key[len(prefix):]
+                    result[field_name] = value
+
+            return result
     
     def __delitem__(self, key: int) -> None:
         with self.env.begin(write=True) as txn:
