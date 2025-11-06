@@ -7,15 +7,26 @@ from ase.cell import Cell
 
 
 def from_bytes(data: dict[bytes, bytes], fast: bool = True) -> ase.Atoms:
-    """Deserialize bytes back into an ASE Atoms object.
+    """
+    Deserialize bytes into an ASE Atoms object.
 
-    Args:
-        data: Dictionary of bytes to deserialize
-        fast: If True, use optimized direct attribute assignment (6x faster).
-              If False, use standard Atoms constructor (safer but slower).
+    Parameters
+    ----------
+    data : dict[bytes, bytes]
+        Dictionary with byte keys and msgpack-serialized byte values.
+    fast : bool, default=True
+        If True, use optimized direct attribute assignment (6x faster).
+        If False, use standard Atoms constructor (safer but slower).
 
-    Returns:
-        ase.Atoms object
+    Returns
+    -------
+    ase.Atoms
+        Reconstructed Atoms object.
+
+    Raises
+    ------
+    ValueError
+        If unknown keys are present in data.
     """
     cell_array = msgpack.unpackb(data[b"cell"], object_hook=m.decode)
     pbc_bytes = msgpack.unpackb(data[b"pbc"])

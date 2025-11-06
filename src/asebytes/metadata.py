@@ -4,14 +4,20 @@ import numpy as np
 
 
 def get_metadata(data: dict[bytes, bytes]) -> dict[str, dict]:
-    """Extract type, shape, and dtype information from serialized data.
+    """
+    Extract type, shape, and dtype information from serialized data.
 
-    Args:
-        data: Dictionary with byte keys and msgpack-serialized byte values
+    Parameters
+    ----------
+    data : dict[bytes, bytes]
+        Dictionary with byte keys and msgpack-serialized byte values.
 
-    Returns:
-        Dictionary mapping decoded string keys to metadata dictionaries.
+    Returns
+    -------
+    dict[str, dict]
+        Mapping of decoded string keys to metadata dictionaries.
         Each metadata dict contains:
+
         - For ndarrays: {"type": "ndarray", "dtype": str, "shape": tuple}
         - For numpy scalars: {"type": "numpy_scalar", "dtype": str}
         - For Python types: {"type": typename} where typename is one of
@@ -33,13 +39,18 @@ def get_metadata(data: dict[bytes, bytes]) -> dict[str, dict]:
 
 
 def _get_value_metadata(value) -> dict:
-    """Extract metadata for a single value.
+    """
+    Extract metadata for a single value.
 
-    Args:
-        value: The deserialized value
+    Parameters
+    ----------
+    value : Any
+        Deserialized value.
 
-    Returns:
-        Dictionary containing type information and additional metadata
+    Returns
+    -------
+    dict
+        Type information and additional metadata.
     """
     # Check for NumPy array
     if isinstance(value, np.ndarray):

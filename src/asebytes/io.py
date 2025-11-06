@@ -9,6 +9,16 @@ from asebytes.to_bytes import to_bytes
 
 
 class ASEIO(MutableSequence):
+    """
+    LMDB-backed mutable sequence for ASE Atoms objects.
+
+    Parameters
+    ----------
+    file : str
+        Path to LMDB database file.
+    prefix : bytes, default=b""
+        Key prefix for namespacing entries.
+    """
     def __init__(self, file: str, prefix: bytes = b""):
         self.io = BytesIO(file, prefix)
 
@@ -28,14 +38,16 @@ class ASEIO(MutableSequence):
         self.io.insert(index, data)
 
     def extend(self, values: list[ase.Atoms]) -> None:
-        """Efficiently extend with multiple Atoms objects using bulk operations.
+        """
+        Efficiently extend with multiple Atoms objects using bulk operations.
 
-        This method serializes all Atoms objects first, then calls BytesIO.extend()
-        which performs a single bulk transaction. This is much faster than calling
-        append() in a loop, which creates one transaction per item.
+        Serializes all Atoms objects first, then performs a single bulk transaction.
+        Much faster than calling append() in a loop.
 
-        Args:
-            values: List of ase.Atoms objects to append
+        Parameters
+        ----------
+        values : list[ase.Atoms]
+            Atoms objects to append.
         """
         # Serialize all atoms objects first
         serialized_data = [to_bytes(atoms) for atoms in values]
@@ -50,39 +62,63 @@ class ASEIO(MutableSequence):
             yield self[i]
 
     def get_available_keys(self, index: int) -> list[bytes]:
-        """Get list of all available keys for a given index.
+        """
+        Get all available keys for a given index.
 
-        Args:
-            index: The logical index to query
+        Parameters
+        ----------
+        index : int
+            Logical index to query.
 
-        Returns:
-            List of available keys at the index
+        Returns
+        -------
+        list[bytes]
+            Available keys at the index.
 
-        Raises:
-            KeyError: If the index does not exist
+        Raises
+        ------
+        KeyError
+            If the index does not exist.
         """
         return self.io.get_available_keys(index)
 
     def get(self, index: int, keys: list[bytes] | None = None) -> ase.Atoms:
-        """Get Atoms object at index, optionally filtering to specific keys.
+        """
+        Get Atoms object at index, optionally filtering to specific keys.
 
-        Args:
-            index: The logical index to retrieve
-            keys: Optional list of keys to retrieve. If None, returns all data.
-                  Keys should be in the format used internally (e.g., b"arrays.positions",
-                  b"info.smiles", b"calc.energy")
+        Parameters
+        ----------
+        index : int
+            Logical index to retrieve.
+        keys : list[bytes], optional
+            Keys to retrieve (e.g., b"arrays.positions", b"info.smiles", b"calc.energy").
+            If None, returns all data.
 
-        Returns:
-            ase.Atoms object reconstructed from the requested keys
+        Returns
+        -------
+        ase.Atoms
+            Atoms object reconstructed from the requested keys.
 
-        Raises:
-            KeyError: If the index does not exist
+        Raises
+        ------
+        KeyError
+            If the index does not exist.
         """
         data = self.io.get(index, keys=keys)
         return from_bytes(data)
 
 
 class BytesIO(MutableSequence):
+    """
+    LMDB-backed mutable sequence for byte dictionaries.
+
+    Parameters
+    ----------
+    file : str
+        Path to LMDB database file.
+    prefix : bytes, default=b""
+        Key prefix for namespacing entries.
+    """
     def __init__(self, file: str, prefix: bytes = b""):
         self.file = file
         self.prefix = prefix
@@ -98,7 +134,7 @@ class BytesIO(MutableSequence):
 
     # Metadata helpers
     def _get_count(self, txn) -> int:
-        """Get the current count from metadata. Returns 0 if not set."""
+        """Get the current count from metadata (returns 0 if not set)."""
         count_key = self.prefix + b"__meta__count"
         count_bytes = txn.get(count_key)
         if count_bytes is None:
@@ -111,7 +147,7 @@ class BytesIO(MutableSequence):
         txn.put(count_key, str(count).encode())
 
     def _get_next_sort_key(self, txn) -> int:
-        """Get the next available sort key counter. Returns 0 if not set."""
+        """Get the next available sort key counter (returns 0 if not set)."""
         key = self.prefix + b"__meta__next_sort_key"
         value = txn.get(key)
         if value is None:
@@ -125,7 +161,7 @@ class BytesIO(MutableSequence):
 
     # Mapping helpers (logical_index → sort_key)
     def _get_mapping(self, txn, logical_index: int) -> int | None:
-        """Get sort_key for a logical index. Returns None if not found."""
+        """Get sort_key for a logical index (returns None if not found)."""
         mapping_key = self.prefix + b"__idx__" + str(logical_index).encode()
         sort_key_bytes = txn.get(mapping_key)
         if sort_key_bytes is None:
@@ -150,14 +186,20 @@ class BytesIO(MutableSequence):
 
     # Metadata helpers for field keys
     def _get_field_keys_metadata(self, txn, sort_key: int) -> list[bytes] | None:
-        """Get the list of field keys for a sort key from metadata.
+        """
+        Get field keys for a sort key from metadata.
 
-        Args:
-            txn: LMDB transaction
-            sort_key: The sort key to query
+        Parameters
+        ----------
+        txn : lmdb.Transaction
+            LMDB transaction.
+        sort_key : int
+            Sort key to query.
 
-        Returns:
-            List of field keys (without prefix) or None if not found
+        Returns
+        -------
+        list[bytes] or None
+            Field keys (without prefix) or None if not found.
         """
         metadata_key = self.prefix + b"__keys__" + str(sort_key).encode()
         metadata_bytes = txn.get(metadata_key)
@@ -167,12 +209,17 @@ class BytesIO(MutableSequence):
         return metadata_bytes.split(b"\n") if metadata_bytes else []
 
     def _set_field_keys_metadata(self, txn, sort_key: int, field_keys: list[bytes]) -> None:
-        """Store the list of field keys for a sort key in metadata.
+        """
+        Store field keys for a sort key in metadata.
 
-        Args:
-            txn: LMDB transaction
-            sort_key: The sort key
-            field_keys: List of field keys (without prefix)
+        Parameters
+        ----------
+        txn : lmdb.Transaction
+            LMDB transaction.
+        sort_key : int
+            Sort key.
+        field_keys : list[bytes]
+            Field keys (without prefix).
         """
         metadata_key = self.prefix + b"__keys__" + str(sort_key).encode()
         # Serialize as newline-separated bytes
@@ -180,11 +227,15 @@ class BytesIO(MutableSequence):
         txn.put(metadata_key, metadata_bytes)
 
     def _delete_field_keys_metadata(self, txn, sort_key: int) -> None:
-        """Delete the field keys metadata for a sort key.
+        """
+        Delete field keys metadata for a sort key.
 
-        Args:
-            txn: LMDB transaction
-            sort_key: The sort key
+        Parameters
+        ----------
+        txn : lmdb.Transaction
+            LMDB transaction.
+        sort_key : int
+            Sort key.
         """
         metadata_key = self.prefix + b"__keys__" + str(sort_key).encode()
         txn.delete(metadata_key)
@@ -230,17 +281,25 @@ class BytesIO(MutableSequence):
                 self._set_count(txn, index + 1)
 
     def _get_full_keys(self, txn, index: int) -> tuple[int, bytes, list[bytes]]:
-        """Internal method to get sort key, prefix, and all full keys for an index.
+        """
+        Get sort key, prefix, and all full keys for an index.
 
-        Args:
-            txn: LMDB transaction
-            index: The logical index to query
+        Parameters
+        ----------
+        txn : lmdb.Transaction
+            LMDB transaction.
+        index : int
+            Logical index to query.
 
-        Returns:
-            Tuple of (sort_key, prefix, list of full keys including prefix)
+        Returns
+        -------
+        tuple[int, bytes, list[bytes]]
+            Tuple of (sort_key, prefix, full keys including prefix).
 
-        Raises:
-            KeyError: If the index does not exist
+        Raises
+        ------
+        KeyError
+            If the index does not exist.
         """
         # Look up the sort key for this logical index
         sort_key = self._get_mapping(txn, index)
@@ -278,16 +337,23 @@ class BytesIO(MutableSequence):
             return result
 
     def get_available_keys(self, index: int) -> list[bytes]:
-        """Get list of all available keys for a given index.
+        """
+        Get all available keys for a given index.
 
-        Args:
-            index: The logical index to query
+        Parameters
+        ----------
+        index : int
+            Logical index to query.
 
-        Returns:
-            List of available keys at the index
+        Returns
+        -------
+        list[bytes]
+            Available keys at the index.
 
-        Raises:
-            KeyError: If the index does not exist
+        Raises
+        ------
+        KeyError
+            If the index does not exist.
         """
         with self.env.begin() as txn:
             _, prefix, keys_to_fetch = self._get_full_keys(txn, index)
@@ -296,18 +362,25 @@ class BytesIO(MutableSequence):
             return [key[len(prefix) :] for key in keys_to_fetch]
 
     def get(self, index: int, keys: list[bytes] | None = None) -> dict[bytes, bytes]:
-        """Get data at index, optionally filtering to specific keys.
+        """
+        Get data at index, optionally filtering to specific keys.
 
-        Args:
-            index: The logical index to retrieve
-            keys: Optional list of keys to retrieve. If None, returns all keys.
+        Parameters
+        ----------
+        index : int
+            Logical index to retrieve.
+        keys : list[bytes], optional
+            Keys to retrieve. If None, returns all keys.
 
-        Returns:
-            Dictionary of key-value pairs. If keys is provided, only those keys
-            that exist in the data are returned.
+        Returns
+        -------
+        dict[bytes, bytes]
+            Key-value pairs. If keys provided, only existing keys are returned.
 
-        Raises:
-            KeyError: If the index does not exist
+        Raises
+        ------
+        KeyError
+            If the index does not exist.
         """
         with self.env.begin() as txn:
             _, prefix, keys_to_fetch = self._get_full_keys(txn, index)
@@ -426,7 +499,14 @@ class BytesIO(MutableSequence):
             self._set_count(txn, current_count + 1)
 
     def extend(self, items: list[dict[bytes, bytes]]) -> None:
-        """Efficiently extend the sequence with multiple items using bulk operations."""
+        """
+        Efficiently extend the sequence with multiple items using bulk operations.
+
+        Parameters
+        ----------
+        items : list[dict[bytes, bytes]]
+            Dictionaries to append.
+        """
         if not items:
             return
 

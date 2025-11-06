@@ -5,6 +5,26 @@ import numpy as np
 
 
 def to_bytes(atoms: ase.Atoms) -> dict[bytes, bytes]:
+    """
+    Serialize an ASE Atoms object into a dictionary of bytes.
+
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        Atoms object to serialize.
+
+    Returns
+    -------
+    dict[bytes, bytes]
+        Dictionary with byte keys and msgpack-serialized byte values.
+
+    Raises
+    ------
+    TypeError
+        If input is not an ase.Atoms object.
+    ValueError
+        If any key in atoms.arrays, atoms.info, or atoms.calc.results contains a dot.
+    """
     if not isinstance(atoms, ase.Atoms):
         raise TypeError("Input must be an ase.Atoms object.")
     data: dict[bytes, bytes] = {}
