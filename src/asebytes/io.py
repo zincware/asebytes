@@ -95,9 +95,13 @@ class BytesIO(MutableSequence):
             for key in keys_to_delete:
                 txn.delete(key)
 
-            # Write new data with sort key prefix
-            for key, value in data.items():
-                txn.put(self.prefix + sort_key_str + b"-" + key, value)
+            # Write new data with sort key prefix using putmulti
+            items_to_insert = [
+                (self.prefix + sort_key_str + b"-" + key, value)
+                for key, value in data.items()
+            ]
+            if items_to_insert:
+                cursor.putmulti(items_to_insert, dupdata=False)
 
             # Update count if needed (when index == current_count, we're appending)
             if is_new_index and index >= current_count:
@@ -210,14 +214,51 @@ class BytesIO(MutableSequence):
             sort_key = self._allocate_sort_key(txn)
             self._set_mapping(txn, index, sort_key)
 
-            # Write the new data with sort key prefix
+            # Write the new data with sort key prefix using putmulti
             sort_key_str = str(sort_key).encode()
-            for key, value in input.items():
-                txn.put(self.prefix + sort_key_str + b"-" + key, value)
+            items_to_insert = [
+                (self.prefix + sort_key_str + b"-" + key, value)
+                for key, value in input.items()
+            ]
+            if items_to_insert:
+                cursor = txn.cursor()
+                cursor.putmulti(items_to_insert, dupdata=False)
 
             # Update count
             self._set_count(txn, current_count + 1)
-    
+
+    def extend(self, items: list[dict[bytes, bytes]]) -> None:
+        """Efficiently extend the sequence with multiple items using bulk operations."""
+        if not items:
+            return
+
+        with self.env.begin(write=True) as txn:
+            current_count = self._get_count(txn)
+
+            # Prepare all items with their mappings and data keys
+            items_to_insert = []
+
+            for idx, item in enumerate(items):
+                logical_index = current_count + idx
+                sort_key = self._allocate_sort_key(txn)
+
+                # Add mapping entry
+                mapping_key = self.prefix + b"__idx__" + str(logical_index).encode()
+                items_to_insert.append((mapping_key, str(sort_key).encode()))
+
+                # Add data entries for each field
+                sort_key_str = str(sort_key).encode()
+                for field_key, field_value in item.items():
+                    data_key = self.prefix + sort_key_str + b"-" + field_key
+                    items_to_insert.append((data_key, field_value))
+
+            # Bulk insert all items
+            cursor = txn.cursor()
+            cursor.putmulti(items_to_insert, dupdata=False)
+
+            # Update count
+            self._set_count(txn, current_count + len(items))
+
     def __iter__(self):
         for i in range(len(self)):
             yield self[i]
