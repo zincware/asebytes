@@ -69,23 +69,39 @@ class BytesIO(MutableSequence):
 
     def __setitem__(self, index: int, data: dict[bytes, bytes]) -> None:
         with self.env.begin(write=True) as txn:
-            # First, remove all existing keys for this index
+            current_count = self._get_count(txn)
+
+            # Get or allocate sort key for this index
+            sort_key = self._get_mapping(txn, index)
+            is_new_index = sort_key is None
+
+            if is_new_index:
+                # Allocate new unique sort key
+                sort_key = self._allocate_sort_key(txn)
+                self._set_mapping(txn, index, sort_key)
+
+            # Delete existing data keys with this sort key
             cursor = txn.cursor()
-            prefix = self.prefix + str(index).encode() + b"-"
+            sort_key_str = str(sort_key).encode()
+            prefix = self.prefix + sort_key_str + b"-"
             keys_to_delete = []
+
             if cursor.set_range(prefix):
                 for key, value in cursor:
                     if not key.startswith(prefix):
                         break
                     keys_to_delete.append(key)
 
-            # Delete all old keys
             for key in keys_to_delete:
                 txn.delete(key)
 
-            # Write new data
+            # Write new data with sort key prefix
             for key, value in data.items():
-                txn.put(self.prefix + str(index).encode() + b"-" + key, value)
+                txn.put(self.prefix + sort_key_str + b"-" + key, value)
+
+            # Update count if needed (when index == current_count, we're appending)
+            if is_new_index and index >= current_count:
+                self._set_count(txn, index + 1)
 
     def __getitem__(self, index: int) -> dict[bytes, bytes]:
         result = {}
