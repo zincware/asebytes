@@ -180,27 +180,43 @@ class BytesIO(MutableSequence):
 
     def insert(self, index: int, input: dict[bytes, bytes]) -> None:
         with self.env.begin(write=True) as txn:
-            # move all items from index to end one position to the right
-            cursor = txn.cursor()
-            keys_to_move = []
-            prefix = self.prefix + str(index).encode() + b"-"
-            if cursor.set_range(prefix):
-                for key, value in cursor:
-                    if not key.startswith(self.prefix):
-                        break
-                    index_str = key[len(self.prefix):].split(b"-", 1)[0]
-                    current_index = int(index_str)
-                    if current_index >= index:
-                        keys_to_move.append((key, value))
-            for key, value in reversed(keys_to_move):
-                index_str = key[len(self.prefix):].split(b"-", 1)[0]
-                current_index = int(index_str)
-                new_key = self.prefix + str(current_index + 1).encode() + b"-" + key[len(self.prefix) + len(index_str) + 1:]
-                txn.put(new_key, value)
-                txn.delete(key)
-            # insert the new value
+            current_count = self._get_count(txn)
+
+            # Clamp index to valid range [0, count]
+            if index < 0:
+                index = 0
+            if index > current_count:
+                index = current_count
+
+            # Collect all mappings that need to be shifted right
+            # We need to shift indices [index, index+1, ..., count-1] up by 1
+            mappings_to_shift = []
+            for i in range(index, current_count):
+                sk = self._get_mapping(txn, i)
+                if sk is not None:
+                    mappings_to_shift.append((i, sk))
+
+            # Shift all mappings up by 1
+            # Do this in reverse order to avoid conflicts
+            # Delete old mappings first, then write new ones
+            for old_index, sk in mappings_to_shift:
+                self._delete_mapping(txn, old_index)
+
+            for old_index, sk in reversed(mappings_to_shift):
+                new_index = old_index + 1
+                self._set_mapping(txn, new_index, sk)
+
+            # Allocate a new sort key for the new item
+            sort_key = self._allocate_sort_key(txn)
+            self._set_mapping(txn, index, sort_key)
+
+            # Write the new data with sort key prefix
+            sort_key_str = str(sort_key).encode()
             for key, value in input.items():
-                txn.put(self.prefix + str(index).encode() + b"-" + key, value)
+                txn.put(self.prefix + sort_key_str + b"-" + key, value)
+
+            # Update count
+            self._set_count(txn, current_count + 1)
     
     def __iter__(self):
         for i in range(len(self)):
