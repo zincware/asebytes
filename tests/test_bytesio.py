@@ -92,3 +92,53 @@ def test_counter_mapping(io):
         new_key = io._allocate_sort_key(txn)
         assert new_key == 102
         assert io._get_next_sort_key(txn) == 103
+
+
+def test_get_all_keys(io, ethanol):
+    # Test that get() without keys parameter returns all data (same as __getitem__)
+    io[0] = asebytes.to_bytes(ethanol[0])
+    data_from_getitem = io[0]
+    data_from_get = io.get(0)
+    assert data_from_get == data_from_getitem
+    assert b"cell" in data_from_get
+    assert b"pbc" in data_from_get
+    assert b"arrays.positions" in data_from_get
+
+
+def test_get_specific_keys(io, ethanol):
+    # Test that get() with keys parameter returns only requested keys
+    io[0] = asebytes.to_bytes(ethanol[0])
+    data = io.get(0, keys=[b"cell", b"arrays.positions"])
+    assert data.keys() == {b"cell", b"arrays.positions"}
+    assert b"pbc" not in data
+    assert b"arrays.numbers" not in data
+
+
+def test_get_single_key(io, ethanol):
+    # Test that get() with a single key works
+    io[0] = asebytes.to_bytes(ethanol[0])
+    data = io.get(0, keys=[b"cell"])
+    assert data.keys() == {b"cell"}
+    assert b"pbc" not in data
+
+
+def test_get_nonexistent_key(io, ethanol):
+    # Test that get() with non-existent keys returns empty dict for those keys
+    io[0] = asebytes.to_bytes(ethanol[0])
+    data = io.get(0, keys=[b"cell", b"nonexistent.key"])
+    assert b"cell" in data
+    assert b"nonexistent.key" not in data
+    assert len(data) == 1
+
+
+def test_get_empty_keys_list(io, ethanol):
+    # Test that get() with empty keys list returns empty dict
+    io[0] = asebytes.to_bytes(ethanol[0])
+    data = io.get(0, keys=[])
+    assert data == {}
+
+
+def test_get_nonexistent_index(io):
+    # Test that get() raises KeyError for non-existent index
+    with pytest.raises(KeyError, match="Index 0 not found"):
+        io.get(0)

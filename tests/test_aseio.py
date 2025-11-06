@@ -61,3 +61,72 @@ def test_iter(io, ethanol):
         io[i] = atom
     atoms = [atom for atom in io]
     assert atoms == list(ethanol)
+
+
+def test_get_all_keys(io, ethanol):
+    # Test that get() without keys parameter returns full Atoms object
+    io[0] = ethanol[0]
+    atoms_from_getitem = io[0]
+    atoms_from_get = io.get(0)
+    assert atoms_from_get == atoms_from_getitem
+
+
+def test_get_specific_keys(io, ethanol):
+    # Test that get() with keys parameter returns partial Atoms object
+    io[0] = ethanol[0]
+    # Request only positions and numbers, but not info keys
+    atoms = io.get(0, keys=[b"cell", b"pbc", b"arrays.positions", b"arrays.numbers"])
+    assert len(atoms) == len(ethanol[0])
+    # Info should be empty since we didn't request info keys
+    assert len(atoms.info) == 0
+
+
+def test_get_with_info_keys(io, ethanol):
+    # Test that get() includes requested info keys
+    io[0] = ethanol[0]
+    atoms = io.get(
+        0,
+        keys=[
+            b"cell",
+            b"pbc",
+            b"arrays.positions",
+            b"arrays.numbers",
+            b"info.smiles",
+        ],
+    )
+    assert "smiles" in atoms.info
+    # connectivity should not be present since we didn't request it
+    assert "connectivity" not in atoms.info
+
+
+def test_get_with_calc_keys(io, ethanol):
+    # Test that get() includes requested calc keys
+    from ase.calculators.singlepoint import SinglePointCalculator
+    import numpy as np
+
+    atoms = ethanol[0].copy()
+    atoms.calc = SinglePointCalculator(atoms)
+    atoms.calc.results = {"energy": -10.5, "forces": np.array([[0.1, 0.2, 0.3]])}
+    io[0] = atoms
+
+    # Get with calc keys
+    retrieved = io.get(
+        0,
+        keys=[
+            b"cell",
+            b"pbc",
+            b"arrays.positions",
+            b"arrays.numbers",
+            b"calc.energy",
+        ],
+    )
+    assert retrieved.calc is not None
+    assert "energy" in retrieved.calc.results
+    # forces should not be present since we didn't request it
+    assert "forces" not in retrieved.calc.results
+
+
+def test_get_nonexistent_index(io):
+    # Test that get() raises KeyError for non-existent index
+    with pytest.raises(KeyError, match="Index 0 not found"):
+        io.get(0)

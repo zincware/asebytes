@@ -34,6 +34,24 @@ class ASEIO(MutableSequence):
         for i in range(len(self)):
             yield self[i]
 
+    def get(self, index: int, keys: list[bytes] | None = None) -> ase.Atoms:
+        """Get Atoms object at index, optionally filtering to specific keys.
+
+        Args:
+            index: The logical index to retrieve
+            keys: Optional list of keys to retrieve. If None, returns all data.
+                  Keys should be in the format used internally (e.g., b"arrays.positions",
+                  b"info.smiles", b"calc.energy")
+
+        Returns:
+            ase.Atoms object reconstructed from the requested keys
+
+        Raises:
+            KeyError: If the index does not exist
+        """
+        data = self.io.get(index, keys=keys)
+        return from_bytes(data)
+
 
 class BytesIO(MutableSequence):
     def __init__(self, file: str, prefix: bytes = b""):
@@ -162,6 +180,49 @@ class BytesIO(MutableSequence):
                     # Extract the field name after the sort_key prefix
                     field_name = key[len(prefix) :]
                     result[field_name] = value
+
+            return result
+
+    def get(self, index: int, keys: list[bytes] | None = None) -> dict[bytes, bytes]:
+        """Get data at index, optionally filtering to specific keys.
+
+        Args:
+            index: The logical index to retrieve
+            keys: Optional list of keys to retrieve. If None, returns all keys.
+
+        Returns:
+            Dictionary of key-value pairs. If keys is provided, only those keys
+            that exist in the data are returned.
+
+        Raises:
+            KeyError: If the index does not exist
+        """
+        with self.env.begin() as txn:
+            # Look up the sort key for this logical index
+            sort_key = self._get_mapping(txn, index)
+
+            if sort_key is None:
+                raise KeyError(f"Index {index} not found")
+
+            # Scan for all data keys with this sort key prefix
+            result = {}
+            cursor = txn.cursor()
+            sort_key_str = str(sort_key).encode()
+            prefix = self.prefix + sort_key_str + b"-"
+
+            # Convert keys to a set for fast lookup
+            keys_set = set(keys) if keys is not None else None
+
+            if cursor.set_range(prefix):
+                for key, value in cursor:
+                    if not key.startswith(prefix):
+                        break
+                    # Extract the field name after the sort_key prefix
+                    field_name = key[len(prefix) :]
+
+                    # If keys filter is specified, only include requested keys
+                    if keys_set is None or field_name in keys_set:
+                        result[field_name] = value
 
             return result
 
