@@ -6,7 +6,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from ase.cell import Cell
 
 
-def decode(data: dict[bytes, bytes], fast: bool = True) -> ase.Atoms:
+def decode(data: dict[bytes, bytes], fast: bool = True, copy: bool = True) -> ase.Atoms:
     """
     Deserialize bytes into an ASE Atoms object.
 
@@ -17,6 +17,11 @@ def decode(data: dict[bytes, bytes], fast: bool = True) -> ase.Atoms:
     fast : bool, default=True
         If True, use optimized direct attribute assignment (6x faster).
         If False, use standard Atoms constructor (safer but slower).
+    copy : bool, default=True
+        If True, create writable copies of all numpy arrays from msgpack.
+        If False, use arrays as-is (read-only, but saves memory).
+        Set to True if you need to modify atoms after decoding.
+        Nested numpy arrays might still be read-only.
 
     Returns
     -------
@@ -32,17 +37,23 @@ def decode(data: dict[bytes, bytes], fast: bool = True) -> ase.Atoms:
     """
     if b"arrays.numbers" in data:
         numbers_array = msgpack.unpackb(data[b"arrays.numbers"], object_hook=m.decode)
+        if copy:
+            numbers_array = np.array(numbers_array, copy=True)
     else:
         numbers_array = np.array([], dtype=int)
 
     # Extract optional parameters with defaults
     if b"cell" in data:
         cell_array = msgpack.unpackb(data[b"cell"], object_hook=m.decode)
+        if copy:
+            cell_array = np.array(cell_array, copy=True)
     else:
         cell_array = None
 
     if b"pbc" in data:
         pbc_array = msgpack.unpackb(data[b"pbc"], object_hook=m.decode)
+        if copy and isinstance(pbc_array, np.ndarray):
+            pbc_array = np.array(pbc_array, copy=True)
     else:
         pbc_array = np.array([False, False, False], dtype=bool)
 
@@ -78,16 +89,22 @@ def decode(data: dict[bytes, bytes], fast: bool = True) -> ase.Atoms:
             continue
         if key.startswith(b"arrays."):
             array_data = msgpack.unpackb(data[key], object_hook=m.decode)
+            if copy:
+                array_data = np.array(array_data, copy=True)
             atoms.arrays[key.decode().split("arrays.")[1]] = array_data
         elif key.startswith(b"info."):
             info_key = key.decode().split("info.")[1]
             info_array = msgpack.unpackb(data[key], object_hook=m.decode)
+            if copy and isinstance(info_array, np.ndarray):
+                info_array = np.array(info_array, copy=True)
             atoms.info[info_key] = info_array
         elif key.startswith(b"calc."):
             if not hasattr(atoms, "calc") or atoms.calc is None:
                 atoms.calc = SinglePointCalculator(atoms)
             calc_key = key.decode().split("calc.")[1]
             calc_array = msgpack.unpackb(data[key], object_hook=m.decode)
+            if copy and isinstance(calc_array, np.ndarray):
+                calc_array = np.array(calc_array, copy=True)
             atoms.calc.results[calc_key] = calc_array
         elif key == b"constraints":
             constraints_data = msgpack.unpackb(data[key], object_hook=m.decode)
