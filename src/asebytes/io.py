@@ -1,8 +1,11 @@
 from collections.abc import MutableSequence
-from typing import Iterator
+from typing import Any, Iterator
 
 import ase
 import lmdb
+import numpy as np
+import msgpack
+import msgpack_numpy as m
 
 from asebytes.decode import decode
 from asebytes.encode import encode
@@ -121,6 +124,68 @@ class ASEIO(MutableSequence):
         """
         data = self.io.get(index, keys=keys)
         return decode(data)
+
+    def update(
+        self,
+        index: int,
+        info: dict[str, Any] | None = None,
+        arrays: dict[str, np.ndarray] | None = None,
+        calc: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Update or add specific info, arrays, or calc keys to existing atoms.
+
+        This method allows partial updates to atoms stored at a given index without
+        retrieving, decoding, and re-encoding the entire Atoms object. Updates are
+        atomic - all changes succeed or fail together.
+
+        Parameters
+        ----------
+        index : int
+            Index of the atoms to update.
+        info : dict[str, Any], optional
+            Dictionary of info keys to add/update (e.g., {"connectivity": matrix, "s22": 123.45}).
+        arrays : dict[str, np.ndarray], optional
+            Dictionary of array keys to add/update (e.g., {"forces": forces_array}).
+        calc : dict[str, Any], optional
+            Dictionary of calculator result keys to add/update (e.g., {"energy": -156.4}).
+
+        Raises
+        ------
+        KeyError
+            If the index does not exist.
+
+        Examples
+        --------
+        >>> db = ASEIO("molecules.lmdb")
+        >>> db[0] = atoms
+        >>> # Add benchmark value and connectivity
+        >>> db.update(0, info={"s22": 123.45, "connectivity": connectivity_matrix})
+        >>> # Later, add calculation results
+        >>> db.update(0, calc={"energy": -156.4, "forces": forces})
+        >>> # Update multiple categories at once
+        >>> db.update(0, info={"new_prop": "value"}, arrays={"forces": forces})
+        """
+        # Build the update dictionary
+        data = {}
+
+        # Encode info keys
+        if info:
+            for key, value in info.items():
+                data[f"info.{key}".encode()] = msgpack.packb(value, default=m.encode)
+
+        # Encode arrays keys
+        if arrays:
+            for key, value in arrays.items():
+                data[f"arrays.{key}".encode()] = msgpack.packb(value, default=m.encode)
+
+        # Encode calc keys
+        if calc:
+            for key, value in calc.items():
+                data[f"calc.{key}".encode()] = msgpack.packb(value, default=m.encode)
+
+        # Delegate to BytesIO.update()
+        self.io.update(index, data)
 
 
 class BytesIO(MutableSequence):
@@ -440,6 +505,72 @@ class BytesIO(MutableSequence):
                 raise KeyError(f"Invalid keys at index {index}: {sorted(invalid_keys)}")
 
             return result
+
+    def update(self, index: int, data: dict[bytes, bytes]) -> None:
+        """
+        Update or add specific keys to an existing entry without overwriting all data.
+
+        This method performs an atomic update of specific keys at the given index.
+        All updates succeed or fail together as a single transaction.
+
+        Parameters
+        ----------
+        index : int
+            Index of the entry to update.
+        data : dict[bytes, bytes]
+            Dictionary of keys to add/update. Keys are field names (e.g., b"info.s22"),
+            values must be msgpack-encoded bytes.
+
+        Raises
+        ------
+        KeyError
+            If the index does not exist.
+
+        Examples
+        --------
+        >>> import msgpack
+        >>> import msgpack_numpy as m
+        >>> db = BytesIO("molecules.lmdb")
+        >>> # Add new keys to existing entry
+        >>> db.update(0, {
+        ...     b"info.s22": msgpack.packb(123.45, default=m.encode),
+        ...     b"info.connectivity": msgpack.packb([[0,1],[1,2]], default=m.encode)
+        ... })
+        """
+        # Empty dict is a no-op
+        if not data:
+            return
+
+        with self.env.begin(write=True) as txn:
+            # Verify index exists
+            sort_key = self._get_mapping(txn, index)
+            if sort_key is None:
+                raise KeyError(f"Index {index} not found")
+
+            # Get existing field keys to update metadata later
+            existing_field_keys = self._get_field_keys_metadata(txn, sort_key)
+            if existing_field_keys is None:
+                existing_field_keys = []
+
+            # Build the set of all field keys (existing + new)
+            new_field_keys = set(data.keys())
+            all_field_keys = set(existing_field_keys) | new_field_keys
+
+            # Build full keys with prefix and perform atomic multiset
+            sort_key_str = str(sort_key).encode()
+            prefix = self.prefix + sort_key_str + b"-"
+
+            items_to_update = [
+                (prefix + field_key, value) for field_key, value in data.items()
+            ]
+
+            # Atomic put: all keys updated or none
+            if items_to_update:
+                cursor = txn.cursor()
+                cursor.putmulti(items_to_update, dupdata=False, overwrite=True)
+
+            # Update metadata with complete field key list
+            self._set_field_keys_metadata(txn, sort_key, sorted(all_field_keys))
 
     def __delitem__(self, key: int) -> None:
         with self.env.begin(write=True) as txn:
