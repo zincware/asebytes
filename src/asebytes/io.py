@@ -103,7 +103,7 @@ class ASEIO(MutableSequence):
         Raises
         ------
         KeyError
-            If the index does not exist.
+            If the index does not exist or if any of the requested keys are not found.
         """
         data = self.io.get(index, keys=keys)
         return decode(data)
@@ -386,18 +386,18 @@ class BytesIO(MutableSequence):
         Raises
         ------
         KeyError
-            If the index does not exist.
+            If the index does not exist or if any of the requested keys are not found.
         """
         with self.env.begin() as txn:
             _, prefix, keys_to_fetch = self._get_full_keys(txn, index)
 
             # Filter keys if requested
+            keys_set = None
             if keys is not None:
                 keys_set = set(keys)
-                # Filter to only the requested keys
-                keys_to_fetch = [
-                    k for k in keys_to_fetch if k[len(prefix) :] in keys_set
-                ]
+                # Build full keys with prefix for direct getmulti
+                # Optimistic: try to fetch all requested keys without pre-validation
+                keys_to_fetch = [prefix + field_key for field_key in keys_set]
 
             # Use getmulti for efficient batch retrieval
             result = {}
@@ -407,6 +407,14 @@ class BytesIO(MutableSequence):
                     # Extract the field name after the sort_key prefix
                     field_name = key[len(prefix) :]
                     result[field_name] = value
+
+            # If keys were requested, validate all were found
+            if keys_set is not None and len(result) != len(keys_set):
+                retrieved_keys = set(result.keys())
+                invalid_keys = keys_set - retrieved_keys
+                raise KeyError(
+                    f"Invalid keys at index {index}: {sorted(invalid_keys)}"
+                )
 
             return result
 

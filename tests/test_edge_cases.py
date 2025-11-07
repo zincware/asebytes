@@ -272,22 +272,6 @@ def test_bytesio_get_with_empty_keys_list(tmp_path):
     assert result == {}
 
 
-def test_bytesio_get_with_nonexistent_keys(tmp_path):
-    """Test BytesIO.get() with keys that don't exist."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
-    io[0] = {b"key1": b"value1"}
-    result = io.get(0, keys=[b"nonexistent"])
-
-    assert result == {}
-
-
-def test_bytesio_get_mixed_existing_nonexistent_keys(tmp_path):
-    """Test BytesIO.get() with mix of existing and non-existing keys."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
-    io[0] = {b"key1": b"value1", b"key2": b"value2"}
-    result = io.get(0, keys=[b"key1", b"nonexistent", b"key2"])
-
-    assert result == {b"key1": b"value1", b"key2": b"value2"}
 
 
 # =============================================================================

@@ -122,15 +122,6 @@ def test_get_single_key(io, ethanol):
     assert b"pbc" not in data
 
 
-def test_get_nonexistent_key(io, ethanol):
-    # Test that get() with non-existent keys returns empty dict for those keys
-    io[0] = asebytes.encode(ethanol[0])
-    data = io.get(0, keys=[b"cell", b"nonexistent.key"])
-    assert b"cell" in data
-    assert b"nonexistent.key" not in data
-    assert len(data) == 1
-
-
 def test_get_empty_keys_list(io, ethanol):
     # Test that get() with empty keys list returns empty dict
     io[0] = asebytes.encode(ethanol[0])
