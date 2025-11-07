@@ -51,7 +51,9 @@ def test_random_access_aselmdb(benchmark, ethanol, tmp_path):
 
     # Generate random indices (seeded for reproducibility)
     random.seed(42)
-    indices = [random.randint(1, len(ethanol)) for _ in range(len(ethanol))]  # ASE DB uses 1-based indexing
+    indices = [
+        random.randint(1, len(ethanol)) for _ in range(len(ethanol))
+    ]  # ASE DB uses 1-based indexing
 
     def random_access():
         return [db.get(id=i).toatoms() for i in indices]
@@ -96,6 +98,7 @@ def test_random_access_lmdb_pickle(benchmark, ethanol, tmp_path):
 
     env.close()
 
+
 @pytest.mark.skip(reason="XYZ random access is slow; enable only for specific testing")
 @pytest.mark.benchmark(group="random_access")
 def test_random_access_xyz(benchmark, ethanol, tmp_path):
@@ -129,7 +132,9 @@ def test_random_access_sqlite(benchmark, ethanol, tmp_path):
 
     # Generate random indices (seeded for reproducibility)
     random.seed(42)
-    indices = [random.randint(1, len(ethanol)) for _ in range(len(ethanol))]  # ASE DB uses 1-based indexing
+    indices = [
+        random.randint(1, len(ethanol)) for _ in range(len(ethanol))
+    ]  # ASE DB uses 1-based indexing
 
     def random_access():
         return [db.get(id=i).toatoms() for i in indices]

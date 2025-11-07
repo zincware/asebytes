@@ -412,9 +412,7 @@ class BytesIO(MutableSequence):
             if keys_set is not None and len(result) != len(keys_set):
                 retrieved_keys = set(result.keys())
                 invalid_keys = keys_set - retrieved_keys
-                raise KeyError(
-                    f"Invalid keys at index {index}: {sorted(invalid_keys)}"
-                )
+                raise KeyError(f"Invalid keys at index {index}: {sorted(invalid_keys)}")
 
             return result
 
