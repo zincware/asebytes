@@ -18,10 +18,24 @@ class ASEIO(MutableSequence):
         Path to LMDB database file.
     prefix : bytes, default=b""
         Key prefix for namespacing entries.
+    map_size : int, default=10737418240
+        Maximum size of the LMDB database in bytes (default 10GB).
+        On macOS/Linux, this is virtual address space and doesn't consume actual disk space.
+    readonly : bool, default=False
+        If True, opens database in read-only mode.
+    **lmdb_kwargs
+        Additional keyword arguments passed to lmdb.open().
     """
 
-    def __init__(self, file: str, prefix: bytes = b""):
-        self.io = BytesIO(file, prefix)
+    def __init__(
+        self,
+        file: str,
+        prefix: bytes = b"",
+        map_size: int = 10737418240,
+        readonly: bool = False,
+        **lmdb_kwargs,
+    ):
+        self.io = BytesIO(file, prefix, map_size, readonly, **lmdb_kwargs)
 
     def __getitem__(self, index: int) -> ase.Atoms:
         data = self.io[index]
@@ -119,19 +133,30 @@ class BytesIO(MutableSequence):
         Path to LMDB database file.
     prefix : bytes, default=b""
         Key prefix for namespacing entries.
+    map_size : int, default=10737418240
+        Maximum size of the LMDB database in bytes (default 10GB).
+    readonly : bool, default=False
+        If True, opens database in read-only mode.
+    **lmdb_kwargs
+        Additional keyword arguments passed to lmdb.open().
     """
 
-    def __init__(self, file: str, prefix: bytes = b""):
+    def __init__(
+        self,
+        file: str,
+        prefix: bytes = b"",
+        map_size: int = 10737418240,
+        readonly: bool = False,
+        **lmdb_kwargs,
+    ):
         self.file = file
         self.prefix = prefix
         self.env = lmdb.open(
             file,
-            # map_size=1099511627776,
-            # subdir=False,
-            # readonly=False,
-            # lock=True,
-            # readahead=True,
-            # meminit=False,
+            map_size=map_size,
+            subdir=False,
+            readonly=readonly,
+            **lmdb_kwargs,
         )
 
     # Metadata helpers
