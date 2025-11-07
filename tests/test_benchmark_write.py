@@ -6,6 +6,7 @@ Compare write performance of:
 - Raw lmdb + pickle
 - XYZ file format
 - SQLite database
+- znh5md (H5MD format)
 """
 
 import pickle
@@ -39,6 +40,7 @@ def test_write_aselmdb(benchmark, ethanol, tmp_path):
     def write_all():
         db_path = tmp_path / f"write_aselmdb_{uuid.uuid4().hex}.lmdb"
         db = connect(str(db_path), type="aselmdb")
+        # TODO: use bulk insert, if available
         for mol in ethanol:
             db.write(mol)
         return db
@@ -54,7 +56,7 @@ def test_write_lmdb_pickle(benchmark, ethanol, tmp_path):
     def write_all():
         db_path = tmp_path / f"write_pickle_{uuid.uuid4().hex}.lmdb"
         env = lmdb.open(str(db_path))
-
+        # TODO: use putmulti
         with env.begin(write=True) as txn:
             for i, mol in enumerate(ethanol):
                 key = str(i).encode()
@@ -86,8 +88,23 @@ def test_write_sqlite(benchmark, ethanol, tmp_path):
     def write_all():
         db_path = tmp_path / f"write_sqlite_{uuid.uuid4().hex}.db"
         db = connect(str(db_path), type="db")
+        # TODO: use bulk insert, if available
         for mol in ethanol:
             db.write(mol)
         return db
+
+    benchmark(write_all)
+
+
+@pytest.mark.benchmark(group="write")
+def test_write_znh5md(benchmark, ethanol, tmp_path):
+    """Write 1000 ethanol molecules using znh5md (H5MD format)."""
+    import znh5md
+
+    def write_all():
+        h5_path = tmp_path / f"write_znh5md_{uuid.uuid4().hex}.h5"
+        io = znh5md.IO(filename=str(h5_path))
+        io.extend(ethanol)
+        return h5_path
 
     benchmark(write_all)

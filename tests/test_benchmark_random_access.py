@@ -6,6 +6,7 @@ Compare random access performance of:
 - Raw lmdb + pickle
 - XYZ file format (using index parameter)
 - SQLite database
+- znh5md (H5MD format)
 """
 
 import pickle
@@ -132,6 +133,33 @@ def test_random_access_sqlite(benchmark, ethanol, tmp_path):
 
     def random_access():
         return [db.get(id=i).toatoms() for i in indices]
+
+    results = benchmark(random_access)
+    assert len(results) == len(ethanol)
+    assert all(isinstance(mol, ase.Atoms) for mol in results)
+
+
+@pytest.mark.benchmark(group="random_access")
+def test_random_access_znh5md(benchmark, ethanol, tmp_path):
+    """Random access 1000 ethanol molecules using znh5md (H5MD format)."""
+    import h5py
+    import znh5md
+
+    h5_path = tmp_path / "random_znh5md.h5"
+
+    # Setup: write data using filename parameter
+    io_write = znh5md.IO(filename=str(h5_path))
+    io_write.extend(ethanol)
+
+    # Generate random indices (seeded for reproducibility)
+    random.seed(42)
+    indices = [random.randint(0, len(ethanol) - 1) for _ in range(len(ethanol))]
+
+    def random_access():
+        # Use file_handle for best read performance
+        with h5py.File(str(h5_path), "r") as f:
+            io = znh5md.IO(file_handle=f)
+            return [io[i] for i in indices]
 
     results = benchmark(random_access)
     assert len(results) == len(ethanol)

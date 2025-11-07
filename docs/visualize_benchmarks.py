@@ -53,6 +53,8 @@ def parse_benchmarks(data: dict) -> dict:
             backend = "XYZ"
         elif "sqlite" in name:
             backend = "SQLite"
+        elif "znh5md" in name:
+            backend = "znh5md"
         else:
             continue
 
@@ -98,6 +100,7 @@ def create_comparison_figure(
         "LMDB+Pickle": "#e74c3c",
         "XYZ": "#f39c12",
         "SQLite": "#9b59b6",
+        "znh5md": "#1abc9c",
     }
 
     # 1. Write Performance (left)
