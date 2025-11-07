@@ -30,3 +30,22 @@ jobs:
         run: |
           uv run python --version
           uv run pytest
+
+      - name: Run benchmarks
+        run: |
+          uv run python --version
+          uv run pytest -m benchmark --benchmark-only --benchmark-json=benchmark_results.json
+
+      - name: Visualize benchmarks
+        run: |
+          uv run docs/visualize_benchmarks.py benchmark_results.json
+        if: always()
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results-${{ matrix.python-version }}
+          path: |
+            benchmark_results.json
+            *.png
