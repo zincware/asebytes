@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 from ase.calculators.singlepoint import SinglePointCalculator
 
 import asebytes

@@ -1,6 +1,7 @@
 """Tests for ASEIO.update() method."""
-import pytest
+
 import numpy as np
+import pytest
 
 import asebytes
 
@@ -88,10 +89,7 @@ def test_update_multiple_categories_simultaneously(io, ethanol):
     # Act: Update all categories
     forces = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]])
     io.update(
-        0,
-        info={"s22": 123.45},
-        arrays={"forces": forces},
-        calc={"energy": -156.4}
+        0, info={"s22": 123.45}, arrays={"forces": forces}, calc={"energy": -156.4}
     )
 
     # Assert: Verify all updates
@@ -187,15 +185,18 @@ def test_update_with_complex_data_types(io, ethanol):
     io[0] = ethanol[0]
 
     # Act: Update with different data types
-    io.update(0, info={
-        "string": "text",
-        "int": 42,
-        "float": 3.14159,
-        "bool": True,
-        "list": [1, 2, 3],
-        "dict": {"nested": "value"},
-        "numpy": np.array([1, 2, 3]),
-    })
+    io.update(
+        0,
+        info={
+            "string": "text",
+            "int": 42,
+            "float": 3.14159,
+            "bool": True,
+            "list": [1, 2, 3],
+            "dict": {"nested": "value"},
+            "numpy": np.array([1, 2, 3]),
+        },
+    )
 
     # Assert: Verify all types roundtrip correctly
     atoms = io[0]

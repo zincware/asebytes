@@ -1,4 +1,4 @@
-import ase
+import ase.constraints
 import msgpack
 import msgpack_numpy as m
 import numpy as np

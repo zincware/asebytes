@@ -1,7 +1,6 @@
 """Test that shared fixtures work correctly."""
 
 import numpy as np
-import pytest
 
 import asebytes
 

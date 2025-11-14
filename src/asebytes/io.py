@@ -3,9 +3,9 @@ from typing import Any, Iterator
 
 import ase
 import lmdb
-import numpy as np
 import msgpack
 import msgpack_numpy as m
+import numpy as np
 
 from asebytes.decode import decode
 from asebytes.encode import encode

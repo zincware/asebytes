@@ -1,7 +1,8 @@
 """Tests for BytesIO.update() method."""
-import pytest
+
 import msgpack
 import msgpack_numpy as m
+import pytest
 
 import asebytes
 
@@ -29,7 +30,10 @@ def test_update_add_new_keys(io, ethanol):
     assert b"info.s22" in data
     assert b"info.new_property" in data
     assert msgpack.unpackb(data[b"info.s22"], object_hook=m.decode) == 123.45
-    assert msgpack.unpackb(data[b"info.new_property"], object_hook=m.decode) == "test_value"
+    assert (
+        msgpack.unpackb(data[b"info.new_property"], object_hook=m.decode)
+        == "test_value"
+    )
 
     # Old keys should still exist
     assert b"cell" in data
@@ -136,6 +140,7 @@ def test_update_with_arrays_keys(io, ethanol):
 
     # Act: Add custom array
     import numpy as np
+
     forces = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
     new_data = {
         b"arrays.forces": msgpack.packb(forces, default=m.encode),
@@ -184,7 +189,9 @@ def test_update_mixed_new_and_overwrite(io, ethanol):
 
     # Assert: Both operations should succeed
     data = io[0]
-    assert msgpack.unpackb(data[b"info.existing_key"], object_hook=m.decode) == "new_value"
+    assert (
+        msgpack.unpackb(data[b"info.existing_key"], object_hook=m.decode) == "new_value"
+    )
     assert msgpack.unpackb(data[b"info.new_key"], object_hook=m.decode) == "brand_new"
 
 
