@@ -1,6 +1,6 @@
 [project]
 name = "asebytes"
-version = "0.1.6"
+version = "0.1.7"
 description = "LMDB-based storage for ASE."
 authors = [
     { name = "Fabian Zills", email = "fzills@icp.uni-stuttgart.de" },

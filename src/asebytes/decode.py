@@ -91,9 +91,9 @@ def decode(data: dict[bytes, bytes], fast: bool = True, copy: bool = True) -> as
             array_data = msgpack.unpackb(data[key], object_hook=m.decode)
             if copy:
                 array_data = np.array(array_data, copy=True)
-            atoms.arrays[key.decode().split("arrays.")[1]] = array_data
+            atoms.arrays[key[7:].decode()] = array_data  # len(b"arrays.") = 7
         elif key.startswith(b"info."):
-            info_key = key.decode().split("info.")[1]
+            info_key = key[5:].decode()  # len(b"info.") = 5
             info_array = msgpack.unpackb(data[key], object_hook=m.decode)
             if copy and isinstance(info_array, np.ndarray):
                 info_array = np.array(info_array, copy=True)
@@ -101,7 +101,7 @@ def decode(data: dict[bytes, bytes], fast: bool = True, copy: bool = True) -> as
         elif key.startswith(b"calc."):
             if not hasattr(atoms, "calc") or atoms.calc is None:
                 atoms.calc = SinglePointCalculator(atoms)
-            calc_key = key.decode().split("calc.")[1]
+            calc_key = key[5:].decode()  # len(b"calc.") = 5
             calc_array = msgpack.unpackb(data[key], object_hook=m.decode)
             if copy and isinstance(calc_array, np.ndarray):
                 calc_array = np.array(calc_array, copy=True)
