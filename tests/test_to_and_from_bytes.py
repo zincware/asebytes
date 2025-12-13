@@ -119,42 +119,10 @@ def test_calc_results(ethanol, value):
             assert original == recovered
 
 
-def test_info_key_with_dot_raises_error(ethanol):
-    atoms = ethanol[0]
-    atoms.info["invalid.key"] = "some value"
-    with pytest.raises(
-        ValueError,
-        match="Key 'invalid.key' in atoms.info contains a dot \\(\\.\\), which is not allowed",
-    ):
-        asebytes.encode(atoms)
-
-
-def test_arrays_key_with_dot_raises_error(ethanol):
-    atoms = ethanol[0]
-    atoms.arrays["invalid.array"] = np.array([1, 2, 3])
-    with pytest.raises(
-        ValueError,
-        match="Key 'invalid.array' in atoms.arrays contains a dot \\(\\.\\), which is not allowed",
-    ):
-        asebytes.encode(atoms)
-
-
-def test_calc_results_key_with_dot_raises_error(ethanol):
-    atoms = ethanol[0]
-    atoms.calc = SinglePointCalculator(atoms)
-    atoms.calc.results["invalid.result"] = 42.0
-    with pytest.raises(
-        ValueError,
-        match="Key 'invalid.result' in atoms.calc.results contains a dot \\(\\.\\), which is not allowed",
-    ):
-        asebytes.encode(atoms)
-
-
 def test_nested_dict_with_dot_in_key(ethanol):
+    """Test that nested dictionary keys with dots are preserved."""
     atoms = ethanol[0]
     atoms.info["data"] = {"nested.key": "value", "valid_key": "another value"}
-    # The nested dictionary's keys should be allowed to have dots
-    # Only the top-level keys are restricted
     byte_data = asebytes.encode(atoms)
     recovered_atoms = asebytes.decode(byte_data)
     assert atoms.info["data"] == recovered_atoms.info["data"]

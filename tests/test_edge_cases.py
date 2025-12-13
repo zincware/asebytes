@@ -158,6 +158,95 @@ def test_minimal_atoms_both_modes(fast):
 
 
 # =============================================================================
+# Edge cases for keys with dots
+# =============================================================================
+
+
+def test_info_key_with_dot_roundtrip():
+    """Test that keys with dots in atoms.info work correctly.
+
+    Keys containing dots should be preserved through encode/decode roundtrip.
+    """
+    atoms = Atoms("H", positions=[[0, 0, 0]])
+    atoms.info["data.value"] = 5
+
+    e_data = asebytes.encode(atoms)
+    d_data = asebytes.decode(e_data)
+    assert d_data.info["data.value"] == 5
+
+
+def test_arrays_key_with_dot_roundtrip():
+    """Test that keys with dots in atoms.arrays work correctly."""
+    atoms = Atoms("H", positions=[[0, 0, 0]])
+    atoms.arrays["custom.array"] = np.array([1.0])
+
+    e_data = asebytes.encode(atoms)
+    d_data = asebytes.decode(e_data)
+
+    assert np.array_equal(d_data.arrays["custom.array"], np.array([1.0]))
+
+
+def test_calc_results_key_with_dot_roundtrip():
+    """Test that keys with dots in atoms.calc.results work correctly."""
+    atoms = Atoms("H", positions=[[0, 0, 0]])
+    atoms.calc = SinglePointCalculator(atoms)
+    atoms.calc.results["total.energy"] = -10.5
+
+    e_data = asebytes.encode(atoms)
+    d_data = asebytes.decode(e_data)
+    assert d_data.calc.results["total.energy"] == -10.5
+
+
+def test_info_key_with_multiple_dots_roundtrip():
+    """Test that keys with multiple dots work correctly."""
+    atoms = Atoms("H", positions=[[0, 0, 0]])
+    atoms.info["a.b.c.d"] = "nested"
+
+    e_data = asebytes.encode(atoms)
+    d_data = asebytes.decode(e_data)
+    assert d_data.info["a.b.c.d"] == "nested"
+
+
+def test_info_key_starting_with_dot_roundtrip():
+    """Test that keys starting with a dot work correctly."""
+    atoms = Atoms("H", positions=[[0, 0, 0]])
+    atoms.info[".hidden"] = "value"
+
+    e_data = asebytes.encode(atoms)
+    d_data = asebytes.decode(e_data)
+    assert d_data.info[".hidden"] == "value"
+
+
+def test_info_key_ending_with_dot_roundtrip():
+    """Test that keys ending with a dot work correctly."""
+    atoms = Atoms("H", positions=[[0, 0, 0]])
+    atoms.info["trailing."] = "value"
+
+    e_data = asebytes.encode(atoms)
+    d_data = asebytes.decode(e_data)
+    assert d_data.info["trailing."] == "value"
+
+
+def test_info_key_resembling_prefix_roundtrip():
+    """Test that keys resembling internal prefixes work correctly.
+
+    This tests edge cases where a key in atoms.info might look like
+    it contains a prefix (e.g., 'info.data' stored in info becomes 'info.info.data').
+    """
+    atoms = Atoms("H", positions=[[0, 0, 0]])
+    atoms.info["info.data"] = "confusing"
+    atoms.info["arrays.fake"] = "also confusing"
+    atoms.info["calc.pretend"] = "yet another"
+
+    e_data = asebytes.encode(atoms)
+    d_data = asebytes.decode(e_data)
+
+    assert d_data.info["info.data"] == "confusing"
+    assert d_data.info["arrays.fake"] == "also confusing"
+    assert d_data.info["calc.pretend"] == "yet another"
+
+
+# =============================================================================
 # Edge cases for BytesIO
 # =============================================================================
 

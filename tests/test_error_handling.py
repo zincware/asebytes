@@ -10,7 +10,6 @@ This module tests expected failures and error conditions:
 import numpy as np
 import pytest
 from ase import Atoms
-from ase.calculators.singlepoint import SinglePointCalculator
 
 import asebytes
 
@@ -54,39 +53,6 @@ def test_encode_with_integer_raises_typeerror():
     """Test that encode raises TypeError for integer input."""
     with pytest.raises(TypeError, match="Input must be an ase.Atoms object"):
         asebytes.encode(42)
-
-
-def test_arrays_key_with_dot_in_middle_raises_valueerror():
-    """Test that dots in middle of arrays keys raise ValueError."""
-    atoms = Atoms("H", positions=[[0, 0, 0]])
-    atoms.arrays["my.array.data"] = np.array([1.0])
-    with pytest.raises(
-        ValueError,
-        match="Key 'my\\.array\\.data' in atoms\\.arrays contains a dot",
-    ):
-        asebytes.encode(atoms)
-
-
-def test_info_key_with_multiple_dots_raises_valueerror():
-    """Test that multiple dots in info keys raise ValueError."""
-    atoms = Atoms("H", positions=[[0, 0, 0]])
-    atoms.info["a.b.c"] = "value"
-    with pytest.raises(
-        ValueError, match="Key 'a\\.b\\.c' in atoms\\.info contains a dot"
-    ):
-        asebytes.encode(atoms)
-
-
-def test_calc_results_key_with_dot_raises_valueerror():
-    """Test that dots in calc.results keys raise ValueError."""
-    atoms = Atoms("H", positions=[[0, 0, 0]])
-    atoms.calc = SinglePointCalculator(atoms)
-    atoms.calc.results["invalid.energy"] = -10.0
-    with pytest.raises(
-        ValueError,
-        match="Key 'invalid\\.energy' in atoms\\.calc\\.results contains a dot",
-    ):
-        asebytes.encode(atoms)
 
 
 # =============================================================================
