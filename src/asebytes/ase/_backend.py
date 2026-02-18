@@ -50,6 +50,8 @@ class ASEReadOnlyBackend(ReadableBackend):
         try:
             atoms = ase.io.read(self._file, index=index, **self._ase_kwargs)
         except (IndexError, StopIteration):
+            if self._length is None and index >= 0:
+                self._length = index
             raise IndexError(index)
         row = atoms_to_dict(atoms)
         self._cache_put(index, row)
@@ -69,10 +71,10 @@ class ASEReadOnlyBackend(ReadableBackend):
 
     def __len__(self) -> int:
         if self._length is None:
-            raise RuntimeError(
+            raise TypeError(
                 "Length unknown for this file-based backend. "
-                "Call count_frames() to scan the file first, or use "
-                "streaming access (iter_rows, __iter__)."
+                "Call count_frames() to scan the file, or iterate "
+                "to discover it."
             )
         return self._length
 

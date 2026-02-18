@@ -258,39 +258,6 @@ def test_aseio_delitem_out_of_bounds_raises_indexerror(tmp_path):
         del io[5]
 
 
-def test_aseio_get_nonexistent_index_raises_keyerror(tmp_path):
-    """Test that get() with non-existent index raises KeyError."""
-    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
-    with pytest.raises(KeyError, match="Index 0 not found"):
-        io.get(0)
-
-
-def test_aseio_get_available_keys_nonexistent_raises_keyerror(tmp_path):
-    """Test that get_available_keys() with non-existent index raises KeyError."""
-    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
-    with pytest.raises(KeyError, match="Index 0 not found"):
-        io.get_available_keys(0)
-
-
-def test_aseio_get_with_invalid_keys_raises_keyerror(tmp_path):
-    """Test that get() with any invalid keys raises KeyError."""
-    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
-    atoms = Atoms("H2O", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
-    io[0] = atoms
-
-    # Requesting only nonexistent keys should raise KeyError
-    with pytest.raises(KeyError, match="Invalid keys"):
-        io.get(0, keys=[b"nonexistent_key"])
-
-    # Multiple nonexistent keys should also raise
-    with pytest.raises(KeyError, match="Invalid keys"):
-        io.get(0, keys=[b"nonexistent1", b"nonexistent2"])
-
-    # Mix of valid and invalid keys should also raise
-    with pytest.raises(KeyError, match="Invalid keys"):
-        io.get(0, keys=[b"cell", b"nonexistent_key"])
-
-
 def test_aseio_setitem_with_non_atoms_raises_typeerror(tmp_path):
     """Test that setting non-Atoms object raises TypeError."""
     io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))

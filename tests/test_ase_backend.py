@@ -79,7 +79,7 @@ def test_backend_custom_cache_size(trajectory):
 
 def test_len_raises_before_count(trajectory):
     backend = ASEReadOnlyBackend(trajectory)
-    with pytest.raises(RuntimeError, match="Length unknown"):
+    with pytest.raises(TypeError, match="Length unknown"):
         len(backend)
 
 
@@ -278,9 +278,17 @@ def test_aseio_getitem_positive(trajectory):
     assert len(atoms) == 3
 
 
-def test_aseio_getitem_negative(trajectory):
-    """Negative indexing works without knowing length."""
+def test_aseio_getitem_negative_requires_length(trajectory):
+    """Negative indexing requires known length."""
     db = asebytes.ASEIO(trajectory)
+    with pytest.raises(TypeError, match="Length unknown"):
+        db[-1]
+
+
+def test_aseio_getitem_negative_after_count(trajectory):
+    """Negative indexing works after count_frames()."""
+    db = asebytes.ASEIO(trajectory)
+    db._backend.count_frames()
     atoms = db[-1]
     assert isinstance(atoms, Atoms)
 
@@ -294,7 +302,7 @@ def test_aseio_getitem_out_of_bounds(trajectory):
 def test_aseio_slice_requires_count(trajectory):
     """Slicing requires known length."""
     db = asebytes.ASEIO(trajectory)
-    with pytest.raises(RuntimeError, match="Length unknown"):
+    with pytest.raises(TypeError, match="Length unknown"):
         db[:]
 
 
@@ -313,14 +321,24 @@ def test_aseio_write_raises(trajectory):
         db[0] = atoms
 
 
+def test_aseio_iter_discovers_length(trajectory):
+    """Iterating through all frames discovers the length."""
+    db = asebytes.ASEIO(trajectory)
+    with pytest.raises(TypeError):
+        len(db)
+    frames = list(db)
+    assert len(frames) == 5
+    assert len(db) == 5
+
+
 def test_aseio_info_preserved(trajectory):
     """Info dict survives round-trip through backend."""
     db = asebytes.ASEIO(trajectory)
     atoms = db[0]
     assert atoms.info["step"] == 0
 
-    atoms_last = db[-1]
-    assert atoms_last.info["step"] == 4
+    atoms4 = db[4]
+    assert atoms4.info["step"] == 4
 
 
 def test_aseio_extxyz_info(extxyz_trajectory):

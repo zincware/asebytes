@@ -132,10 +132,10 @@ def test_update_empty_args_does_nothing(io, ethanol):
     assert atoms_after_empty_dicts == initial_atoms
 
 
-def test_update_nonexistent_index_raises_keyerror(io):
-    """Test that updating non-existent index raises KeyError."""
+def test_update_nonexistent_index_raises_indexerror(io):
+    """Test that updating non-existent index raises IndexError."""
     # Act & Assert
-    with pytest.raises(KeyError, match="Index 0 not found"):
+    with pytest.raises(IndexError):
         io.update(0, info={"test": "value"})
 
 

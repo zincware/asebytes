@@ -51,13 +51,19 @@ class LMDBReadOnlyBackend(ReadableBackend):
     def __len__(self) -> int:
         return len(self._store)
 
+    def _check_index(self, index: int) -> None:
+        if index < 0 or index >= len(self._store):
+            raise IndexError(index)
+
     def columns(self, index: int = 0) -> list[str]:
+        self._check_index(index)
         keys = self._store.get_available_keys(index)
         return [k.decode() for k in keys]
 
     def read_row(
         self, index: int, keys: list[str] | None = None
     ) -> dict[str, Any]:
+        self._check_index(index)
         byte_keys = [k.encode() for k in keys] if keys is not None else None
         raw = self._store.get(index, keys=byte_keys)
         return self._deserialize_row(raw)
@@ -149,4 +155,5 @@ class LMDBBackend(LMDBReadOnlyBackend, WritableBackend):
     def update_row(self, index: int, data: dict[str, Any]) -> None:
         """Optimized partial update — only serializes and writes changed keys."""
         raw = {k.encode(): msgpack.packb(v, default=m.encode) for k, v in data.items()}
+        self._check_index(index)
         self._store.update(index, raw)

@@ -84,25 +84,13 @@ class ASEIO(MutableSequence):
     @overload
     def __getitem__(self, index: list[str]) -> ColumnView: ...
 
-    def _try_len(self) -> int | None:
-        """Return length if known, None if backend raises RuntimeError."""
-        try:
-            return len(self)
-        except RuntimeError:
-            return None
-
     def __getitem__(
         self,
         index: int | slice | str | list[int] | list[str],
     ) -> ase.Atoms | RowView | ColumnView:
         if isinstance(index, int):
-            n = self._try_len()
-            if n is not None:
-                if index < 0:
-                    index += n
-                if index < 0 or index >= n:
-                    raise IndexError(index)
-            # n is None → unknown length, delegate to backend directly
+            if index < 0:
+                index += len(self)  # raises RuntimeError if unknown
             row = self._backend.read_row(index)
             return dict_to_atoms(row)
         if isinstance(index, slice):
@@ -154,23 +142,15 @@ class ASEIO(MutableSequence):
         return len(self._backend)
 
     def __iter__(self) -> Iterator[ase.Atoms]:
-        for i in range(len(self)):
-            yield self[i]
-
-    # --- Legacy API (backward compatible) ---
-
-    def get_available_keys(self, index: int) -> list[bytes]:
-        """Get available keys at index (legacy API, returns bytes keys)."""
-        cols = self._backend.columns(index)
-        return [c.encode() for c in cols]
-
-    def get(
-        self, index: int, keys: list[bytes] | None = None
-    ) -> ase.Atoms:
-        """Get Atoms at index, optionally filtering to specific keys (legacy API)."""
-        str_keys = [k.decode() for k in keys] if keys is not None else None
-        row = self._backend.read_row(index, str_keys)
-        return dict_to_atoms(row)
+        # Explicit IndexError sentinel — avoids len() which list() calls
+        # for pre-allocation. Works for backends with unknown length.
+        i = 0
+        while True:
+            try:
+                yield self[i]
+                i += 1
+            except IndexError:
+                return
 
     _VALID_PREFIXES = ("arrays.", "info.", "calc.")
     _VALID_TOP_LEVEL = ("cell", "pbc", "constraints")

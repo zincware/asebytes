@@ -416,44 +416,6 @@ def test_aseio_iteration_empty(tmp_path):
     assert result == []
 
 
-def test_aseio_get_with_no_keys_parameter(tmp_path):
-    """Test ASEIO.get() without keys parameter returns full atoms."""
-    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
-    atoms = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
-    atoms.info["test"] = "value"
-    io[0] = atoms
-
-    recovered = io.get(0)
-    assert recovered == atoms
-    assert recovered.info["test"] == "value"
-
-
-def test_aseio_get_with_empty_keys_list(tmp_path):
-    """Test ASEIO.get() with empty keys list."""
-    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
-    atoms = Atoms("H", positions=[[0, 0, 0]])
-    io[0] = atoms
-
-    # With empty keys list, decode will create an empty atoms object
-    recovered = io.get(0, keys=[])
-    assert len(recovered) == 0  # Empty atoms since no data was retrieved
-
-
-def test_aseio_get_only_required_keys(tmp_path):
-    """Test ASEIO.get() with only the minimum required keys."""
-    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
-    atoms = Atoms("H", positions=[[0, 0, 0]])
-    atoms.info["extra"] = "data"
-    io[0] = atoms
-
-    # Get only required keys (cell, pbc, numbers, positions)
-    recovered = io.get(
-        0, keys=[b"cell", b"pbc", b"arrays.numbers", b"arrays.positions"]
-    )
-    assert len(recovered) == 1
-    assert "extra" not in recovered.info
-
-
 def test_aseio_multiple_prefixes_isolated(tmp_path):
     """Test that different ASEIO prefixes create isolated namespaces."""
     db_path = str(tmp_path / "test.lmdb")
