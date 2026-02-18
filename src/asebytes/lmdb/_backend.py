@@ -6,7 +6,7 @@ import msgpack
 import msgpack_numpy as m
 
 from asebytes._protocols import WritableBackend
-from asebytes.io import BytesIO
+from asebytes._bytesio import BytesIO
 
 
 class LMDBBackend(WritableBackend):
