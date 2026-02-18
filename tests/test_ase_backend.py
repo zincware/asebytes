@@ -163,6 +163,22 @@ def test_cache_lru_order(trajectory):
     assert 2 in backend._cache
 
 
+def test_cache_negative_index_normalized(trajectory):
+    """Negative indices are normalized to positive cache keys when length known."""
+    backend = ASEReadOnlyBackend(trajectory)
+    backend.count_frames()  # length = 5
+    backend.read_row(-1)  # Should cache under key 4
+    assert 4 in backend._cache
+    assert -1 not in backend._cache
+
+
+def test_set_length(trajectory):
+    """set_length() makes __len__ work."""
+    backend = ASEReadOnlyBackend(trajectory)
+    backend.set_length(5)
+    assert len(backend) == 5
+
+
 # =============================================================================
 # read_rows
 # =============================================================================
@@ -185,8 +201,13 @@ def test_iter_rows_sequential(trajectory):
     backend = ASEReadOnlyBackend(trajectory)
     rows = list(backend.iter_rows([0, 1, 2, 3, 4]))
     assert len(rows) == 5
-    # After full iteration, length should be known
-    assert backend._length == 5
+
+
+def test_iter_rows_sequential_subset(trajectory):
+    """Sorted subset starting from 0 also uses iread optimization."""
+    backend = ASEReadOnlyBackend(trajectory)
+    rows = list(backend.iter_rows([0, 2, 4]))
+    assert len(rows) == 3
 
 
 def test_iter_rows_random(trajectory):
@@ -339,6 +360,14 @@ def test_aseio_info_preserved(trajectory):
 
     atoms4 = db[4]
     assert atoms4.info["step"] == 4
+
+
+def test_aseio_columns_unknown_length(trajectory):
+    """ASEIO.columns works even when length is unknown."""
+    db = asebytes.ASEIO(trajectory)
+    cols = db.columns
+    assert "arrays.numbers" in cols
+    assert "arrays.positions" in cols
 
 
 def test_aseio_extxyz_info(extxyz_trajectory):

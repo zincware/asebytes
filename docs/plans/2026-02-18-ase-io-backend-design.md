@@ -12,8 +12,8 @@ loading with a configurable LRU cache. No writes.
 
 - Reads individual frames via `ase.io.read(file, index=N)`.
 - Converts to `dict[str, Any]` via `atoms_to_dict()` and caches.
-- `__len__` raises `RuntimeError` until the length is known (discovered
-  through `count_frames()`, a complete iteration, or an out-of-bounds read).
+- `__len__` raises `TypeError` until the length is known (discovered
+  through `count_frames()` or a complete iteration).
 - `iter_rows` streams via `ase.io.iread()` for sequential access.
 - Registry entries for `*.traj`, `*.xyz`, `*.extxyz` (all read-only, no
   writable variant).
@@ -26,12 +26,11 @@ loading with a configurable LRU cache. No writes.
     pass `readonly=True`.
   - `True`: always select read-only backend.
   - `False`: always select writable backend; raise `TypeError` if none.
-- `__getitem__(int)`: when `len()` raises `RuntimeError` (unknown length),
+- `__getitem__(int)`: when `len()` raises `TypeError` (unknown length),
   skip bounds checking and delegate to the backend. The backend converts
-  ASE errors to `IndexError`. Negative indices are passed through to
-  `ase.io.read` which supports them natively.
+  ASE errors to `IndexError`. Negative indices require known length.
 - `__getitem__(slice | list[int])`: if length is unknown, propagate the
-  `RuntimeError` — user must call `count_frames()` first.
+  `TypeError` — user must call `count_frames()` first.
 
 ## Caching
 

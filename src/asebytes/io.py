@@ -44,8 +44,14 @@ class ASEIO(MutableSequence):
     @property
     def columns(self) -> list[str]:
         """Available column names (inspects first row)."""
-        if len(self._backend) == 0:
-            return []
+        try:
+            n = len(self._backend)
+        except TypeError:
+            # Unknown-length backend — try reading frame 0 directly
+            pass
+        else:
+            if n == 0:
+                return []
         return self._backend.columns()
 
     # --- Internal methods used by views ---
@@ -90,7 +96,7 @@ class ASEIO(MutableSequence):
     ) -> ase.Atoms | RowView | ColumnView:
         if isinstance(index, int):
             if index < 0:
-                index += len(self)  # raises RuntimeError if unknown
+                index += len(self)  # raises TypeError if unknown
             row = self._backend.read_row(index)
             return dict_to_atoms(row)
         if isinstance(index, slice):
@@ -150,6 +156,8 @@ class ASEIO(MutableSequence):
                 yield self[i]
                 i += 1
             except IndexError:
+                if hasattr(self._backend, "set_length"):
+                    self._backend.set_length(i)
                 return
 
     _VALID_PREFIXES = ("arrays.", "info.", "calc.")

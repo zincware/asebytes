@@ -34,28 +34,42 @@ class ASEReadOnlyBackend(ReadableBackend):
         self._length: int | None = None
 
     def _cache_put(self, index: int, row: dict[str, Any]) -> None:
-        """Insert into LRU cache, evicting oldest if at capacity."""
+        """Insert or update LRU cache, evicting oldest if at capacity."""
         if index in self._cache:
+            self._cache[index] = row
             self._cache.move_to_end(index)
             return
         self._cache[index] = row
         if len(self._cache) > self._cache_size:
             self._cache.popitem(last=False)
 
+    def _normalize_index(self, index: int) -> int:
+        """Normalize negative index to positive if length is known."""
+        if index < 0 and self._length is not None:
+            return index + self._length
+        return index
+
     def _read_frame(self, index: int) -> dict[str, Any]:
         """Read a single frame from file, convert to dict, and cache."""
-        if index in self._cache:
-            self._cache.move_to_end(index)
-            return self._cache[index]
+        cache_key = self._normalize_index(index)
+        if cache_key in self._cache:
+            self._cache.move_to_end(cache_key)
+            return self._cache[cache_key]
         try:
             atoms = ase.io.read(self._file, index=index, **self._ase_kwargs)
         except (IndexError, StopIteration):
-            if self._length is None and index >= 0:
-                self._length = index
             raise IndexError(index)
+        assert not isinstance(atoms, list)  # single index always returns one
         row = atoms_to_dict(atoms)
-        self._cache_put(index, row)
+        self._cache_put(cache_key, row)
         return row
+
+    def set_length(self, n: int) -> None:
+        """Set the known length of this backend.
+
+        Called by ASEIO after a complete iteration discovers the frame count.
+        """
+        self._length = n
 
     def count_frames(self) -> int:
         """Scan the file to determine the total number of frames.
@@ -98,11 +112,11 @@ class ASEReadOnlyBackend(ReadableBackend):
     def iter_rows(
         self, indices: list[int], keys: list[str] | None = None
     ) -> Iterator[dict[str, Any]]:
-        """Stream frames. Uses ase.io.iread for sequential access."""
-        # Check if indices are a contiguous range starting from 0
-        if indices == list(range(len(indices))):
-            frame_idx = 0
+        """Stream frames. Uses ase.io.iread when indices are sorted from 0."""
+        if indices and indices[0] == 0 and indices == sorted(indices):
             target_set = set(indices)
+            max_target = indices[-1]
+            frame_idx = 0
             for atoms in ase.io.iread(self._file, **self._ase_kwargs):
                 if frame_idx in target_set:
                     row = atoms_to_dict(atoms)
@@ -111,9 +125,14 @@ class ASEReadOnlyBackend(ReadableBackend):
                         yield {k: row[k] for k in keys if k in row}
                     else:
                         yield row
+                    if frame_idx == max_target:
+                        # All targets yielded; stop reading further
+                        frame_idx += 1
+                        break
                 frame_idx += 1
-            # We iterated through the whole file, so we know the length
-            self._length = frame_idx
+            else:
+                # Loop completed naturally (no break) — read whole file
+                self._length = frame_idx
         else:
             for i in indices:
                 yield self.read_row(i, keys)
@@ -122,6 +141,5 @@ class ASEReadOnlyBackend(ReadableBackend):
         self, key: str, indices: list[int] | None = None
     ) -> list[Any]:
         if indices is None:
-            # Need length for default range
             indices = list(range(len(self)))
         return [self.read_row(i, [key])[key] for i in indices]
