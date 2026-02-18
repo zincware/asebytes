@@ -69,6 +69,12 @@ def dict_to_atoms(data: dict[str, Any], fast: bool = True) -> ase.Atoms:
     -------
     ase.Atoms
         Reconstructed Atoms object.
+
+    Notes
+    -----
+    Arrays are referenced, not copied. For LMDB backends this is safe
+    (deserialization creates fresh arrays). In-memory backends should
+    copy if mutation is a concern.
     """
     numbers = data.get("arrays.numbers", np.array([], dtype=int))
     if not isinstance(numbers, np.ndarray):

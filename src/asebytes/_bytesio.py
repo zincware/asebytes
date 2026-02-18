@@ -272,6 +272,48 @@ class BytesIO(MutableSequence):
             # Extract field names from full keys
             return [key[len(prefix) :] for key in keys_to_fetch]
 
+    def get_with_txn(self, txn, index: int, keys: list[bytes] | None = None) -> dict[bytes, bytes]:
+        """
+        Get data at index using an existing LMDB transaction.
+
+        Same as get() but accepts an external transaction for batched reads
+        within a single transaction scope.
+
+        Parameters
+        ----------
+        txn : lmdb.Transaction
+            An active LMDB read transaction.
+        index : int
+            Logical index to retrieve.
+        keys : list[bytes], optional
+            Keys to retrieve. If None, returns all keys.
+
+        Returns
+        -------
+        dict[bytes, bytes]
+            Key-value pairs.
+        """
+        _, prefix, keys_to_fetch = self._get_full_keys(txn, index)
+
+        keys_set = None
+        if keys is not None:
+            keys_set = set(keys)
+            keys_to_fetch = [prefix + field_key for field_key in keys_set]
+
+        result = {}
+        if keys_to_fetch:
+            cursor = txn.cursor()
+            for key, value in cursor.getmulti(keys_to_fetch):
+                field_name = key[len(prefix) :]
+                result[field_name] = value
+
+        if keys_set is not None and len(result) != len(keys_set):
+            retrieved_keys = set(result.keys())
+            invalid_keys = keys_set - retrieved_keys
+            raise KeyError(f"Invalid keys at index {index}: {sorted(invalid_keys)}")
+
+        return result
+
     def get(self, index: int, keys: list[bytes] | None = None) -> dict[bytes, bytes]:
         """
         Get data at index, optionally filtering to specific keys.
@@ -294,32 +336,7 @@ class BytesIO(MutableSequence):
             If the index does not exist or if any of the requested keys are not found.
         """
         with self.env.begin() as txn:
-            _, prefix, keys_to_fetch = self._get_full_keys(txn, index)
-
-            # Filter keys if requested
-            keys_set = None
-            if keys is not None:
-                keys_set = set(keys)
-                # Build full keys with prefix for direct getmulti
-                # Optimistic: try to fetch all requested keys without pre-validation
-                keys_to_fetch = [prefix + field_key for field_key in keys_set]
-
-            # Use getmulti for efficient batch retrieval
-            result = {}
-            if keys_to_fetch:
-                cursor = txn.cursor()
-                for key, value in cursor.getmulti(keys_to_fetch):
-                    # Extract the field name after the sort_key prefix
-                    field_name = key[len(prefix) :]
-                    result[field_name] = value
-
-            # If keys were requested, validate all were found
-            if keys_set is not None and len(result) != len(keys_set):
-                retrieved_keys = set(result.keys())
-                invalid_keys = keys_set - retrieved_keys
-                raise KeyError(f"Invalid keys at index {index}: {sorted(invalid_keys)}")
-
-            return result
+            return self.get_with_txn(txn, index, keys)
 
     def update(self, index: int, data: dict[bytes, bytes]) -> None:
         """
@@ -391,6 +408,8 @@ class BytesIO(MutableSequence):
         with self.env.begin(write=True) as txn:
             current_count = self._get_count(txn)
 
+            if key < 0:
+                key += current_count
             if key < 0 or key >= current_count:
                 raise IndexError(f"Index {key} out of range [0, {current_count})")
 

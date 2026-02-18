@@ -1,8 +1,18 @@
 from __future__ import annotations
 
-from typing import Any, Iterator, overload
+from typing import Any, Iterator, Protocol, overload
 
 import ase
+
+
+class ViewParent(Protocol):
+    """Protocol for objects that can serve as parent of RowView/ColumnView."""
+
+    def __len__(self) -> int: ...
+    def _read_row(self, index: int, keys: list[str] | None = None) -> dict[str, Any]: ...
+    def _read_rows(self, indices: list[int], keys: list[str] | None = None) -> list[dict[str, Any]]: ...
+    def _read_column(self, key: str, indices: list[int]) -> list[Any]: ...
+    def _build_atoms(self, row: dict[str, Any]) -> ase.Atoms: ...
 
 
 def _sub_select(
@@ -32,7 +42,7 @@ class RowView:
 
     def __init__(
         self,
-        parent: Any,
+        parent: ViewParent,
         indices: range | list[int],
     ):
         self._parent = parent
@@ -40,6 +50,9 @@ class RowView:
 
     def __len__(self) -> int:
         return len(self._indices)
+
+    def __bool__(self) -> bool:
+        return len(self._indices) > 0
 
     @overload
     def __getitem__(self, key: int) -> ase.Atoms: ...
@@ -65,10 +78,12 @@ class RowView:
         if isinstance(key, str):
             return ColumnView(self._parent, key, self._indices)
         if isinstance(key, list):
-            if key and isinstance(key[0], int):
+            if not key:
+                return RowView(self._parent, [])
+            if isinstance(key[0], int):
                 new_indices = _sub_select(self._indices, key)
                 return RowView(self._parent, new_indices)
-            if key and isinstance(key[0], str):
+            if isinstance(key[0], str):
                 return ColumnView(self._parent, key, self._indices)
         raise TypeError(f"Unsupported key type: {type(key)}")
 
@@ -102,7 +117,7 @@ class ColumnView:
 
     def __init__(
         self,
-        parent: Any,
+        parent: ViewParent,
         keys: str | list[str],
         indices: range | list[int] | None = None,
     ):
@@ -120,6 +135,9 @@ class ColumnView:
         if self._indices is not None:
             return len(self._indices)
         return len(self._parent)
+
+    def __bool__(self) -> bool:
+        return len(self) > 0
 
     @overload
     def __getitem__(self, key: int) -> Any: ...

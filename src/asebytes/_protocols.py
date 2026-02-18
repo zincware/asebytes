@@ -79,3 +79,13 @@ class WritableBackend(ReadableBackend):
     def append_rows(self, data: list[dict[str, Any]]) -> None:
         """Append multiple rows efficiently (bulk operation)."""
         ...
+
+    def update_row(self, index: int, data: dict[str, Any]) -> None:
+        """Partial update of specific keys at index.
+
+        Default implementation performs read-modify-write.
+        Backends may override for optimized partial updates.
+        """
+        row = self.read_row(index)
+        row.update(data)
+        self.write_row(index, row)

@@ -1,3 +1,3 @@
-from asebytes.lmdb._backend import LMDBBackend
+from asebytes.lmdb._backend import LMDBBackend, LMDBReadOnlyBackend
 
-__all__ = ["LMDBBackend"]
+__all__ = ["LMDBBackend", "LMDBReadOnlyBackend"]

@@ -14,7 +14,6 @@ with existing benchmarks in test_benchmark_read.py / test_benchmark_write.py.
 import random
 import uuid
 
-import ase
 import numpy as np
 import pytest
 from ase.calculators.singlepoint import SinglePointCalculator

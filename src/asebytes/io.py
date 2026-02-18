@@ -29,12 +29,15 @@ class ASEIO(MutableSequence):
     def __init__(
         self,
         backend: str | ReadableBackend,
+        *,
+        readonly: bool = False,
         **kwargs: Any,
     ):
         if isinstance(backend, str):
-            from asebytes.lmdb import LMDBBackend
+            from asebytes._registry import get_backend_cls
 
-            self._backend: ReadableBackend = LMDBBackend(backend, **kwargs)
+            cls = get_backend_cls(backend, readonly=readonly)
+            self._backend: ReadableBackend = cls(backend, **kwargs)
         else:
             self._backend = backend
 
@@ -81,8 +84,11 @@ class ASEIO(MutableSequence):
         index: int | slice | str | list[int] | list[str],
     ) -> ase.Atoms | RowView | ColumnView:
         if isinstance(index, int):
+            n = len(self)
             if index < 0:
-                index += len(self)
+                index += n
+            if index < 0 or index >= n:
+                raise IndexError(index)
             row = self._backend.read_row(index)
             return dict_to_atoms(row)
         if isinstance(index, slice):
@@ -91,12 +97,19 @@ class ASEIO(MutableSequence):
         if isinstance(index, str):
             return ColumnView(self, index)
         if isinstance(index, list):
-            if index and isinstance(index[0], int):
-                return RowView(self, index)
-            if index and isinstance(index[0], str):
-                return ColumnView(self, index)
             if not index:
                 return RowView(self, [])
+            if isinstance(index[0], int):
+                n = len(self)
+                normalized = []
+                for i in index:
+                    idx = i + n if i < 0 else i
+                    if idx < 0 or idx >= n:
+                        raise IndexError(i)
+                    normalized.append(idx)
+                return RowView(self, normalized)
+            if isinstance(index[0], str):
+                return ColumnView(self, index)
         raise TypeError(f"Unsupported index type: {type(index)}")
 
     def __setitem__(self, index: int, value: ase.Atoms) -> None:
@@ -186,6 +199,4 @@ class ASEIO(MutableSequence):
         if not flat_data:
             return
 
-        row = self._backend.read_row(index)
-        row.update(flat_data)
-        self._backend.write_row(index, row)
+        self._backend.update_row(index, flat_data)

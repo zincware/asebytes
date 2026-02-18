@@ -108,7 +108,7 @@ def test_read_xyz(benchmark, ethanol, tmp_path):
 @pytest.mark.benchmark(group="read")
 def test_read_sqlite(benchmark, ethanol, tmp_path):
     """Read 1000 ethanol molecules using SQLite database."""
-    db_path = tmp_path / "read_sqlite.db"
+    db_path = tmp_path / "read_sqlite.lmdb"
     db = connect(str(db_path), type="db")
 
     for mol in ethanol:

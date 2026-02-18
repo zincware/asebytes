@@ -7,7 +7,7 @@ from asebytes.lmdb import LMDBBackend
 
 @pytest.fixture
 def backend(tmp_path):
-    return LMDBBackend(str(tmp_path / "test.db"))
+    return LMDBBackend(str(tmp_path / "test.lmdb"))
 
 
 @pytest.fixture
@@ -127,7 +127,7 @@ def test_read_row_nonexistent(backend):
 
 
 def test_readonly_mode(tmp_path, sample_row):
-    path = str(tmp_path / "readonly.db")
+    path = str(tmp_path / "readonly.lmdb")
     # Write first
     wb = LMDBBackend(path)
     wb.write_row(0, sample_row)

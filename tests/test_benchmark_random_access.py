@@ -123,7 +123,7 @@ def test_random_access_xyz(benchmark, ethanol, tmp_path):
 @pytest.mark.benchmark(group="random_access")
 def test_random_access_sqlite(benchmark, ethanol, tmp_path):
     """Random access 1000 ethanol molecules using SQLite database."""
-    db_path = tmp_path / "random_sqlite.db"
+    db_path = tmp_path / "random_sqlite.lmdb"
     db = connect(str(db_path), type="db")
 
     # Setup: write data

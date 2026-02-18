@@ -16,7 +16,7 @@ def test_custom_map_size():
         atoms = ase.Atoms("H2O", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
         db.append(atoms)
         assert len(db) == 1
-        assert db._backend._store.env.info()["map_size"] == 1024**3
+        assert db._backend.env.info()["map_size"] == 1024**3
 
 
 def test_readonly_mode():
@@ -28,14 +28,14 @@ def test_readonly_mode():
         db_write = ASEIO(db_path)
         atoms = ase.Atoms("H2O", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
         db_write.append(atoms)
-        db_write._backend._store.env.close()
+        db_write._backend.env.close()
 
         # Open in readonly mode
         db_read = ASEIO(db_path, readonly=True)
         assert len(db_read) == 1
 
-        # Verify writes fail
-        with pytest.raises(Exception):  # lmdb.ReadonlyError
+        # Verify writes fail (TypeError because backend is ReadableBackend, not WritableBackend)
+        with pytest.raises(TypeError, match="read-only"):
             db_read.append(atoms)
 
 
@@ -45,7 +45,7 @@ def test_max_readers_configuration():
         db = ASEIO(str(Path(tmpdir) / "test.lmdb"), max_readers=64)
         atoms = ase.Atoms("H2O", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
         db.append(atoms)
-        assert db._backend._store.env.info()["max_readers"] == 64
+        assert db._backend.env.info()["max_readers"] == 64
 
 
 def test_lmdb_kwargs_passthrough():

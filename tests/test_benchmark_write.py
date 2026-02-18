@@ -86,7 +86,7 @@ def test_write_sqlite(benchmark, ethanol, tmp_path):
     """Write 1000 ethanol molecules using SQLite database."""
 
     def write_all():
-        db_path = tmp_path / f"write_sqlite_{uuid.uuid4().hex}.db"
+        db_path = tmp_path / f"write_sqlite_{uuid.uuid4().hex}.lmdb"
         db = connect(str(db_path), type="db")
         # TODO: use bulk insert, if available
         for mol in ethanol:

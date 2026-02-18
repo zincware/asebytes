@@ -564,7 +564,7 @@ from asebytes.lmdb import LMDBBackend
 
 @pytest.fixture
 def backend(tmp_path):
-    return LMDBBackend(str(tmp_path / "test.db"))
+    return LMDBBackend(str(tmp_path / "test.lmdb"))
 
 
 @pytest.fixture
@@ -684,7 +684,7 @@ def test_read_row_nonexistent(backend):
 
 
 def test_readonly_mode(tmp_path, sample_row):
-    path = str(tmp_path / "readonly.db")
+    path = str(tmp_path / "readonly.lmdb")
     # Write first
     wb = LMDBBackend(path)
     wb.write_row(0, sample_row)
@@ -1324,7 +1324,7 @@ from asebytes.lmdb import LMDBBackend
 
 @pytest.fixture
 def db(tmp_path):
-    io = ASEIO(str(tmp_path / "test.db"))
+    io = ASEIO(str(tmp_path / "test.lmdb"))
     for i in range(10):
         atoms = ase.Atoms("H", positions=[[float(i), 0, 0]])
         atoms.info["tag"] = f"mol_{i}"
@@ -1337,7 +1337,7 @@ def db(tmp_path):
 @pytest.fixture
 def db_from_backend(tmp_path):
     """Test ASEIO constructed with explicit LMDBBackend."""
-    backend = LMDBBackend(str(tmp_path / "backend.db"))
+    backend = LMDBBackend(str(tmp_path / "backend.lmdb"))
     io = ASEIO(backend)
     for i in range(5):
         atoms = ase.Atoms("H", positions=[[float(i), 0, 0]])
@@ -2223,5 +2223,5 @@ All backends implement `ReadableBackend` (some also `WritableBackend`). Lazy imp
 | **Materials Project** | `asebytes.mp` | Read | Via mp-api. Access to MP database (structures, energies, band gaps, etc.). |
 | **AFLOW** | `asebytes.aflow` | Read | AFLOW REST API — thermodynamic/electronic properties database. |
 | **JARVIS** | `asebytes.jarvis` | Read | JARVIS-DFT/ML database via jarvis-tools. |
-| **ASE Database** | `asebytes.asedb` | Read/Write | Wraps `ase.db.connect()`. Supports SQLite, PostgreSQL, MySQL. Enables `ASEIO("database.db")`. |
+| **ASE Database** | `asebytes.asedb` | Read/Write | Wraps `ase.db.connect()`. Supports SQLite, PostgreSQL, MySQL. Enables `ASEIO("database.lmdb")`. |
 | **OCP / FAIRChem** | `asebytes.fairchem` | Read | Read FAIRChem's sharded LMDB format directly (`.NNNN.lmdb` files). |

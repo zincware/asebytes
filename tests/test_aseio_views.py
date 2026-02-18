@@ -10,7 +10,7 @@ from asebytes.lmdb import LMDBBackend
 
 @pytest.fixture
 def db(tmp_path):
-    io = ASEIO(str(tmp_path / "test.db"))
+    io = ASEIO(str(tmp_path / "test.lmdb"))
     for i in range(10):
         atoms = ase.Atoms("H", positions=[[float(i), 0, 0]])
         atoms.info["tag"] = f"mol_{i}"
@@ -23,7 +23,7 @@ def db(tmp_path):
 @pytest.fixture
 def db_from_backend(tmp_path):
     """Test ASEIO constructed with explicit LMDBBackend."""
-    backend = LMDBBackend(str(tmp_path / "backend.db"))
+    backend = LMDBBackend(str(tmp_path / "backend.lmdb"))
     io = ASEIO(backend)
     for i in range(5):
         atoms = ase.Atoms("H", positions=[[float(i), 0, 0]])

@@ -9,7 +9,7 @@ import asebytes
 @pytest.fixture
 def io(tmp_path):
     """Create an ASEIO instance for testing."""
-    return asebytes.ASEIO(str(tmp_path / "test.db"))
+    return asebytes.ASEIO(str(tmp_path / "test.lmdb"))
 
 
 def test_update_info_add_new_keys(io, ethanol):

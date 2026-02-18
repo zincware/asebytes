@@ -85,7 +85,7 @@ def bytesio_instance(tmp_path):
     """Return a BytesIO instance for testing."""
     import asebytes
 
-    return asebytes.BytesIO(str(tmp_path / "test.db"))
+    return asebytes.BytesIO(str(tmp_path / "test.lmdb"))
 
 
 @pytest.fixture
@@ -93,4 +93,4 @@ def aseio_instance(tmp_path):
     """Return an ASEIO instance for testing."""
     import asebytes
 
-    return asebytes.ASEIO(str(tmp_path / "test.db"))
+    return asebytes.ASEIO(str(tmp_path / "test.lmdb"))
