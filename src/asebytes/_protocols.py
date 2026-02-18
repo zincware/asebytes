@@ -63,12 +63,6 @@ class ReadableBackend(ABC):
             indices = list(range(len(self)))
         return [self.read_row(i, [key])[key] for i in indices]
 
-    def set_length(self, n: int) -> None:
-        """Set the known length after discovery (e.g. complete iteration).
-
-        No-op by default. Backends with lazy length discovery override this.
-        """
-
 
 class WritableBackend(ReadableBackend):
     """Abstract base for read-write storage backends.

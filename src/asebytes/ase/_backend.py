@@ -32,6 +32,7 @@ class ASEReadOnlyBackend(ReadableBackend):
         self._ase_kwargs = ase_kwargs
         self._cache: OrderedDict[int, dict[str, Any]] = OrderedDict()
         self._length: int | None = None
+        self._max_read: int = -1
 
     def _cache_put(self, index: int, row: dict[str, Any]) -> None:
         """Insert or update LRU cache, evicting oldest if at capacity."""
@@ -58,18 +59,19 @@ class ASEReadOnlyBackend(ReadableBackend):
         try:
             atoms = ase.io.read(self._file, index=index, **self._ase_kwargs)
         except (IndexError, StopIteration):
+            if (
+                self._length is None
+                and cache_key >= 0
+                and cache_key == self._max_read + 1
+            ):
+                self._length = cache_key
             raise IndexError(index)
         assert not isinstance(atoms, list)  # single index always returns one
         row = atoms_to_dict(atoms)
         self._cache_put(cache_key, row)
+        if cache_key >= 0 and cache_key > self._max_read:
+            self._max_read = cache_key
         return row
-
-    def set_length(self, n: int) -> None:
-        """Set the known length of this backend.
-
-        Called by ASEIO after a complete iteration discovers the frame count.
-        """
-        self._length = n
 
     def count_frames(self) -> int:
         """Scan the file to determine the total number of frames.

@@ -172,10 +172,13 @@ def test_cache_negative_index_normalized(trajectory):
     assert -1 not in backend._cache
 
 
-def test_set_length(trajectory):
-    """set_length() makes __len__ work."""
+def test_length_auto_discovery(trajectory):
+    """Reading frames 0..N then N+1 (fail) auto-discovers length."""
     backend = ASEReadOnlyBackend(trajectory)
-    backend.set_length(5)
+    for i in range(5):
+        backend.read_row(i)
+    with pytest.raises(IndexError):
+        backend.read_row(5)
     assert len(backend) == 5
 
 
