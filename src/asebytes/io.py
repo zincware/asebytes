@@ -156,8 +156,7 @@ class ASEIO(MutableSequence):
                 yield self[i]
                 i += 1
             except IndexError:
-                if hasattr(self._backend, "set_length"):
-                    self._backend.set_length(i)
+                self._backend.set_length(i)
                 return
 
     _VALID_PREFIXES = ("arrays.", "info.", "calc.")
