@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from typing import Any
 
 
@@ -43,6 +44,16 @@ class ReadableBackend(ABC):
     ) -> list[dict[str, Any]]:
         """Read multiple rows. Default: loops over read_row."""
         return [self.read_row(i, keys) for i in indices]
+
+    def iter_rows(
+        self, indices: list[int], keys: list[str] | None = None
+    ) -> Iterator[dict[str, Any]]:
+        """Yield rows one at a time. Default: calls read_row per index.
+
+        Override for transaction-scoped streaming (e.g. single LMDB read txn).
+        """
+        for i in indices:
+            yield self.read_row(i, keys)
 
     def read_column(
         self, key: str, indices: list[int] | None = None

@@ -29,6 +29,10 @@ class MockParent:
     ) -> list[dict[str, Any]]:
         return [self._read_row(i, keys) for i in indices]
 
+    def _iter_rows(self, indices: list[int], keys: list[str] | None = None):
+        for i in indices:
+            yield self._read_row(i, keys)
+
     def _read_column(self, key: str, indices: list[int]) -> list[Any]:
         return [self._rows[i][key] for i in indices]
 

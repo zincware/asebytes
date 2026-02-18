@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import MutableSequence
-from typing import Any, Iterator, overload
+from collections.abc import Iterator, MutableSequence
+from typing import Any, overload
 
 import ase
 import numpy as np
@@ -59,6 +59,11 @@ class ASEIO(MutableSequence):
         self, indices: list[int], keys: list[str] | None = None
     ) -> list[dict[str, Any]]:
         return self._backend.read_rows(indices, keys)
+
+    def _iter_rows(
+        self, indices: list[int], keys: list[str] | None = None
+    ) -> Iterator[dict[str, Any]]:
+        return self._backend.iter_rows(indices, keys)
 
     def _read_column(self, key: str, indices: list[int]) -> list[Any]:
         return self._backend.read_column(key, indices)
@@ -158,6 +163,22 @@ class ASEIO(MutableSequence):
         row = self._backend.read_row(index, str_keys)
         return dict_to_atoms(row)
 
+    _VALID_PREFIXES = ("arrays.", "info.", "calc.")
+    _VALID_TOP_LEVEL = ("cell", "pbc", "constraints")
+
+    def _validate_keys(self, data: dict[str, Any]) -> None:
+        """Validate that all keys follow the namespace convention."""
+        for key in data:
+            if key in self._VALID_TOP_LEVEL:
+                continue
+            if any(key.startswith(p) for p in self._VALID_PREFIXES):
+                continue
+            raise ValueError(
+                f"Invalid key {key!r}. Keys must start with "
+                f"{', '.join(self._VALID_PREFIXES)} or be one of "
+                f"{', '.join(self._VALID_TOP_LEVEL)}."
+            )
+
     def update(
         self,
         index: int,
@@ -167,15 +188,16 @@ class ASEIO(MutableSequence):
         arrays: dict[str, np.ndarray] | None = None,
         calc: dict[str, Any] | None = None,
     ) -> None:
-        """Update specific keys at index (read-modify-write).
+        """Update specific keys at index.
 
-        Supports both new flat-dict API and legacy keyword API.
+        Keys must follow the namespace convention: ``calc.*``, ``info.*``,
+        ``arrays.*``, or top-level keys (``cell``, ``pbc``, ``constraints``).
 
-        New API::
+        Flat-dict API::
 
             db.update(i, {"calc.energy": -10.5, "info.tag": "done"})
 
-        Legacy API (still supported)::
+        Keyword API::
 
             db.update(i, info={"tag": "done"}, calc={"energy": -10.5})
         """
@@ -199,4 +221,5 @@ class ASEIO(MutableSequence):
         if not flat_data:
             return
 
+        self._validate_keys(flat_data)
         self._backend.update_row(index, flat_data)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
 import msgpack
@@ -60,6 +61,17 @@ class LMDBReadOnlyBackend(ReadableBackend):
         byte_keys = [k.encode() for k in keys] if keys is not None else None
         raw = self._store.get(index, keys=byte_keys)
         return self._deserialize_row(raw)
+
+    def iter_rows(
+        self, indices: list[int], keys: list[str] | None = None
+    ) -> Iterator[dict[str, Any]]:
+        """Stream rows within a single LMDB read transaction."""
+        byte_keys = [k.encode() for k in keys] if keys is not None else None
+        with self._store.env.begin() as txn:
+            for i in indices:
+                yield self._deserialize_row(
+                    self._store.get_with_txn(txn, i, byte_keys)
+                )
 
     def read_rows(
         self, indices: list[int], keys: list[str] | None = None

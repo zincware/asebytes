@@ -1,37 +1,76 @@
 # asebytes
 
-Efficient serialization and storage for ASE Atoms objects using LMDB.
+Efficient serialization and storage for ASE Atoms objects with pluggable backends and lazy column-oriented access.
 
 ## API
 
-- **`encode(atoms)`** - Encode an ASE Atoms object to a dict of bytes
-- **`decode(data)`** - Decode bytes back into an ASE Atoms object
-- **`BytesIO(file, prefix)`** - LMDB-backed list-like storage for bytes dictionaries
-- **`ASEIO(file, prefix)`** - LMDB-backed list-like storage for ASE Atoms objects
+### Storage
+
+- **`ASEIO(file)`** - Storage-agnostic mutable sequence for ASE Atoms objects
+- **`BytesIO(file, prefix)`** - Low-level LMDB-backed storage for bytes dictionaries
+
+### Serialization
+
+- **`encode(atoms)`** / **`decode(data)`** - Serialize/deserialize Atoms to/from bytes
+- **`atoms_to_dict(atoms)`** / **`dict_to_atoms(data)`** - Convert Atoms to/from logical dicts (no serialization, ~5x faster)
+
+### Backends
+
+- **`LMDBBackend(file)`** - Read-write LMDB backend
+- **`LMDBReadOnlyBackend(file)`** - Read-only LMDB backend
+- **`ReadableBackend`** / **`WritableBackend`** - Abstract base classes for custom backends
+
+### Views
+
+- **`RowView`** - Lazy view over a subset of rows, yields `ase.Atoms` on iteration
+- **`ColumnView`** - Lazy view over one or more columns, avoids constructing full Atoms objects
 
 ## Examples
 
 ```python
-from asebytes import ASEIO, BytesIO, encode, decode
+from asebytes import ASEIO
 import molify
 
-# Generate conformers from SMILES
-ethanol = molify.smiles2conformers("CCO", numConfs=100)
+ethanol = molify.smiles2conformers("CCO", numConfs=1000)
 
-# Serialize/deserialize single molecule
-data = encode(ethanol[0])
-atoms_restored = decode(data)
-
-# High-level: Store Atoms objects directly
+# Store Atoms objects
 db = ASEIO("conformers.lmdb")
-db.extend(ethanol)  # Add all conformers
-mol = db[0]         # Returns ase.Atoms
+db.extend(ethanol)
 
-# Low-level: BytesIO stores serialized data
-bytes_db = BytesIO("conformers.lmdb")
-bytes_db.append(encode(ethanol[0]))      # Manual serialization
-data = bytes_db[0]                       # Returns dict[bytes, bytes]
-mol = decode(data)                       # Manual deserialization
+# Integer indexing returns ase.Atoms
+mol = db[0]
 
-# ASEIO = BytesIO + automatic encode/decode
+# Slicing returns a lazy RowView
+view = db[5:10]       # no data loaded yet
+for atoms in view:    # streams one at a time
+    print(atoms)
+
+# Chunked iteration for throughput on large datasets
+for atoms in db[:].chunked(1000):  # loads 1000 rows at a time
+    process(atoms)
+
+# String indexing returns a lazy ColumnView
+energies = db["calc.energy"]          # single column
+energies_list = energies.to_list()    # materialize
+
+# Multi-column access
+cols = db[["calc.energy", "calc.forces"]]
+cols_dict = cols.to_dict()  # {"calc.energy": [...], "calc.forces": [...]}
+
+# Chaining: slice rows then select columns
+db[0:100]["calc.energy"].to_list()
+
+# Read-only access
+db_ro = ASEIO("conformers.lmdb", readonly=True)
+
+# Partial updates (only writes changed keys)
+# Keys must use namespaces: calc.*, info.*, arrays.*
+db.update(0, {"info.tag": "optimized"})
+db.update(0, calc={"energy": -10.5})
 ```
+
+## Benchmarks
+
+Performance comparison for 1000 ethanol molecules with calculator results:
+
+![Benchmark Comparison](benchmark_comparison.png)

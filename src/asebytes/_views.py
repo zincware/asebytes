@@ -11,6 +11,7 @@ class ViewParent(Protocol):
     def __len__(self) -> int: ...
     def _read_row(self, index: int, keys: list[str] | None = None) -> dict[str, Any]: ...
     def _read_rows(self, indices: list[int], keys: list[str] | None = None) -> list[dict[str, Any]]: ...
+    def _iter_rows(self, indices: list[int], keys: list[str] | None = None) -> Iterator[dict[str, Any]]: ...
     def _read_column(self, key: str, indices: list[int]) -> list[Any]: ...
     def _build_atoms(self, row: dict[str, Any]) -> ase.Atoms: ...
 
@@ -88,13 +89,27 @@ class RowView:
         raise TypeError(f"Unsupported key type: {type(key)}")
 
     def __iter__(self) -> Iterator[ase.Atoms]:
-        # Batch read via read_rows to avoid N+1 query problem
-        for row in self._parent._read_rows(self._indices):
+        """Stream rows one at a time (safe for large datasets)."""
+        for row in self._parent._iter_rows(self._indices):
             yield self._parent._build_atoms(row)
 
+    def chunked(self, chunk_size: int = 1000) -> Iterator[ase.Atoms]:
+        """Iterate in chunks for throughput.
+
+        Loads ``chunk_size`` rows at a time into memory, yielding
+        one Atoms object per iteration. I/O happens at chunk boundaries.
+        """
+        for start in range(0, len(self._indices), chunk_size):
+            chunk = self._indices[start : start + chunk_size]
+            for row in self._parent._read_rows(chunk):
+                yield self._parent._build_atoms(row)
+
     def to_list(self) -> list[ase.Atoms]:
-        """Materialize as list of Atoms objects."""
-        return list(self)
+        """Materialize all rows into memory."""
+        return [
+            self._parent._build_atoms(row)
+            for row in self._parent._read_rows(self._indices)
+        ]
 
     def __repr__(self) -> str:
         return f"RowView(len={len(self)})"
