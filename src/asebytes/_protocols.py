@@ -36,6 +36,11 @@ class ReadableBackend(ABC):
             Row index.
         keys : list[str] | None
             If provided, only return these keys. If None, return all.
+
+        Raises
+        ------
+        IndexError
+            If ``index`` is out of bounds.
         """
         ...
 

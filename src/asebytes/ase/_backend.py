@@ -66,7 +66,8 @@ class ASEReadOnlyBackend(ReadableBackend):
             ):
                 self._length = cache_key
             raise IndexError(index)
-        assert not isinstance(atoms, list)  # single index always returns one
+        if isinstance(atoms, list):
+            raise RuntimeError(f"Expected single Atoms, got list of {len(atoms)}")
         row = atoms_to_dict(atoms)
         self._cache_put(cache_key, row)
         if cache_key >= 0 and cache_key > self._max_read:
@@ -115,7 +116,11 @@ class ASEReadOnlyBackend(ReadableBackend):
         self, indices: list[int], keys: list[str] | None = None
     ) -> Iterator[dict[str, Any]]:
         """Stream frames. Uses ase.io.iread when indices are sorted from 0."""
-        if indices and indices[0] == 0 and indices == sorted(indices):
+        unique = len(set(indices)) == len(indices)
+        is_sorted = all(
+            indices[i] <= indices[i + 1] for i in range(len(indices) - 1)
+        )
+        if unique and indices and indices[0] == 0 and is_sorted:
             target_set = set(indices)
             max_target = indices[-1]
             frame_idx = 0
