@@ -7,6 +7,7 @@ from ._views import ColumnView, RowView
 from .decode import decode
 from .encode import encode
 from .io import ASEIO
+from .ase import ASEReadOnlyBackend
 from .lmdb import LMDBBackend, LMDBReadOnlyBackend
 from .metadata import get_metadata
 
@@ -24,6 +25,7 @@ __all__ = [
     "ColumnView",
     "LMDBBackend",
     "LMDBReadOnlyBackend",
+    "ASEReadOnlyBackend",
 ]
 
 __version__ = importlib.metadata.version("asebytes")

@@ -30,7 +30,7 @@ class ASEIO(MutableSequence):
         self,
         backend: str | ReadableBackend,
         *,
-        readonly: bool = False,
+        readonly: bool | None = None,
         **kwargs: Any,
     ):
         if isinstance(backend, str):
@@ -84,16 +84,25 @@ class ASEIO(MutableSequence):
     @overload
     def __getitem__(self, index: list[str]) -> ColumnView: ...
 
+    def _try_len(self) -> int | None:
+        """Return length if known, None if backend raises RuntimeError."""
+        try:
+            return len(self)
+        except RuntimeError:
+            return None
+
     def __getitem__(
         self,
         index: int | slice | str | list[int] | list[str],
     ) -> ase.Atoms | RowView | ColumnView:
         if isinstance(index, int):
-            n = len(self)
-            if index < 0:
-                index += n
-            if index < 0 or index >= n:
-                raise IndexError(index)
+            n = self._try_len()
+            if n is not None:
+                if index < 0:
+                    index += n
+                if index < 0 or index >= n:
+                    raise IndexError(index)
+            # n is None → unknown length, delegate to backend directly
             row = self._backend.read_row(index)
             return dict_to_atoms(row)
         if isinstance(index, slice):

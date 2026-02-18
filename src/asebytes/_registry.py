@@ -8,18 +8,24 @@ import importlib
 # pattern -> (module_path, writable_cls_name | None, readonly_cls_name)
 _BACKEND_REGISTRY: dict[str, tuple[str, str | None, str]] = {
     "*.lmdb": ("asebytes.lmdb", "LMDBBackend", "LMDBReadOnlyBackend"),
+    "*.traj": ("asebytes.ase", None, "ASEReadOnlyBackend"),
+    "*.xyz": ("asebytes.ase", None, "ASEReadOnlyBackend"),
+    "*.extxyz": ("asebytes.ase", None, "ASEReadOnlyBackend"),
 }
 
 
-def get_backend_cls(path: str, *, readonly: bool = False):
+def get_backend_cls(path: str, *, readonly: bool | None = None):
     """Resolve a file path to a backend class via glob pattern matching.
 
     Parameters
     ----------
     path : str
         File path to match against registered patterns.
-    readonly : bool
+    readonly : bool | None
         If True, return the read-only backend class.
+        If False, return the writable backend class (raises TypeError if none).
+        If None (default), auto-detect: prefer writable if available, else
+        read-only.
 
     Returns
     -------
@@ -31,17 +37,22 @@ def get_backend_cls(path: str, *, readonly: bool = False):
     KeyError
         If no backend is registered for the given path.
     TypeError
-        If a writable backend is requested but none is available.
+        If a writable backend is explicitly requested but none is available.
     """
     for pattern, (module_path, writable, read_only) in _BACKEND_REGISTRY.items():
         if fnmatch.fnmatch(path, pattern):
             mod = importlib.import_module(module_path)
-            if not readonly:
+            if readonly is True:
+                return getattr(mod, read_only)
+            if readonly is False:
                 if writable is None:
                     raise TypeError(
                         f"Backend for '{path}' is read-only, "
                         "no writable variant available"
                     )
+                return getattr(mod, writable)
+            # readonly is None — auto-detect
+            if writable is not None:
                 return getattr(mod, writable)
             return getattr(mod, read_only)
     raise KeyError(f"No backend registered for '{path}'")
