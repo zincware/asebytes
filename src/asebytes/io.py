@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from collections.abc import MutableSequence
-from typing import Any, Iterator
+from typing import Any, Iterator, overload
 
 import ase
 import lmdb
@@ -7,185 +9,202 @@ import msgpack
 import msgpack_numpy as m
 import numpy as np
 
+from asebytes._convert import atoms_to_dict, dict_to_atoms
+from asebytes._protocols import ReadableBackend, WritableBackend
+from asebytes._views import ColumnView, RowView
 from asebytes.decode import decode
 from asebytes.encode import encode
 
 
 class ASEIO(MutableSequence):
-    """
-    LMDB-backed mutable sequence for ASE Atoms objects.
+    """Storage-agnostic mutable sequence for ASE Atoms objects.
+
+    Supports pluggable backends (LMDB, HuggingFace, Zarr) and pandas-style
+    lazy views for column-oriented data access.
 
     Parameters
     ----------
-    file : str
-        Path to LMDB database file.
-    prefix : bytes, default=b""
-        Key prefix for namespacing entries.
-    map_size : int, default=10737418240
-        Maximum size of the LMDB database in bytes (default 10GB).
-        On macOS/Linux, this is virtual address space and doesn't consume actual disk space.
-    readonly : bool, default=False
-        If True, opens database in read-only mode.
-    **lmdb_kwargs
-        Additional keyword arguments passed to lmdb.open().
+    backend : str | ReadableBackend | WritableBackend
+        Either a file path (auto-creates LMDBBackend) or a backend instance.
+    **kwargs
+        When backend is a str, forwarded to LMDBBackend constructor
+        (prefix, map_size, readonly, etc.).
     """
 
     def __init__(
         self,
-        file: str,
-        prefix: bytes = b"",
-        map_size: int = 10737418240,
-        readonly: bool = False,
-        **lmdb_kwargs,
+        backend: str | ReadableBackend,
+        **kwargs: Any,
     ):
-        self.io = BytesIO(file, prefix, map_size, readonly, **lmdb_kwargs)
+        if isinstance(backend, str):
+            from asebytes.lmdb import LMDBBackend
 
-    def __getitem__(self, index: int) -> ase.Atoms:
-        data = self.io[index]
-        return decode(data)
+            self._backend: ReadableBackend = LMDBBackend(backend, **kwargs)
+        else:
+            self._backend = backend
+
+    @property
+    def columns(self) -> list[str]:
+        """Available column names (inspects first row)."""
+        if len(self._backend) == 0:
+            return []
+        return self._backend.columns()
+
+    # --- Internal methods used by views ---
+
+    def _read_row(
+        self, index: int, keys: list[str] | None = None
+    ) -> dict[str, Any]:
+        return self._backend.read_row(index, keys)
+
+    def _read_rows(
+        self, indices: list[int], keys: list[str] | None = None
+    ) -> list[dict[str, Any]]:
+        return self._backend.read_rows(indices, keys)
+
+    def _read_column(self, key: str, indices: list[int]) -> list[Any]:
+        return self._backend.read_column(key, indices)
+
+    def _build_atoms(self, row: dict[str, Any]) -> ase.Atoms:
+        return dict_to_atoms(row)
+
+    # --- MutableSequence interface ---
+
+    @overload
+    def __getitem__(self, index: int) -> ase.Atoms: ...
+    @overload
+    def __getitem__(self, index: slice) -> RowView: ...
+    @overload
+    def __getitem__(self, index: list[int]) -> RowView: ...
+    @overload
+    def __getitem__(self, index: str) -> ColumnView: ...
+    @overload
+    def __getitem__(self, index: list[str]) -> ColumnView: ...
+
+    def __getitem__(
+        self,
+        index: int | slice | str | list[int] | list[str],
+    ) -> ase.Atoms | RowView | ColumnView:
+        if isinstance(index, int):
+            if index < 0:
+                index += len(self)
+            row = self._backend.read_row(index)
+            return dict_to_atoms(row)
+        if isinstance(index, slice):
+            indices = range(len(self))[index]
+            return RowView(self, list(indices))
+        if isinstance(index, str):
+            return ColumnView(self, index)
+        if isinstance(index, list):
+            if index and isinstance(index[0], int):
+                return RowView(self, index)
+            if index and isinstance(index[0], str):
+                return ColumnView(self, index)
+            if not index:
+                return RowView(self, [])
+        raise TypeError(f"Unsupported index type: {type(index)}")
 
     def __setitem__(self, index: int, value: ase.Atoms) -> None:
-        data = encode(value)
-        self.io[index] = data
+        if not isinstance(self._backend, WritableBackend):
+            raise TypeError("Backend is read-only")
+        data = atoms_to_dict(value)
+        self._backend.write_row(index, data)
 
     def __delitem__(self, index: int) -> None:
-        del self.io[index]
+        if not isinstance(self._backend, WritableBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.delete_row(index)
 
     def insert(self, index: int, value: ase.Atoms) -> None:
-        data = encode(value)
-        self.io.insert(index, data)
+        if not isinstance(self._backend, WritableBackend):
+            raise TypeError("Backend is read-only")
+        data = atoms_to_dict(value)
+        self._backend.insert_row(index, data)
 
     def extend(self, values: list[ase.Atoms]) -> None:
-        """
-        Efficiently extend with multiple Atoms objects using bulk operations.
-
-        Serializes all Atoms objects first, then performs a single bulk transaction.
-        Much faster than calling append() in a loop.
-
-        Parameters
-        ----------
-        values : list[ase.Atoms]
-            Atoms objects to append.
-        """
-        # Serialize all atoms objects first
-        serialized_data = [encode(atoms) for atoms in values]
-        # Use BytesIO's bulk extend (single transaction)
-        self.io.extend(serialized_data)
+        """Efficiently extend with multiple Atoms objects using bulk operations."""
+        if not isinstance(self._backend, WritableBackend):
+            raise TypeError("Backend is read-only")
+        data_list = [atoms_to_dict(atoms) for atoms in values]
+        self._backend.append_rows(data_list)
 
     def __len__(self) -> int:
-        return len(self.io)
+        return len(self._backend)
 
-    def __iter__(self) -> Iterator:
+    def __iter__(self) -> Iterator[ase.Atoms]:
         for i in range(len(self)):
             yield self[i]
 
+    # --- Legacy API (backward compatible) ---
+
     def get_available_keys(self, index: int) -> list[bytes]:
-        """
-        Get all available keys for a given index.
+        """Get available keys at index (legacy API, returns bytes keys)."""
+        cols = self._backend.columns(index)
+        return [c.encode() for c in cols]
 
-        Parameters
-        ----------
-        index : int
-            Logical index to query.
-
-        Returns
-        -------
-        list[bytes]
-            Available keys at the index.
-
-        Raises
-        ------
-        KeyError
-            If the index does not exist.
-        """
-        return self.io.get_available_keys(index)
-
-    def get(self, index: int, keys: list[bytes] | None = None) -> ase.Atoms:
-        """
-        Get Atoms object at index, optionally filtering to specific keys.
-
-        Parameters
-        ----------
-        index : int
-            Logical index to retrieve.
-        keys : list[bytes], optional
-            Keys to retrieve (e.g., b"arrays.positions", b"info.smiles", b"calc.energy").
-            If None, returns all data.
-
-        Returns
-        -------
-        ase.Atoms
-            Atoms object reconstructed from the requested keys.
-
-        Raises
-        ------
-        KeyError
-            If the index does not exist or if any of the requested keys are not found.
-        """
-        data = self.io.get(index, keys=keys)
-        return decode(data)
+    def get(
+        self, index: int, keys: list[bytes] | None = None
+    ) -> ase.Atoms:
+        """Get Atoms at index, optionally filtering to specific keys (legacy API)."""
+        str_keys = [k.decode() for k in keys] if keys is not None else None
+        row = self._backend.read_row(index, str_keys)
+        return dict_to_atoms(row)
 
     def update(
         self,
         index: int,
+        data: dict[str, Any] | None = None,
+        *,
         info: dict[str, Any] | None = None,
         arrays: dict[str, np.ndarray] | None = None,
         calc: dict[str, Any] | None = None,
     ) -> None:
+        """Update specific keys at index (read-modify-write).
+
+        Supports both new flat-dict API and legacy keyword API.
+
+        New API::
+
+            db.update(i, {"calc.energy": -10.5, "info.tag": "done"})
+
+        Legacy API (still supported)::
+
+            db.update(i, info={"tag": "done"}, calc={"energy": -10.5})
         """
-        Update or add specific info, arrays, or calc keys to existing atoms.
+        if not isinstance(self._backend, WritableBackend):
+            raise TypeError("Backend is read-only")
 
-        This method allows partial updates to atoms stored at a given index without
-        retrieving, decoding, and re-encoding the entire Atoms object. Updates are
-        atomic - all changes succeed or fail together.
-
-        Parameters
-        ----------
-        index : int
-            Index of the atoms to update.
-        info : dict[str, Any], optional
-            Dictionary of info keys to add/update (e.g., {"connectivity": matrix, "s22": 123.45}).
-        arrays : dict[str, np.ndarray], optional
-            Dictionary of array keys to add/update (e.g., {"forces": forces_array}).
-        calc : dict[str, Any], optional
-            Dictionary of calculator result keys to add/update (e.g., {"energy": -156.4}).
-
-        Raises
-        ------
-        KeyError
-            If the index does not exist.
-
-        Examples
-        --------
-        >>> db = ASEIO("molecules.lmdb")
-        >>> db[0] = atoms
-        >>> # Add benchmark value and connectivity
-        >>> db.update(0, info={"s22": 123.45, "connectivity": connectivity_matrix})
-        >>> # Later, add calculation results
-        >>> db.update(0, calc={"energy": -156.4, "forces": forces})
-        >>> # Update multiple categories at once
-        >>> db.update(0, info={"new_prop": "value"}, arrays={"forces": forces})
-        """
-        # Build the update dictionary
-        data = {}
-
-        # Encode info keys
+        # Build flat dict from either new or legacy API
+        flat_data: dict[str, Any] = {}
+        if data is not None:
+            flat_data.update(data)
         if info:
-            for key, value in info.items():
-                data[f"info.{key}".encode()] = msgpack.packb(value, default=m.encode)
-
-        # Encode arrays keys
+            for k, v in info.items():
+                flat_data[f"info.{k}"] = v
         if arrays:
-            for key, value in arrays.items():
-                data[f"arrays.{key}".encode()] = msgpack.packb(value, default=m.encode)
-
-        # Encode calc keys
+            for k, v in arrays.items():
+                flat_data[f"arrays.{k}"] = v
         if calc:
-            for key, value in calc.items():
-                data[f"calc.{key}".encode()] = msgpack.packb(value, default=m.encode)
+            for k, v in calc.items():
+                flat_data[f"calc.{k}"] = v
 
-        # Delegate to BytesIO.update()
-        self.io.update(index, data)
+        if not flat_data:
+            return
+
+        row = self._backend.read_row(index)
+        row.update(flat_data)
+        self._backend.write_row(index, row)
+
+    # --- Backward-compatible property ---
+
+    @property
+    def io(self) -> Any:
+        """Access underlying BytesIO (legacy). Only works with LMDB backend."""
+        from asebytes.lmdb import LMDBBackend
+
+        if isinstance(self._backend, LMDBBackend):
+            return self._backend._store
+        raise AttributeError("io property only available with LMDB backend")
 
 
 class BytesIO(MutableSequence):
