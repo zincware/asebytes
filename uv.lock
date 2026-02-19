@@ -203,6 +203,11 @@ dependencies = [
     { name = "msgpack-numpy" },
 ]
 
+[package.optional-dependencies]
+hf = [
+    { name = "datasets" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "ase-db-backends" },
@@ -219,10 +224,12 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "ase", specifier = ">=3.26.0" },
+    { name = "datasets", marker = "extra == 'hf'", specifier = ">=4.5.0" },
     { name = "lmdb", specifier = ">=1.7.5" },
     { name = "msgpack", specifier = ">=1.1.2" },
     { name = "msgpack-numpy", specifier = ">=0.4.8" },
 ]
+provides-extras = ["hf"]
 
 [package.metadata.requires-dev]
 dev = [

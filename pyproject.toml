@@ -36,6 +36,11 @@ Repository = "https://github.com/zincware/asebytes"
 Releases = "https://github.com/zincware/asebytes/releases"
 Discord = "https://discord.gg/7ncfwhsnm4"
 
+[project.optional-dependencies]
+hf = [
+    "datasets>=4.5.0",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
