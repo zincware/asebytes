@@ -28,4 +28,16 @@ __all__ = [
     "ASEReadOnlyBackend",
 ]
 
+try:
+    from .hf import COLABFIT, OPTIMADE, ColumnMapping, HuggingFaceBackend
+except ImportError:
+    pass
+else:
+    __all__ += [
+        "HuggingFaceBackend",
+        "ColumnMapping",
+        "COLABFIT",
+        "OPTIMADE",
+    ]
+
 __version__ = importlib.metadata.version("asebytes")
