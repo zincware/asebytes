@@ -31,6 +31,7 @@ class ASEIO(MutableSequence):
         backend: str | ReadableBackend,
         *,
         readonly: bool | None = None,
+        cache_to: str | WritableBackend | None = None,
         **kwargs: Any,
     ):
         if isinstance(backend, str):
@@ -46,6 +47,17 @@ class ASEIO(MutableSequence):
                 self._backend = cls(backend, **kwargs)
         else:
             self._backend = backend
+
+        # Persistent read-through cache
+        if cache_to is None:
+            self._cache: WritableBackend | None = None
+        elif isinstance(cache_to, str):
+            from ._registry import get_backend_cls as _get_cls
+
+            cache_cls = _get_cls(cache_to, readonly=False)
+            self._cache = cache_cls(cache_to)
+        else:
+            self._cache = cache_to
 
     @property
     def columns(self) -> list[str]:
@@ -65,19 +77,36 @@ class ASEIO(MutableSequence):
     def _read_row(
         self, index: int, keys: list[str] | None = None
     ) -> dict[str, Any]:
+        if self._cache is not None:
+            try:
+                return self._cache.read_row(index, keys)
+            except (IndexError, KeyError):
+                pass
+            # Cache miss — read full row from source, write to cache
+            full_row = self._backend.read_row(index)
+            self._cache.write_row(index, full_row)
+            if keys is not None:
+                return {k: full_row[k] for k in keys if k in full_row}
+            return full_row
         return self._backend.read_row(index, keys)
 
     def _read_rows(
         self, indices: list[int], keys: list[str] | None = None
     ) -> list[dict[str, Any]]:
+        if self._cache is not None:
+            return [self._read_row(i, keys) for i in indices]
         return self._backend.read_rows(indices, keys)
 
     def _iter_rows(
         self, indices: list[int], keys: list[str] | None = None
     ) -> Iterator[dict[str, Any]]:
+        if self._cache is not None:
+            return (self._read_row(i, keys) for i in indices)
         return self._backend.iter_rows(indices, keys)
 
     def _read_column(self, key: str, indices: list[int]) -> list[Any]:
+        if self._cache is not None:
+            return [self._read_row(i, [key])[key] for i in indices]
         return self._backend.read_column(key, indices)
 
     def _build_atoms(self, row: dict[str, Any]) -> ase.Atoms:
@@ -103,7 +132,7 @@ class ASEIO(MutableSequence):
         if isinstance(index, int):
             if index < 0:
                 index += len(self)  # raises TypeError if unknown
-            row = self._backend.read_row(index)
+            row = self._read_row(index)
             return dict_to_atoms(row)
         if isinstance(index, slice):
             indices = range(len(self))[index]
