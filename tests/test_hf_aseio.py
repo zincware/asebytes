@@ -125,13 +125,15 @@ class TestASEIOFromURI:
     """Construct ASEIO with a URI string; verify from_uri dispatch."""
 
     def test_colabfit_uri(self, monkeypatch):
-        """ASEIO('colabfit://test_dataset') should work end-to-end."""
+        """ASEIO('colabfit://test_dataset') should stream by default."""
         calls = []
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
             calls.append(
                 {"path": path, "streaming": streaming, "split": split, **kwargs}
             )
+            if streaming:
+                return _make_dataset(3).to_iterable_dataset()
             return _make_dataset(3)
 
         monkeypatch.setattr(
@@ -139,13 +141,12 @@ class TestASEIOFromURI:
         )
         io = ASEIO("colabfit://test_dataset")
 
-        # Verify load_dataset was called with correct path
+        # Verify load_dataset was called with correct path and streaming
         assert len(calls) == 1
         assert calls[0]["path"] == "colabfit/test_dataset"
-        assert calls[0]["streaming"] is False
+        assert calls[0]["streaming"] is True
 
-        # Verify data access works
-        assert len(io) == 3
+        # Verify data access works (streaming — iterate to get data)
         atoms = io[0]
         assert len(atoms) == 1
         np.testing.assert_array_almost_equal(
@@ -153,13 +154,15 @@ class TestASEIOFromURI:
         )
 
     def test_hf_uri_with_mapping(self, monkeypatch):
-        """ASEIO('hf://user/dataset', mapping=mapping) should work."""
+        """ASEIO('hf://user/dataset', mapping=mapping) streams by default."""
         calls = []
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
             calls.append(
                 {"path": path, "streaming": streaming, "split": split}
             )
+            if streaming:
+                return _make_dataset(2).to_iterable_dataset()
             return _make_dataset(2)
 
         monkeypatch.setattr(
@@ -170,8 +173,9 @@ class TestASEIOFromURI:
 
         assert len(calls) == 1
         assert calls[0]["path"] == "user/dataset"
+        assert calls[0]["streaming"] is True
 
-        assert len(io) == 2
+        # Streaming: iterate to access
         atoms = io[1]
         np.testing.assert_array_almost_equal(
             atoms.get_positions(), [[1.0, 0.0, 0.0]]
@@ -229,6 +233,8 @@ class TestASEIOFromURI:
             calls.append(
                 {"path": path, "streaming": streaming, "split": split}
             )
+            if streaming:
+                return _make_dataset(2).to_iterable_dataset()
             return _make_dataset(2)
 
         monkeypatch.setattr(
@@ -237,4 +243,5 @@ class TestASEIOFromURI:
         io = ASEIO("colabfit://test_dataset", split="train")
 
         assert calls[0]["split"] == "train"
-        assert len(io) == 2
+        atoms = io[0]
+        assert len(atoms) == 1
