@@ -18,6 +18,7 @@ Efficient serialization and storage for ASE Atoms objects with pluggable backend
 
 - **`LMDBBackend(file)`** - Read-write LMDB backend
 - **`LMDBReadOnlyBackend(file)`** - Read-only LMDB backend
+- **`ASEReadOnlyBackend(file)`** - Read-only backend for ASE file formats (`.xyz`, `.extxyz`, `.traj`)
 - **`ReadableBackend`** / **`WritableBackend`** - Abstract base classes for custom backends
 
 ### Views
@@ -62,6 +63,13 @@ db[0:100]["calc.energy"].to_list()
 
 # Read-only access
 db_ro = ASEIO("conformers.lmdb", readonly=True)
+
+# Read ASE file formats directly (read-only, lazy loading)
+traj = ASEIO("trajectory.xyz")
+atoms = traj[0]            # reads single frame on demand
+for atoms in traj:         # streams frames, discovers length
+    process(atoms)
+traj._backend.count_frames()  # explicit scan if you need len()
 
 # Partial updates (only writes changed keys)
 # Keys must use namespaces: calc.*, info.*, arrays.*
