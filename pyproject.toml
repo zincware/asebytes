@@ -28,6 +28,7 @@ dev = [
     "pytest>=8.4.2",
     "pytest-benchmark>=5.2.1",
     "znh5md>=0.4.8",
+    "datasets>=4.0.0",
 ]
 
 [project.urls]
