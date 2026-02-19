@@ -97,6 +97,20 @@ def test_write_sqlite(benchmark, ethanol, tmp_path):
 
 
 @pytest.mark.benchmark(group="write")
+def test_write_asebytes_h5md(benchmark, ethanol, tmp_path):
+    """Write 1000 ethanol molecules using asebytes H5MD backend."""
+
+    def write_all():
+        h5_path = tmp_path / f"write_asebytes_h5md_{uuid.uuid4().hex}.h5"
+        db = ASEIO(str(h5_path))
+        db.extend(ethanol)
+        return db
+
+    db = benchmark(write_all)
+    assert len(db) == len(ethanol)
+
+
+@pytest.mark.benchmark(group="write")
 def test_write_znh5md(benchmark, ethanol, tmp_path):
     """Write 1000 ethanol molecules using znh5md (H5MD format)."""
     import znh5md

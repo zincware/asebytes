@@ -201,6 +201,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+h5md = [
+    { name = "h5py" },
+]
 hf = [
     { name = "datasets" },
 ]
@@ -214,6 +217,7 @@ lmdb = [
 dev = [
     { name = "ase-db-backends" },
     { name = "asebytes", extra = ["hf", "lmdb"] },
+    { name = "h5py" },
     { name = "ipykernel" },
     { name = "matplotlib" },
     { name = "molify" },
@@ -227,17 +231,19 @@ dev = [
 requires-dist = [
     { name = "ase", specifier = ">=3.26.0" },
     { name = "datasets", marker = "extra == 'hf'", specifier = ">=4.5.0" },
+    { name = "h5py", marker = "extra == 'h5md'", specifier = ">=3.8.0" },
     { name = "lmdb", marker = "extra == 'lmdb'", specifier = ">=1.7.5" },
     { name = "msgpack", marker = "extra == 'lmdb'", specifier = ">=1.1.2" },
     { name = "msgpack-numpy", marker = "extra == 'lmdb'", specifier = ">=0.4.8" },
 ]
-provides-extras = ["lmdb", "hf"]
+provides-extras = ["lmdb", "hf", "h5md"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "ase-db-backends", specifier = ">=0.10.0" },
     { name = "asebytes", extras = ["hf"] },
     { name = "asebytes", extras = ["lmdb"] },
+    { name = "h5py", specifier = ">=3.15.1" },
     { name = "ipykernel", specifier = ">=7.1.0" },
     { name = "matplotlib", specifier = ">=3.10.7" },
     { name = "molify", specifier = ">=0.0.1a0" },

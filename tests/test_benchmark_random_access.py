@@ -145,6 +145,26 @@ def test_random_access_sqlite(benchmark, ethanol, tmp_path):
 
 
 @pytest.mark.benchmark(group="random_access")
+def test_random_access_asebytes_h5md(benchmark, ethanol, tmp_path):
+    """Random access 1000 ethanol molecules using asebytes H5MD backend."""
+    h5_path = tmp_path / "random_asebytes_h5md.h5"
+    db_write = ASEIO(str(h5_path))
+    db_write.extend(ethanol)
+
+    # Generate random indices (seeded for reproducibility)
+    random.seed(42)
+    indices = [random.randint(0, len(ethanol) - 1) for _ in range(len(ethanol))]
+
+    def random_access():
+        db = ASEIO(str(h5_path))
+        return list(db[indices])
+
+    results = benchmark(random_access)
+    assert len(results) == len(ethanol)
+    assert all(isinstance(mol, ase.Atoms) for mol in results)
+
+
+@pytest.mark.benchmark(group="random_access")
 def test_random_access_znh5md(benchmark, ethanol, tmp_path):
     """Random access 1000 ethanol molecules using znh5md (H5MD format)."""
     import h5py

@@ -128,6 +128,22 @@ def test_read_sqlite(benchmark, ethanol, tmp_path):
 
 
 @pytest.mark.benchmark(group="read")
+def test_read_asebytes_h5md(benchmark, ethanol, tmp_path):
+    """Read 1000 ethanol molecules using asebytes H5MD backend."""
+    h5_path = tmp_path / "read_asebytes_h5md.h5"
+    db_write = ASEIO(str(h5_path))
+    db_write.extend(ethanol)
+
+    def read_all():
+        db = ASEIO(str(h5_path))
+        return list(db[:])
+
+    results = benchmark(read_all)
+    assert len(results) == len(ethanol)
+    assert all(isinstance(mol, ase.Atoms) for mol in results)
+
+
+@pytest.mark.benchmark(group="read")
 def test_read_znh5md(benchmark, ethanol, tmp_path):
     """Read 1000 ethanol molecules using znh5md (H5MD format)."""
     import h5py
