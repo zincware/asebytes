@@ -34,10 +34,16 @@ class ASEIO(MutableSequence):
         **kwargs: Any,
     ):
         if isinstance(backend, str):
-            from asebytes._registry import get_backend_cls
+            from asebytes._registry import get_backend_cls, parse_uri
 
+            scheme, _remainder = parse_uri(backend)
             cls = get_backend_cls(backend, readonly=readonly)
-            self._backend: ReadableBackend = cls(backend, **kwargs)
+            if scheme is not None:
+                # URI-style: delegate to from_uri constructor
+                self._backend: ReadableBackend = cls.from_uri(backend, **kwargs)
+            else:
+                # File path: pass path directly to backend constructor
+                self._backend = cls(backend, **kwargs)
         else:
             self._backend = backend
 
