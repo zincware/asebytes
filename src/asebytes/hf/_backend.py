@@ -67,6 +67,23 @@ class HuggingFaceBackend(ReadableBackend):
         else:
             self._length = len(dataset)
 
+    # ── Lifecycle ─────────────────────────────────────────────────────────
+
+    def close(self) -> None:
+        """Close the streaming iterator to prevent cleanup errors at exit."""
+        if self._streaming and self._stream_iter is not None:
+            self._stream_iter.close()
+            self._stream_iter = None
+
+    def __del__(self) -> None:
+        self.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
     # ── Metadata helpers ──────────────────────────────────────────────────
 
     @staticmethod
