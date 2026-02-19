@@ -74,10 +74,24 @@ class ColumnMapping:
 
         # 1. Positions -> arrays.positions
         consumed.add(self.positions)
+        if self.positions not in hf_row:
+            available = sorted(hf_row.keys())
+            raise KeyError(
+                f"Required column '{self.positions}' not found in dataset. "
+                f"Available columns: {available}. "
+                f"Check that the column mapping matches the dataset schema."
+            )
         result["arrays.positions"] = np.asarray(hf_row[self.positions], dtype=np.float64)
 
         # 2. Numbers -> arrays.numbers (with optional species string conversion)
         consumed.add(self.numbers)
+        if self.numbers not in hf_row:
+            available = sorted(hf_row.keys())
+            raise KeyError(
+                f"Required column '{self.numbers}' not found in dataset. "
+                f"Available columns: {available}. "
+                f"Check that the column mapping matches the dataset schema."
+            )
         raw_numbers = hf_row[self.numbers]
         if self.species_are_strings:
             result["arrays.numbers"] = np.array(
