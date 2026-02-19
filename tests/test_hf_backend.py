@@ -154,6 +154,31 @@ class TestStreamingBackend:
         assert row0["calc.energy"] == 0.0
         assert row2["calc.energy"] == -2.0
 
+    def test_close_clears_iterator(self, backend):
+        """close() should set the stream iterator to None."""
+        backend.read_row(0)  # starts the iterator
+        assert backend._stream_iter is not None
+        backend.close()
+        assert backend._stream_iter is None
+
+    def test_context_manager(self):
+        """Backend should work as a context manager."""
+        ds = _make_dataset(3).to_iterable_dataset()
+        with HuggingFaceBackend(ds, mapping=COLABFIT) as b:
+            row = b.read_row(0)
+            assert row["calc.energy"] == 0.0
+        assert b._stream_iter is None
+
+    def test_read_after_close_restarts(self):
+        """Reading after close() should restart the stream."""
+        ds = _make_dataset(3).to_iterable_dataset()
+        b = HuggingFaceBackend(ds, mapping=COLABFIT)
+        b.read_row(0)
+        b.close()
+        # Should restart iterator transparently
+        row = b.read_row(1)
+        assert row["calc.energy"] == -1.0
+
 
 # ── from_uri tests ────────────────────────────────────────────────────────
 
