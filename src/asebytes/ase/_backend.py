@@ -128,6 +128,8 @@ class ASEReadOnlyBackend(ReadableBackend):
                 if frame_idx in target_set:
                     row = atoms_to_dict(atoms)
                     self._cache_put(frame_idx, row)
+                    if frame_idx > self._max_read:
+                        self._max_read = frame_idx
                     if keys is not None:
                         yield {k: row[k] for k in keys if k in row}
                     else:

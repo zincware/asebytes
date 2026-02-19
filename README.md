@@ -69,7 +69,6 @@ traj = ASEIO("trajectory.xyz")
 atoms = traj[0]            # reads single frame on demand
 for atoms in traj:         # streams frames, discovers length
     process(atoms)
-traj._backend.count_frames()  # explicit scan if you need len()
 
 # Partial updates (only writes changed keys)
 # Keys must use namespaces: calc.*, info.*, arrays.*
