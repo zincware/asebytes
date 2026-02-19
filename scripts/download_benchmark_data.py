@@ -33,16 +33,8 @@ def main() -> None:
         "optimade://LeMaterial/LeMat-Traj",
         split="train",
         name="compatible_pbe",
-        streaming=True,
     )
-
-    frames = []
-    for i, atoms in enumerate(src):
-        frames.append(atoms)
-        if (i + 1) % 100 == 0:
-            print(f"  {i + 1} frames downloaded")
-        if i + 1 >= 1000:
-            break
+    frames = list(src[:1000])
 
     print(f"Writing {len(frames)} frames to {out_path}...")
     db = ASEIO(str(out_path))

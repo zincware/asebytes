@@ -153,6 +153,9 @@ def _make_grouped_bar_chart(
         n_datasets,
     )
 
+    # First dataset: solid fill. Second dataset: hatched overlay.
+    hatches = ["", "//"]
+
     for i, ds in enumerate(datasets):
         vals = [data[ds].get(b, {}).get(value_key, 0) for b in backends]
         errs = (
@@ -169,6 +172,9 @@ def _make_grouped_bar_chart(
             capsize=3,
             alpha=0.85,
             color=colors,
+            hatch=hatches[i % len(hatches)],
+            edgecolor="white" if i > 0 else "none",
+            linewidth=0.5,
             label=ds,
         )
         # Value labels

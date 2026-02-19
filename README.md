@@ -145,7 +145,12 @@ db = ASEIO(MyBackend())
 
 ## Benchmarks
 
-1000 frames each on two datasets — ethanol conformers (small molecules, fixed size) and LeMat-Traj (periodic structures, variable atom counts). All frames include energy, forces, and stress. Compared against aselmdb, znh5md, extxyz, and SQLite.
+1000 frames each on two datasets — ethanol conformers (small molecules, fixed size) and [LeMat-Traj](https://huggingface.co/datasets/LeMaterial/LeMat-Traj) (periodic structures, variable atom counts). All frames include energy, forces, and stress. Compared against aselmdb, znh5md, extxyz, and SQLite.
+
+```python
+# LeMat-Traj benchmark data
+lemat = list(ASEIO("optimade://LeMaterial/LeMat-Traj", split="train", name="compatible_pbe")[:1000])
+```
 
 > **Note:** HDF5 performance is heavily influenced by compression and chunking settings. Both asebytes H5MD and znh5md use gzip compression by default, which reduces file size at the cost of read/write speed.
 
