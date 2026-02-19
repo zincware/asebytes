@@ -12,3 +12,6 @@ wheels/
 
 # Benchmark data (downloaded separately)
 tests/data/
+
+# Benchmark results (machine-specific)
+benchmark_results.json
