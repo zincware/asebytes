@@ -294,20 +294,38 @@ class TestFromUri:
         with pytest.raises(ValueError, match="mapping"):
             HuggingFaceBackend.from_uri("hf://user/dataset")
 
-    def test_dataset_dict_auto_selects_split(self, monkeypatch):
-        """When load_dataset returns DatasetDict, auto-select first split."""
+    def test_dataset_dict_requires_explicit_split(self, monkeypatch):
+        """When load_dataset returns DatasetDict, require explicit split."""
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
             ds = _make_dataset(3)
             if split is None:
-                return datasets.DatasetDict({"train": ds})
+                return datasets.DatasetDict({"train": ds, "test": ds})
             return ds
 
         monkeypatch.setattr(
             "asebytes.hf._backend.load_dataset", fake_load
         )
-        backend = HuggingFaceBackend.from_uri("colabfit://test_ds")
-        assert len(backend) == 3
+        with pytest.raises(ValueError, match="multiple splits.*split='train'"):
+            HuggingFaceBackend.from_uri("colabfit://test_ds")
+
+    def test_dataset_dict_with_explicit_split(self, monkeypatch):
+        """When split is specified, DatasetDict is not returned."""
+
+        def fake_load(path, *, streaming=False, split=None, **kwargs):
+            ds = _make_dataset(3)
+            if split is None:
+                return datasets.DatasetDict({"train": ds})
+            if streaming:
+                return ds.to_iterable_dataset()
+            return ds
+
+        monkeypatch.setattr(
+            "asebytes.hf._backend.load_dataset", fake_load
+        )
+        backend = HuggingFaceBackend.from_uri(
+            "colabfit://test_ds", split="train"
+        )
         row = backend.read_row(0)
         assert "arrays.positions" in row
 

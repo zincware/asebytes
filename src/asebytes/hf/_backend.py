@@ -61,11 +61,36 @@ class HuggingFaceBackend(ReadableBackend):
         self._streaming = not hasattr(dataset, "__len__")
 
         if self._streaming:
-            self._length: int | None = None
+            self._length: int | None = self._probe_length(dataset)
             self._stream_iter: Iterator | None = None
             self._stream_pos: int = 0
         else:
             self._length = len(dataset)
+
+    # ── Metadata helpers ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _probe_length(dataset) -> int | None:
+        """Try to discover the dataset length from Hub metadata.
+
+        HuggingFace ``IterableDataset`` objects carry an ``.info.splits``
+        attribute populated from the Hub API.  If the split info contains
+        ``num_examples``, we can know the length without iterating.
+        """
+        try:
+            info = dataset.info
+            if info is None or info.splits is None:
+                return None
+            split_name = getattr(dataset, "split", None)
+            if split_name is not None:
+                split_name = str(split_name)
+            if split_name and split_name in info.splits:
+                n = info.splits[split_name].num_examples
+                if n is not None and n > 0:
+                    return n
+        except Exception:
+            pass
+        return None
 
     # ── LRU cache helpers ─────────────────────────────────────────────────
 
@@ -297,7 +322,7 @@ class HuggingFaceBackend(ReadableBackend):
         )
 
         # load_dataset returns a DatasetDict when no split is specified.
-        # Auto-select the first available split.
+        # Require the user to pick a split explicitly.
         try:
             from datasets import DatasetDict, IterableDatasetDict
             dict_types = (DatasetDict, IterableDatasetDict)
@@ -307,6 +332,9 @@ class HuggingFaceBackend(ReadableBackend):
             splits = list(dataset.keys())
             if not splits:
                 raise ValueError(f"Dataset '{hf_path}' has no splits.")
-            dataset = dataset[splits[0]]
+            raise ValueError(
+                f"Dataset '{hf_path}' has multiple splits: {splits}. "
+                f"Please specify one, e.g. split='{splits[0]}'."
+            )
 
         return cls(dataset, mapping=mapping, cache_size=cache_size)

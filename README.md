@@ -79,13 +79,13 @@ db.update(0, calc={"energy": -10.5})
 
 # HuggingFace Datasets via URI prefixes (pip install asebytes[hf])
 # ColabFit datasets (auto-selects column mapping, streams by default)
-db = ASEIO("colabfit://mlearn_Cu_train")
+db = ASEIO("colabfit://mlearn_Cu_train", split="train")
 atoms = db[0]
 for atoms in db:
     process(atoms)
 
 # OPTIMADE-style datasets (e.g. LeMaterial)
-db = ASEIO("optimade://LeMaterial/LeMat-Bulk", name="compatible_pbe")
+db = ASEIO("optimade://LeMaterial/LeMat-Bulk", split="train", name="compatible_pbe")
 
 # Generic HuggingFace datasets (requires explicit column mapping)
 from asebytes import ColumnMapping
@@ -93,10 +93,10 @@ mapping = ColumnMapping(
     positions="pos", numbers="nums",
     calc={"energy": "total_energy"},
 )
-db = ASEIO("hf://user/dataset", mapping=mapping)
+db = ASEIO("hf://user/dataset", mapping=mapping, split="train")
 
 # Downloaded mode for random access (loads full dataset)
-db = ASEIO("colabfit://mlearn_Cu_train", streaming=False)
+db = ASEIO("colabfit://mlearn_Cu_train", split="train", streaming=False)
 energies = db["calc.energy"].to_list()
 ```
 
