@@ -6,9 +6,9 @@ from typing import Any, overload
 import ase
 import numpy as np
 
-from asebytes._convert import atoms_to_dict, dict_to_atoms
-from asebytes._protocols import ReadableBackend, WritableBackend
-from asebytes._views import ColumnView, RowView
+from ._convert import atoms_to_dict, dict_to_atoms
+from ._protocols import ReadableBackend, WritableBackend
+from ._views import ColumnView, RowView
 
 
 class ASEIO(MutableSequence):
@@ -34,7 +34,7 @@ class ASEIO(MutableSequence):
         **kwargs: Any,
     ):
         if isinstance(backend, str):
-            from asebytes._registry import get_backend_cls, parse_uri
+            from ._registry import get_backend_cls, parse_uri
 
             scheme, _remainder = parse_uri(backend)
             cls = get_backend_cls(backend, readonly=readonly)

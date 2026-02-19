@@ -6,8 +6,8 @@ from collections import OrderedDict
 from collections.abc import Iterator
 from typing import Any
 
-from asebytes._protocols import ReadableBackend
-from asebytes.hf._mappings import COLABFIT, OPTIMADE, ColumnMapping
+from .._protocols import ReadableBackend
+from ._mappings import COLABFIT, OPTIMADE, ColumnMapping
 
 
 def load_dataset(path: str, *, streaming: bool = False, split: str | None = None, **kwargs):

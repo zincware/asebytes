@@ -46,4 +46,25 @@ else:
         "OPTIMADE",
     ]
 
+_OPTIONAL_ATTRS: dict[str, str] = {
+    "BytesIO": "lmdb",
+    "LMDBBackend": "lmdb",
+    "LMDBReadOnlyBackend": "lmdb",
+    "HuggingFaceBackend": "hf",
+    "ColumnMapping": "hf",
+    "COLABFIT": "hf",
+    "OPTIMADE": "hf",
+}
+
+
+def __getattr__(name: str):
+    if name in _OPTIONAL_ATTRS:
+        extra = _OPTIONAL_ATTRS[name]
+        raise ImportError(
+            f"'{name}' requires additional dependencies. "
+            f"Install them with: pip install asebytes[{extra}]"
+        )
+    raise AttributeError(f"module 'asebytes' has no attribute '{name}'")
+
+
 __version__ = importlib.metadata.version("asebytes")

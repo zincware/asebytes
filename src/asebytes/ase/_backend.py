@@ -6,8 +6,8 @@ from typing import Any
 
 import ase.io
 
-from asebytes._convert import atoms_to_dict
-from asebytes._protocols import ReadableBackend
+from .._convert import atoms_to_dict
+from .._protocols import ReadableBackend
 
 
 class ASEReadOnlyBackend(ReadableBackend):

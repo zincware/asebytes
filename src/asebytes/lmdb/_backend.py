@@ -7,7 +7,7 @@ import msgpack
 import msgpack_numpy as m
 
 from ._bytesio import BytesIO
-from asebytes._protocols import ReadableBackend, WritableBackend
+from .._protocols import ReadableBackend, WritableBackend
 
 
 class LMDBReadOnlyBackend(ReadableBackend):
