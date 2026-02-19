@@ -16,8 +16,9 @@ Efficient serialization and storage for ASE Atoms objects with pluggable backend
 
 ### Backends
 
-- **`LMDBBackend(file)`** - Read-write LMDB backend
-- **`LMDBReadOnlyBackend(file)`** - Read-only LMDB backend
+- **`LMDBBackend(file)`** - Read-write LMDB backend (`pip install asebytes[lmdb]`)
+- **`LMDBReadOnlyBackend(file)`** - Read-only LMDB backend (`pip install asebytes[lmdb]`)
+- **`H5MDBackend(file)`** - Read-write HDF5/H5MD backend (`pip install asebytes[h5md]`)
 - **`ASEReadOnlyBackend(file)`** - Read-only backend for ASE file formats (`.xyz`, `.extxyz`, `.traj`)
 - **`HuggingFaceBackend(dataset, mapping)`** - Read-only backend for HuggingFace Datasets (`pip install asebytes[hf]`)
 - **`ColumnMapping`** - Maps HF dataset columns to asebytes convention; presets: `COLABFIT`, `OPTIMADE`
@@ -98,6 +99,19 @@ db = ASEIO("hf://user/dataset", mapping=mapping, split="train")
 # Downloaded mode for random access (loads full dataset)
 db = ASEIO("colabfit://mlearn_Cu_train", split="train", streaming=False)
 energies = db["calc.energy"].to_list()
+
+# HDF5/H5MD format (pip install asebytes[h5md])
+db = ASEIO("trajectory.h5")
+db.extend(atoms_list)
+atoms = db[0]
+
+# Persistent read-through cache for slow/remote sources
+# First epoch reads source and populates cache; subsequent reads hit cache only
+db = ASEIO("colabfit://mlearn_Cu_train", split="train", cache_to="cache.lmdb")
+for atoms in db:       # fills cache lazily
+    train(atoms)
+for atoms in db:       # all reads served from cache
+    train(atoms)
 ```
 
 ## Benchmarks

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from collections.abc import Iterator, MutableSequence
 from typing import Any, overload
 
@@ -21,9 +22,16 @@ class ASEIO(MutableSequence):
     ----------
     backend : str | ReadableBackend | WritableBackend
         Either a file path (auto-creates LMDBBackend) or a backend instance.
+    readonly : bool | None
+        Force read-only or writable mode. None (default) auto-detects.
+    cache_to : str | WritableBackend | None
+        Optional persistent read-through cache. On read, the cache is
+        checked first; on miss the full row is read from source and written
+        to cache. String paths auto-create a writable backend via the
+        registry (e.g. ``"cache.lmdb"``). Designed for immutable sources
+        (e.g. HuggingFace datasets). Delete the cache file to reset.
     **kwargs
-        When backend is a str, forwarded to LMDBBackend constructor
-        (prefix, map_size, readonly, etc.).
+        When backend is a str, forwarded to the backend constructor.
     """
 
     def __init__(
@@ -52,12 +60,28 @@ class ASEIO(MutableSequence):
         if cache_to is None:
             self._cache: WritableBackend | None = None
         elif isinstance(cache_to, str):
-            from ._registry import get_backend_cls as _get_cls
+            from ._registry import get_backend_cls
 
-            cache_cls = _get_cls(cache_to, readonly=False)
+            cache_cls = get_backend_cls(cache_to, readonly=False)
             self._cache = cache_cls(cache_to)
-        else:
+        elif isinstance(cache_to, WritableBackend):
             self._cache = cache_to
+        else:
+            raise TypeError(
+                f"cache_to must be str or WritableBackend, "
+                f"got {type(cache_to).__name__}"
+            )
+
+        if (
+            self._cache is not None
+            and readonly is not True
+            and isinstance(self._backend, WritableBackend)
+        ):
+            warnings.warn(
+                "cache_to with a writable source may serve stale data after "
+                "mutations. cache_to is designed for immutable sources.",
+                stacklevel=2,
+            )
 
     @property
     def columns(self) -> list[str]:
@@ -84,7 +108,10 @@ class ASEIO(MutableSequence):
                 pass
             # Cache miss — read full row from source, write to cache
             full_row = self._backend.read_row(index)
-            self._cache.write_row(index, full_row)
+            try:
+                self._cache.write_row(index, full_row)
+            except Exception:
+                pass  # cache write is best-effort
             if keys is not None:
                 return {k: full_row[k] for k in keys if k in full_row}
             return full_row

@@ -29,7 +29,7 @@ db = ASEIO("hf://colabfit/dataset")
 | Invalidation | None | Write-once per index. User deletes cache file to reset. Correct for immutable HF datasets. |
 | Cache backend | Any WritableBackend | Flexible. LMDB recommended (fast random access, insert/replace). |
 | In-memory caches | Keep | ASE/HF backends keep their in-memory LRU caches. They're cheap hot-path optimizations that help even without `cache_to`. |
-| Architecture | ASEIO kwarg | `cache_to=` on ASEIO constructor. Creates internal ASEIO for cache reads/writes. |
+| Architecture | ASEIO kwarg | `cache_to=` on ASEIO constructor. Cache read/write via WritableBackend directly. |
 
 ## Read Flow
 
