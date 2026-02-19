@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+import asebytes
 from asebytes._registry import get_backend_cls
 
 
@@ -13,58 +14,46 @@ from asebytes._registry import get_backend_cls
 
 
 class TestRegistryImportHints:
-    """Verify get_backend_cls raises helpful ImportError when deps are missing."""
+    """Verify get_backend_cls raises helpful ImportError when deps are missing.
 
-    def test_lmdb_missing_glob(self):
-        """*.lmdb pattern gives install hint when lmdb is not installed."""
+    Uses unittest.mock.patch to make importlib.import_module raise ImportError,
+    simulating an environment where the optional backend package is not installed.
+    """
+
+    @pytest.mark.parametrize(
+        ("path", "extra"),
+        [
+            ("test.lmdb", "lmdb"),
+            ("data.lmdb", "lmdb"),
+            ("hf://user/dataset", "hf"),
+            ("colabfit://some/path", "hf"),
+            ("optimade://provider/structures", "hf"),
+        ],
+    )
+    def test_missing_dep_gives_install_hint(self, path, extra):
         with patch(
             "asebytes._registry.importlib.import_module",
-            side_effect=ImportError("No module named 'lmdb'"),
+            side_effect=ImportError("No module"),
         ):
-            with pytest.raises(ImportError, match=r"pip install asebytes\[lmdb\]"):
-                get_backend_cls("test.lmdb")
+            with pytest.raises(
+                ImportError, match=rf"pip install asebytes\[{extra}\]"
+            ):
+                get_backend_cls(path)
 
     def test_lmdb_missing_readonly(self):
-        """Readonly request also gives install hint."""
+        """Readonly request also gives the same install hint."""
         with patch(
             "asebytes._registry.importlib.import_module",
-            side_effect=ImportError("No module named 'lmdb'"),
+            side_effect=ImportError("No module"),
         ):
             with pytest.raises(ImportError, match=r"pip install asebytes\[lmdb\]"):
                 get_backend_cls("test.lmdb", readonly=True)
 
-    def test_hf_missing_uri(self):
-        """hf:// URI gives install hint when datasets is not installed."""
+    def test_error_message_mentions_backend_module(self):
+        """Error message includes the backend module path for debugging."""
         with patch(
             "asebytes._registry.importlib.import_module",
-            side_effect=ImportError("No module named 'datasets'"),
-        ):
-            with pytest.raises(ImportError, match=r"pip install asebytes\[hf\]"):
-                get_backend_cls("hf://user/dataset")
-
-    def test_colabfit_missing_uri(self):
-        """colabfit:// URI gives install hint."""
-        with patch(
-            "asebytes._registry.importlib.import_module",
-            side_effect=ImportError("No module named 'datasets'"),
-        ):
-            with pytest.raises(ImportError, match=r"pip install asebytes\[hf\]"):
-                get_backend_cls("colabfit://some/path")
-
-    def test_optimade_missing_uri(self):
-        """optimade:// URI gives install hint."""
-        with patch(
-            "asebytes._registry.importlib.import_module",
-            side_effect=ImportError("No module named 'datasets'"),
-        ):
-            with pytest.raises(ImportError, match=r"pip install asebytes\[hf\]"):
-                get_backend_cls("optimade://provider/structures")
-
-    def test_error_message_mentions_backend(self):
-        """Error message includes the backend module path."""
-        with patch(
-            "asebytes._registry.importlib.import_module",
-            side_effect=ImportError("No module named 'lmdb'"),
+            side_effect=ImportError("No module"),
         ):
             with pytest.raises(ImportError, match=r"Backend 'asebytes\.lmdb'"):
                 get_backend_cls("data.lmdb")
@@ -74,43 +63,31 @@ class TestRegistryImportHints:
 
 
 class TestModuleGetattr:
-    """Verify from asebytes import <optional> gives helpful errors."""
+    """Verify asebytes.__getattr__ gives helpful ImportError for optional names.
 
-    def test_bytesio_hint(self):
-        import asebytes
+    In the dev environment lmdb and datasets are installed, so the names are
+    already bound as real module attributes.  We call __getattr__ directly to
+    exercise the fallback path that fires when the optional deps are absent.
+    """
 
-        # Only test if BytesIO is NOT already available (lmdb not installed).
-        # Since lmdb IS installed in dev, we test __getattr__ directly.
-        msg = r"pip install asebytes\[lmdb\]"
-        with pytest.raises(ImportError, match=msg):
-            asebytes.__getattr__("BytesIO")
-
-    def test_lmdb_backend_hint(self):
-        import asebytes
-
-        with pytest.raises(ImportError, match=r"pip install asebytes\[lmdb\]"):
-            asebytes.__getattr__("LMDBBackend")
-
-    def test_lmdb_readonly_backend_hint(self):
-        import asebytes
-
-        with pytest.raises(ImportError, match=r"pip install asebytes\[lmdb\]"):
-            asebytes.__getattr__("LMDBReadOnlyBackend")
-
-    def test_hf_backend_hint(self):
-        import asebytes
-
-        with pytest.raises(ImportError, match=r"pip install asebytes\[hf\]"):
-            asebytes.__getattr__("HuggingFaceBackend")
-
-    def test_column_mapping_hint(self):
-        import asebytes
-
-        with pytest.raises(ImportError, match=r"pip install asebytes\[hf\]"):
-            asebytes.__getattr__("ColumnMapping")
+    @pytest.mark.parametrize(
+        ("name", "extra"),
+        [
+            ("BytesIO", "lmdb"),
+            ("LMDBBackend", "lmdb"),
+            ("LMDBReadOnlyBackend", "lmdb"),
+            ("HuggingFaceBackend", "hf"),
+            ("ColumnMapping", "hf"),
+            ("COLABFIT", "hf"),
+            ("OPTIMADE", "hf"),
+        ],
+    )
+    def test_optional_attr_gives_install_hint(self, name, extra):
+        with pytest.raises(
+            ImportError, match=rf"pip install asebytes\[{extra}\]"
+        ):
+            asebytes.__getattr__(name)
 
     def test_unknown_attr_raises_attribute_error(self):
-        import asebytes
-
         with pytest.raises(AttributeError, match="no attribute 'NoSuchThing'"):
             asebytes.__getattr__("NoSuchThing")
