@@ -9,3 +9,6 @@ wheels/
 # Virtual environments
 .venv
 # docs/plans/*
+
+# Benchmark data (downloaded separately)
+tests/data/

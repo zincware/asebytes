@@ -145,6 +145,21 @@ db = ASEIO(MyBackend())
 
 ## Benchmarks
 
-Performance comparison for 1000 ethanol molecules with calculator results:
+1000 frames each on two datasets — ethanol conformers (small molecules, fixed size) and LeMat-Traj (periodic structures, variable atom counts). All frames include energy, forces, and stress. Compared against aselmdb, znh5md, extxyz, and SQLite.
 
-![Benchmark Comparison](benchmark_comparison.png)
+> **Note:** HDF5 performance is heavily influenced by compression and chunking settings. Both asebytes H5MD and znh5md use gzip compression by default, which reduces file size at the cost of read/write speed.
+
+### Write
+![Write Performance](benchmark_write.png)
+
+### Sequential Read
+![Read Performance](benchmark_read.png)
+
+### Random Access
+![Random Access Performance](benchmark_random_access.png)
+
+### Column Access
+![Column Access Performance](benchmark_column_access.png)
+
+### File Size
+![File Size](benchmark_file_size.png)

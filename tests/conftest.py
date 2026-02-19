@@ -1,14 +1,63 @@
+import pathlib
+
 import ase
 import molify
 import numpy as np
 import pytest
+from ase.calculators.singlepoint import SinglePointCalculator
+
+LEMAT_PATH = pathlib.Path(__file__).parent / "data" / "lemat_1000.lmdb"
 
 
 @pytest.fixture
 def ethanol() -> list[ase.Atoms]:
-    """Return a list of ethanol molecules."""
+    """Return 1000 ethanol conformers with calculator results."""
     frames = molify.smiles2conformers("CCO", numConfs=1000)
+    rng = np.random.RandomState(42)
+    for i, atoms in enumerate(frames):
+        n = len(atoms)
+        atoms.calc = SinglePointCalculator(atoms)
+        atoms.calc.results = {
+            "energy": float(-i * 0.1),
+            "forces": rng.randn(n, 3) * 0.01,
+            "stress": rng.randn(6) * 0.001,
+        }
     return frames
+
+
+@pytest.fixture(scope="session")
+def lemat() -> list[ase.Atoms]:
+    """Return 1000 LeMat-Traj frames (positions, cell, pbc, calc only).
+
+    Info metadata is stripped and stress is normalized to Voigt (6,) form
+    so that all backends receive identical data for fair comparison.
+    """
+    if not LEMAT_PATH.exists():
+        pytest.skip(
+            "LeMat-Traj data not available. "
+            "Run: uv run python scripts/download_benchmark_data.py"
+        )
+    from asebytes import ASEIO
+
+    db = ASEIO(str(LEMAT_PATH), readonly=True)
+    clean = []
+    for a in db:
+        b = ase.Atoms(
+            numbers=a.numbers, positions=a.positions, cell=a.cell, pbc=a.pbc
+        )
+        if a.calc is not None:
+            results = {}
+            for k, v in a.calc.results.items():
+                if k == "stress" and isinstance(v, np.ndarray) and v.shape == (3, 3):
+                    v = np.array(
+                        [v[0, 0], v[1, 1], v[2, 2], v[1, 2], v[0, 2], v[0, 1]]
+                    )
+                results[k] = v
+            calc = SinglePointCalculator(b)
+            calc.results = results
+            b.calc = calc
+        clean.append(b)
+    return clean
 
 
 @pytest.fixture

@@ -1,15 +1,8 @@
-"""Benchmark read performance comparison across different backends.
+"""Benchmark sequential read performance across backends.
 
-Compare read performance of:
-- asebytes (ASEIO)
-- ASE's aselmdb backend
-- Raw lmdb + pickle
-- XYZ file format
-- SQLite database
-- znh5md (H5MD format)
+Backends: asebytes LMDB, asebytes H5MD, aselmdb, znh5md, extxyz, sqlite.
+Datasets: ethanol (1000 small molecules), lemat (1000 periodic structures).
 """
-
-import pickle
 
 import ase
 import ase.io
@@ -18,149 +11,106 @@ from ase.db import connect
 
 from asebytes import ASEIO
 
+DATASETS = ["ethanol", "lemat"]
+
+
+@pytest.fixture(params=DATASETS)
+def dataset(request):
+    return request.param, request.getfixturevalue(request.param)
+
+
+# ---------------------------------------------------------------------------
+# Read benchmarks
+# ---------------------------------------------------------------------------
+
 
 @pytest.mark.benchmark(group="read")
-def test_read_asebytes(benchmark, ethanol, tmp_path):
-    """Read 1000 ethanol molecules using asebytes.ASEIO."""
-    db_path = tmp_path / "read_asebytes.lmdb"
-    db = ASEIO(str(db_path))
-    db.extend(ethanol)
+def test_read_asebytes_lmdb(benchmark, dataset, tmp_path):
+    name, frames = dataset
+    p = tmp_path / f"r_{name}.lmdb"
+    db = ASEIO(str(p))
+    db.extend(frames)
 
     def read_all():
-        # TODO: use bulk read, if available
         return [db[i] for i in range(len(db))]
 
     results = benchmark(read_all)
-    assert len(results) == len(ethanol)
-    assert all(isinstance(mol, ase.Atoms) for mol in results)
+    assert len(results) == len(frames)
+    assert all(isinstance(a, ase.Atoms) for a in results)
 
 
 @pytest.mark.benchmark(group="read")
-def test_read_aselmdb(benchmark, ethanol, tmp_path):
-    """Read 1000 ethanol molecules using ASE aselmdb backend."""
-    db_path = tmp_path / "read_aselmdb.lmdb"
-    db = connect(str(db_path), type="aselmdb")
-
-    # Setup: write data
-    for mol in ethanol:
-        db.write(mol)
+def test_read_asebytes_h5md(benchmark, dataset, tmp_path):
+    name, frames = dataset
+    p = tmp_path / f"r_{name}.h5"
+    db_w = ASEIO(str(p))
+    db_w.extend(frames)
 
     def read_all():
-        results = []
-        # TODO: https://ase-lib.org/ase/db/db.html#ase.db.core.Database.get_atoms (not working?)
-        for row in db.select():
-            mol = row.toatoms()
-            results.append(mol)
-        return results
-
-    results = benchmark(read_all)
-    assert len(results) == len(ethanol)
-    assert all(isinstance(mol, ase.Atoms) for mol in results)
-
-
-@pytest.mark.benchmark(group="read")
-def test_read_lmdb_pickle(benchmark, ethanol, tmp_path):
-    """Read 1000 ethanol molecules using raw lmdb + pickle."""
-    import lmdb
-
-    db_path = tmp_path / "read_pickle.lmdb"
-    env = lmdb.open(str(db_path))
-
-    # Setup: write data
-    with env.begin(write=True) as txn:
-        for i, mol in enumerate(ethanol):
-            key = str(i).encode()
-            value = pickle.dumps(mol)
-            txn.put(key, value)
-
-    def read_all():
-        results = []
-        with env.begin() as txn:
-            cursor = txn.cursor()
-            raw = cursor.getmulti(keys=[str(i).encode() for i in range(len(ethanol))])
-            for _, value in raw:
-                mol = pickle.loads(value)
-                results.append(mol)
-        return results
-
-    results = benchmark(read_all)
-    assert len(results) == len(ethanol)
-    assert all(isinstance(mol, ase.Atoms) for mol in results)
-
-    env.close()
-
-
-@pytest.mark.benchmark(group="read")
-def test_read_xyz(benchmark, ethanol, tmp_path):
-    """Read 1000 ethanol molecules using XYZ format."""
-    xyz_path = tmp_path / "read_xyz.xyz"
-
-    ase.io.write(str(xyz_path), ethanol, format="xyz")
-
-    def read_all():
-        return ase.io.read(str(xyz_path), index=":", format="xyz")
-
-    results = benchmark(read_all)
-    assert len(results) == len(ethanol)
-    assert all(isinstance(mol, ase.Atoms) for mol in results)
-
-
-@pytest.mark.benchmark(group="read")
-def test_read_sqlite(benchmark, ethanol, tmp_path):
-    """Read 1000 ethanol molecules using SQLite database."""
-    db_path = tmp_path / "read_sqlite.lmdb"
-    db = connect(str(db_path), type="db")
-
-    for mol in ethanol:
-        db.write(mol)
-
-    def read_all():
-        results = []
-        # TODO: https://ase-lib.org/ase/db/db.html#ase.db.core.Database.get_atoms (not working?)
-        for row in db.select():
-            mol = row.toatoms()
-            results.append(mol)
-        return results
-
-    results = benchmark(read_all)
-    assert len(results) == len(ethanol)
-    assert all(isinstance(mol, ase.Atoms) for mol in results)
-
-
-@pytest.mark.benchmark(group="read")
-def test_read_asebytes_h5md(benchmark, ethanol, tmp_path):
-    """Read 1000 ethanol molecules using asebytes H5MD backend."""
-    h5_path = tmp_path / "read_asebytes_h5md.h5"
-    db_write = ASEIO(str(h5_path))
-    db_write.extend(ethanol)
-
-    def read_all():
-        db = ASEIO(str(h5_path))
+        db = ASEIO(str(p))
         return list(db[:])
 
     results = benchmark(read_all)
-    assert len(results) == len(ethanol)
-    assert all(isinstance(mol, ase.Atoms) for mol in results)
+    assert len(results) == len(frames)
 
 
 @pytest.mark.benchmark(group="read")
-def test_read_znh5md(benchmark, ethanol, tmp_path):
-    """Read 1000 ethanol molecules using znh5md (H5MD format)."""
+def test_read_aselmdb(benchmark, dataset, tmp_path):
+    name, frames = dataset
+    p = tmp_path / f"r_{name}_aselmdb.lmdb"
+    db = connect(str(p), type="aselmdb")
+    for mol in frames:
+        db.write(mol)
+
+    def read_all():
+        return [row.toatoms() for row in db.select()]
+
+    results = benchmark(read_all)
+    assert len(results) == len(frames)
+
+
+@pytest.mark.benchmark(group="read")
+def test_read_znh5md(benchmark, dataset, tmp_path):
     import h5py
     import znh5md
 
-    h5_path = tmp_path / "read_znh5md.h5"
-
-    # Setup: write data using filename parameter
-    io_write = znh5md.IO(filename=str(h5_path))
-    io_write.extend(ethanol)
+    name, frames = dataset
+    p = tmp_path / f"r_{name}_znh5md.h5"
+    io_w = znh5md.IO(filename=str(p))
+    io_w.extend(frames)
 
     def read_all():
-        # Use file_handle for best read performance
-        with h5py.File(str(h5_path), "r") as f:
+        with h5py.File(str(p), "r") as f:
             io = znh5md.IO(file_handle=f)
             return io[:]
 
     results = benchmark(read_all)
-    assert len(results) == len(ethanol)
-    assert all(isinstance(mol, ase.Atoms) for mol in results)
+    assert len(results) == len(frames)
+
+
+@pytest.mark.benchmark(group="read")
+def test_read_extxyz(benchmark, dataset, tmp_path):
+    name, frames = dataset
+    p = tmp_path / f"r_{name}.extxyz"
+    ase.io.write(str(p), frames, format="extxyz")
+
+    def read_all():
+        return ase.io.read(str(p), index=":", format="extxyz")
+
+    results = benchmark(read_all)
+    assert len(results) == len(frames)
+
+
+@pytest.mark.benchmark(group="read")
+def test_read_sqlite(benchmark, dataset, tmp_path):
+    name, frames = dataset
+    p = tmp_path / f"r_{name}_sqlite.db"
+    db = connect(str(p), type="db")
+    for mol in frames:
+        db.write(mol)
+
+    def read_all():
+        return [row.toatoms() for row in db.select()]
+
+    results = benchmark(read_all)
+    assert len(results) == len(frames)

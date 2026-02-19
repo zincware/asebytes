@@ -8,14 +8,18 @@ import asebytes
 def test_round_trip(ethanol):
     atoms = ethanol[0]
     byte_data = asebytes.encode(atoms)
-    assert byte_data.keys() == {
+    expected_keys = {
         b"cell",
         b"pbc",
         b"arrays.numbers",
         b"arrays.positions",
         b"info.smiles",
         b"info.connectivity",
+        b"calc.energy",
+        b"calc.forces",
+        b"calc.stress",
     }
+    assert byte_data.keys() == expected_keys
     recovered_atoms = asebytes.decode(byte_data)
     assert atoms == recovered_atoms
 
@@ -128,9 +132,9 @@ def test_nested_dict_with_dot_in_key(ethanol):
     assert atoms.info["data"] == recovered_atoms.info["data"]
 
 
-def test_calc_is_none_after_round_trip(ethanol):
+def test_calc_is_none_after_round_trip(h2o_atoms):
     """Test that atoms.calc is None after round trip when no calculator was present."""
-    atoms = ethanol[0]
+    atoms = h2o_atoms
     # Ensure no calculator is attached
     assert atoms.calc is None
 
