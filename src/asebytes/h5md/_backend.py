@@ -45,6 +45,8 @@ class H5MDBackend(WritableBackend):
         variable_shape: bool = True,
         pbc_group: bool = True,
         chunk_size: int | tuple[int, ...] | list[int] | None = (64, 64),
+        author_name: str | None = None,
+        author_email: str | None = None,
     ):
         if file_handle is not None:
             self._file = file_handle
@@ -62,6 +64,8 @@ class H5MDBackend(WritableBackend):
         self._variable_shape = variable_shape
         self._pbc_group = pbc_group
         self._chunk_size = chunk_size
+        self._author_name = author_name
+        self._author_email = author_email
 
         # Resolve particles group name
         self._grp_name = self._resolve_particles_group(particles_group)
@@ -83,6 +87,14 @@ class H5MDBackend(WritableBackend):
             if groups:
                 return groups[0]
         return "atoms"
+
+    @staticmethod
+    def list_groups(file: str | Path) -> list[str]:
+        """List particles group names in an H5MD file."""
+        with h5py.File(file, "r") as f:
+            if "particles" not in f:
+                return []
+            return list(f["particles"].keys())
 
     def _discover(self) -> None:
         """Read frame count, max-atoms, and cache dataset references."""
@@ -123,8 +135,9 @@ class H5MDBackend(WritableBackend):
                 self._col_cache[key] = (elem["value"], name)
 
         # Cache connectivity dataset references
-        if "connectivity" in self._file:
-            conn = self._file["connectivity"]
+        conn_path = f"connectivity/{self._grp_name}"
+        if conn_path in self._file:
+            conn = self._file[conn_path]
             if "bonds" in conn:
                 obj = conn["bonds"]
                 if isinstance(obj, h5py.Group) and "value" in obj:
@@ -364,7 +377,7 @@ class H5MDBackend(WritableBackend):
             values = [row.get(key) for row in data]
             self._write_element(h5_path, origin, key, values, max_atoms)
 
-        self._write_connectivity(data, n_new)
+        self._write_connectivity(data)
 
         self._max_atoms = max_atoms
         self._n_frames += n_new
@@ -624,9 +637,10 @@ class H5MDBackend(WritableBackend):
 
         # Check existing connectivity datasets for max_bonds
         n_new = len(data)
-        conn_path = "connectivity/bonds"
-        if conn_path in self._file:
-            existing_ds = self._file[conn_path]["value"]
+        grp_name = self._grp_name
+        bonds_path = f"connectivity/{grp_name}/bonds"
+        if bonds_path in self._file:
+            existing_ds = self._file[bonds_path]["value"]
             old_max = existing_ds.shape[1]
             max_bonds = max(max_bonds, old_max)
 
@@ -643,18 +657,17 @@ class H5MDBackend(WritableBackend):
                 if o is not None and len(o) > 0:
                     orders_arr[i, : len(o)] = o
 
-        # Write or extend connectivity/bonds
-        grp_name = self._grp_name
-        if conn_path in self._file:
-            self._extend_connectivity_ds(conn_path, bonds_arr, -1)
+        # Write or extend connectivity/{grp}/bonds
+        if bonds_path in self._file:
+            self._extend_connectivity_ds(bonds_path, bonds_arr, -1)
         else:
             self._create_connectivity_ds(
-                conn_path, bonds_arr, np.int32, -1, grp_name
+                bonds_path, bonds_arr, np.int32, -1, grp_name
             )
 
-        # Write or extend connectivity/bond_orders
+        # Write or extend connectivity/{grp}/bond_orders
         if orders_arr is not None:
-            bo_path = "connectivity/bond_orders"
+            bo_path = f"connectivity/{grp_name}/bond_orders"
             if bo_path in self._file:
                 self._extend_connectivity_ds(bo_path, orders_arr, np.nan)
             else:
@@ -732,11 +745,13 @@ class H5MDBackend(WritableBackend):
         h5md = self._file.create_group("h5md")
         h5md.attrs["version"] = np.array([1, 1])
         author = h5md.create_group("author")
-        author.attrs["name"] = "N/A"
-        author.attrs["email"] = "N/A"
+        if self._author_name is not None:
+            author.attrs["name"] = self._author_name
+        if self._author_email is not None:
+            author.attrs["email"] = self._author_email
         creator = h5md.create_group("creator")
         creator.attrs["name"] = "asebytes"
-        creator.attrs["version"] = "0.1.0"
+        creator.attrs["version"] = _get_version()
         self._file.require_group("particles")
 
     def _key_to_h5(
@@ -792,152 +807,6 @@ class H5MDBackend(WritableBackend):
                 return True
             break
         return False
-
-    def _write_connectivity(
-        self, data: list[dict[str, Any]], n_new: int
-    ) -> None:
-        """Write connectivity data to /connectivity/bonds (+ bond_orders).
-
-        Stores bonds as int32[n_frames, max_bonds, 2] and bond_orders as
-        float64[n_frames, max_bonds], padded with -1 / NaN respectively.
-        Follows the H5MD connectivity specification.
-        """
-        # Extract connectivity from each row
-        conn_per_frame: list[list | None] = []
-        has_any = False
-        for row in data:
-            c = row.get("info.connectivity")
-            if c is not None:
-                has_any = True
-                conn_per_frame.append(c)
-            else:
-                conn_per_frame.append(None)
-
-        if not has_any:
-            return
-
-        # Parse into bonds (int32) and orders (float64) per frame
-        bonds_list: list[np.ndarray] = []
-        orders_list: list[np.ndarray] = []
-        has_orders = False
-        max_bonds = 0
-
-        for c in conn_per_frame:
-            if c is None or len(c) == 0:
-                bonds_list.append(np.empty((0, 2), dtype=np.int32))
-                orders_list.append(np.empty((0,), dtype=np.float64))
-            else:
-                arr = np.asarray(c)
-                bonds_list.append(arr[:, :2].astype(np.int32))
-                if arr.shape[1] >= 3:
-                    orders_list.append(arr[:, 2].astype(np.float64))
-                    has_orders = True
-                else:
-                    orders_list.append(
-                        np.ones(len(arr), dtype=np.float64)
-                    )
-                max_bonds = max(max_bonds, len(arr))
-
-        # Check existing data width
-        conn_path = "/connectivity"
-        bonds_path = f"{conn_path}/bonds"
-        orders_path = f"{conn_path}/bond_orders"
-
-        if bonds_path in self._file:
-            existing_ds = self._file[bonds_path]["value"]
-            old_n = existing_ds.shape[0]
-            old_max = existing_ds.shape[1]
-            max_bonds = max(max_bonds, old_max)
-        else:
-            old_n = 0
-
-        if max_bonds == 0:
-            return
-
-        # Pad bonds to [n_new, max_bonds, 2]
-        bonds_padded = np.full(
-            (n_new, max_bonds, 2), -1, dtype=np.int32
-        )
-        for i, b in enumerate(bonds_list):
-            if len(b) > 0:
-                bonds_padded[i, : len(b), :] = b
-
-        # Pad orders to [n_new, max_bonds]
-        orders_padded = np.full(
-            (n_new, max_bonds), np.nan, dtype=np.float64
-        )
-        for i, o in enumerate(orders_list):
-            if len(o) > 0:
-                orders_padded[i, : len(o)] = o
-
-        # Write or extend bonds dataset
-        if bonds_path in self._file:
-            ds = self._file[bonds_path]["value"]
-            old_shape = ds.shape  # (old_n, old_max, 2)
-
-            # Widen if needed
-            if max_bonds > old_shape[1]:
-                ds.resize((old_shape[0], max_bonds, 2))
-                # Fill new columns with -1
-                ds[:, old_shape[1]:, :] = -1
-
-            new_total = old_shape[0] + n_new
-            ds.resize((new_total, max_bonds, 2))
-            ds[old_shape[0]:] = bonds_padded
-        else:
-            grp = self._file.require_group(bonds_path)
-            shape = (n_new, max_bonds, 2)
-            maxshape = (None, None, 2)
-            chunks = self._get_chunks(shape)
-            ds = grp.create_dataset(
-                "value",
-                data=bonds_padded,
-                maxshape=maxshape,
-                dtype=np.int32,
-                fillvalue=-1,
-                compression=self._compression,
-                compression_opts=self._compression_opts,
-                chunks=chunks,
-            )
-            # particles_group reference
-            pgrp_path = f"/particles/{self._grp_name}"
-            if pgrp_path in self._file:
-                grp.attrs["particles_group"] = self._file[pgrp_path].ref
-            grp.create_dataset("step", data=1)
-            time_ds = grp.create_dataset("time", data=1.0)
-            time_ds.attrs["unit"] = "fs"
-
-        # Write or extend bond_orders dataset
-        if has_orders:
-            if orders_path in self._file:
-                ds_o = self._file[orders_path]["value"]
-                old_shape_o = ds_o.shape  # (old_n, old_max)
-
-                if max_bonds > old_shape_o[1]:
-                    ds_o.resize((old_shape_o[0], max_bonds))
-                    ds_o[:, old_shape_o[1]:] = np.nan
-
-                new_total_o = old_shape_o[0] + n_new
-                ds_o.resize((new_total_o, max_bonds))
-                ds_o[old_shape_o[0]:] = orders_padded
-            else:
-                grp_o = self._file.require_group(orders_path)
-                shape_o = (n_new, max_bonds)
-                maxshape_o = (None, None)
-                chunks_o = self._get_chunks(shape_o)
-                grp_o.create_dataset(
-                    "value",
-                    data=orders_padded,
-                    maxshape=maxshape_o,
-                    dtype=np.float64,
-                    fillvalue=np.nan,
-                    compression=self._compression,
-                    compression_opts=self._compression_opts,
-                    chunks=chunks_o,
-                )
-                grp_o.create_dataset("step", data=1)
-                time_ds_o = grp_o.create_dataset("time", data=1.0)
-                time_ds_o.attrs["unit"] = "fs"
 
     def _write_element(
         self,
@@ -1219,6 +1088,16 @@ class H5MDBackend(WritableBackend):
 # ------------------------------------------------------------------
 # Module-level helpers
 # ------------------------------------------------------------------
+
+
+def _get_version() -> str:
+    """Return the asebytes package version."""
+    try:
+        from asebytes import __version__
+
+        return __version__
+    except Exception:
+        return "unknown"
 
 
 def _strip_nan_padding(arr: np.ndarray) -> np.ndarray:

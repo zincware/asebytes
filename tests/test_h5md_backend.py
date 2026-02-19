@@ -416,6 +416,78 @@ class TestH5MDStructure:
             assert "box" in p
             assert p["box"].attrs["dimension"] == 3
 
+    def test_author_metadata_not_set(self, h5_path, water_frames):
+        """Author attrs are absent when kwargs are not provided."""
+        io1 = H5MDBackend(h5_path)
+        io1.append_rows([atoms_to_dict(water_frames[0])])
+        io1.close()
+
+        with h5py.File(h5_path, "r") as f:
+            author = f["h5md/author"]
+            assert "name" not in author.attrs
+            assert "email" not in author.attrs
+
+    def test_author_metadata_set(self, h5_path, water_frames):
+        """Author attrs are written when kwargs are provided."""
+        io1 = H5MDBackend(
+            h5_path, author_name="Alice", author_email="alice@example.com"
+        )
+        io1.append_rows([atoms_to_dict(water_frames[0])])
+        io1.close()
+
+        with h5py.File(h5_path, "r") as f:
+            assert f["h5md/author"].attrs["name"] == "Alice"
+            assert f["h5md/author"].attrs["email"] == "alice@example.com"
+
+    def test_author_metadata_partial(self, h5_path, water_frames):
+        """Only provided author attrs are written."""
+        io1 = H5MDBackend(h5_path, author_name="Bob")
+        io1.append_rows([atoms_to_dict(water_frames[0])])
+        io1.close()
+
+        with h5py.File(h5_path, "r") as f:
+            assert f["h5md/author"].attrs["name"] == "Bob"
+            assert "email" not in f["h5md/author"].attrs
+
+    def test_creator_version_dynamic(self, h5_path, water_frames):
+        """Creator version matches the installed asebytes version."""
+        import asebytes
+
+        io1 = H5MDBackend(h5_path)
+        io1.append_rows([atoms_to_dict(water_frames[0])])
+        io1.close()
+
+        with h5py.File(h5_path, "r") as f:
+            assert f["h5md/creator"].attrs["name"] == "asebytes"
+            assert f["h5md/creator"].attrs["version"] == asebytes.__version__
+
+    def test_list_groups(self, h5_path, water_frames):
+        """list_groups returns available particles groups."""
+        io1 = H5MDBackend(h5_path, particles_group="atoms")
+        io1.append_rows([atoms_to_dict(water_frames[0])])
+        io1.close()
+
+        groups = H5MDBackend.list_groups(h5_path)
+        assert groups == ["atoms"]
+
+    def test_list_groups_multiple(self, h5_path, water_frames):
+        """list_groups returns multiple groups when present."""
+        with h5py.File(h5_path, "a") as f:
+            io1 = H5MDBackend(file_handle=f, particles_group="atoms")
+            io1.append_rows([atoms_to_dict(water_frames[0])])
+            io2 = H5MDBackend(file_handle=f, particles_group="solvent")
+            io2.append_rows([atoms_to_dict(water_frames[0])])
+
+        groups = H5MDBackend.list_groups(h5_path)
+        assert "atoms" in groups
+        assert "solvent" in groups
+
+    def test_list_groups_empty(self, h5_path):
+        """list_groups returns empty list for non-H5MD file."""
+        with h5py.File(h5_path, "w"):
+            pass
+        assert H5MDBackend.list_groups(h5_path) == []
+
     def test_origin_attributes(self, h5_path, info_arrays_calc_frames):
         io1 = H5MDBackend(h5_path)
         io1.append_rows([atoms_to_dict(info_arrays_calc_frames[0])])
@@ -561,8 +633,8 @@ class TestConnectivity:
 
         # Verify H5MD structure
         with h5py.File(h5_path, "r") as f:
-            assert "connectivity/bonds" in f
-            bonds_grp = f["connectivity/bonds"]
+            assert "connectivity/atoms/bonds" in f
+            bonds_grp = f["connectivity/atoms/bonds"]
             assert bonds_grp["value"].dtype == np.int32
             assert "particles_group" in bonds_grp.attrs
             assert "observables/atoms/connectivity" not in f
@@ -595,9 +667,9 @@ class TestConnectivity:
 
         # Verify H5MD structure
         with h5py.File(h5_path, "r") as f:
-            assert "connectivity/bonds" in f
-            assert f["connectivity/bonds"]["value"].dtype == np.int32
-            assert "particles_group" in f["connectivity/bonds"].attrs
+            assert "connectivity/atoms/bonds" in f
+            assert f["connectivity/atoms/bonds"]["value"].dtype == np.int32
+            assert "particles_group" in f["connectivity/atoms/bonds"].attrs
 
         io2 = H5MDBackend(h5_path, readonly=True)
         for i, atoms in enumerate(frames):
@@ -629,7 +701,7 @@ class TestConnectivity:
         io2.close()
 
     def test_connectivity_h5md_structure(self, h5_path):
-        """Verify /connectivity/bonds exists with correct dtype and attributes."""
+        """Verify /connectivity/atoms/bonds exists with correct dtype and attributes."""
         molify = pytest.importorskip("molify")
 
         frames = molify.smiles2conformers("CCO", numConfs=3)
@@ -640,8 +712,10 @@ class TestConnectivity:
 
         with h5py.File(h5_path, "r") as f:
             assert "connectivity" in f
-            assert "bonds" in f["connectivity"]
-            bonds_grp = f["connectivity/bonds"]
+            assert "atoms" in f["connectivity"]
+            atoms_conn = f["connectivity/atoms"]
+            assert "bonds" in atoms_conn
+            bonds_grp = atoms_conn["bonds"]
             assert "value" in bonds_grp
             assert "step" in bonds_grp
             assert "time" in bonds_grp
@@ -652,8 +726,8 @@ class TestConnectivity:
             # particles_group reference
             assert "particles_group" in bonds_grp.attrs
             # bond_orders
-            assert "bond_orders" in f["connectivity"]
-            ds_o = f["connectivity/bond_orders/value"]
+            assert "bond_orders" in atoms_conn
+            ds_o = atoms_conn["bond_orders/value"]
             assert ds_o.dtype == np.float64
             assert ds_o.shape[0] == len(frames)
 
