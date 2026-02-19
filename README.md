@@ -1,94 +1,90 @@
 # asebytes
 
-Efficient serialization and storage for ASE Atoms objects with pluggable backends and lazy column-oriented access.
+Storage-agnostic, lazy-loading interface for [ASE](https://wiki.fysik.dtu.dk/ase/) Atoms objects. Pluggable backends (LMDB, HDF5/H5MD, HuggingFace Datasets, ASE file formats) behind a single `list`-like API with pandas-style column views.
 
-## API
+```
+pip install asebytes[lmdb]      # LMDB backend (recommended)
+pip install asebytes[h5md]      # HDF5/H5MD backend
+pip install asebytes[hf]        # HuggingFace Datasets backend
+```
 
-### Storage
-
-- **`ASEIO(file)`** - Storage-agnostic mutable sequence for ASE Atoms objects
-- **`BytesIO(file, prefix)`** - Low-level LMDB-backed storage for bytes dictionaries
-
-### Serialization
-
-- **`encode(atoms)`** / **`decode(data)`** - Serialize/deserialize Atoms to/from bytes
-- **`atoms_to_dict(atoms)`** / **`dict_to_atoms(data)`** - Convert Atoms to/from logical dicts (no serialization, ~5x faster)
-
-### Backends
-
-- **`LMDBBackend(file)`** - Read-write LMDB backend (`pip install asebytes[lmdb]`)
-- **`LMDBReadOnlyBackend(file)`** - Read-only LMDB backend (`pip install asebytes[lmdb]`)
-- **`H5MDBackend(file)`** - Read-write HDF5/H5MD backend (`pip install asebytes[h5md]`)
-- **`ASEReadOnlyBackend(file)`** - Read-only backend for ASE file formats (`.xyz`, `.extxyz`, `.traj`)
-- **`HuggingFaceBackend(dataset, mapping)`** - Read-only backend for HuggingFace Datasets (`pip install asebytes[hf]`)
-- **`ColumnMapping`** - Maps HF dataset columns to asebytes convention; presets: `COLABFIT`, `OPTIMADE`
-- **`ReadableBackend`** / **`WritableBackend`** - Abstract base classes for custom backends
-
-### Views
-
-- **`RowView`** - Lazy view over a subset of rows, yields `ase.Atoms` on iteration
-- **`ColumnView`** - Lazy view over one or more columns, avoids constructing full Atoms objects
-
-## Examples
+## Quick Start
 
 ```python
 from asebytes import ASEIO
-import molify
 
-ethanol = molify.smiles2conformers("CCO", numConfs=1000)
+# Write
+db = ASEIO("data.lmdb")
+db.extend(atoms_list)           # bulk append
+db[0] = new_atoms               # replace row
+db.update(0, calc={"energy": -10.5})  # partial update
 
-# Store Atoms objects
-db = ASEIO("conformers.lmdb")
-db.extend(ethanol)
+# Read
+atoms = db[0]                   # ase.Atoms
+atoms = db[-1]                  # negative indexing
+```
 
-# Integer indexing returns ase.Atoms
-mol = db[0]
+Backend is auto-detected from the file extension:
 
-# Slicing returns a lazy RowView
-view = db[5:10]       # no data loaded yet
-for atoms in view:    # streams one at a time
-    print(atoms)
+| Extension | Backend | Install extra |
+|-----------|---------|---------------|
+| `*.lmdb` | `LMDBBackend` | `asebytes[lmdb]` |
+| `*.h5` / `*.h5md` | `H5MDBackend` | `asebytes[h5md]` |
+| `*.xyz` / `*.extxyz` / `*.traj` | `ASEReadOnlyBackend` | *(none)* |
 
-# Chunked iteration for throughput on large datasets
-for atoms in db[:].chunked(1000):  # loads 1000 rows at a time
+## Lazy Views
+
+Indexing with slices, lists, or strings returns lazy views that load data on demand.
+
+```python
+# Row views — lazy, stream one frame at a time
+view = db[5:100]                # slice → RowView (nothing loaded yet)
+view = db[[0, 42, 99]]         # list of indices → RowView
+for atoms in view:
     process(atoms)
 
-# String indexing returns a lazy ColumnView
-energies = db["calc.energy"]          # single column
-energies_list = energies.to_list()    # materialize
-
-# Multi-column access
-cols = db[["calc.energy", "calc.forces"]]
-cols_dict = cols.to_dict()  # {"calc.energy": [...], "calc.forces": [...]}
-
-# Chaining: slice rows then select columns
-db[0:100]["calc.energy"].to_list()
-
-# Read-only access
-db_ro = ASEIO("conformers.lmdb", readonly=True)
-
-# Read ASE file formats directly (read-only, lazy loading)
-traj = ASEIO("trajectory.xyz")
-atoms = traj[0]            # reads single frame on demand
-for atoms in traj:         # streams frames, discovers length
+# Chunked iteration — loads N rows per batch for throughput
+for atoms in db[:].chunked(1000):
     process(atoms)
 
-# Partial updates (only writes changed keys)
-# Keys must use namespaces: calc.*, info.*, arrays.*
-db.update(0, {"info.tag": "optimized"})
-db.update(0, calc={"energy": -10.5})
+# Column views — avoid constructing full Atoms objects
+energies = db["calc.energy"].to_list()
+cols = db[["calc.energy", "calc.forces"]].to_dict()
+# → {"calc.energy": [...], "calc.forces": [...]}
 
-# HuggingFace Datasets via URI prefixes (pip install asebytes[hf])
-# ColabFit datasets (auto-selects column mapping, streams by default)
+# Chaining — slice rows, then select columns
+db[0:500]["calc.energy"].to_list()
+```
+
+## Persistent Read-Through Cache
+
+For slow or remote sources, `cache_to` creates a persistent local cache.
+First pass reads from source and fills the cache; all subsequent reads are served from cache.
+
+```python
+db = ASEIO("colabfit://dataset", split="train", cache_to="cache.lmdb")
+
+for atoms in db:    # epoch 1: reads source, populates cache
+    train(atoms)
+for atoms in db:    # epoch 2+: all reads from local cache
+    train(atoms)
+```
+
+Accepts a file path (auto-creates backend) or any `WritableBackend` instance.
+No invalidation — delete the cache file to reset.
+
+## HuggingFace Datasets
+
+Stream or download datasets from the HuggingFace Hub via URI schemes.
+
+```python
+# ColabFit (auto-selects column mapping, streams by default)
 db = ASEIO("colabfit://mlearn_Cu_train", split="train")
-atoms = db[0]
-for atoms in db:
-    process(atoms)
 
-# OPTIMADE-style datasets (e.g. LeMaterial)
+# OPTIMADE (e.g. LeMaterial)
 db = ASEIO("optimade://LeMaterial/LeMat-Bulk", split="train", name="compatible_pbe")
 
-# Generic HuggingFace datasets (requires explicit column mapping)
+# Generic HuggingFace (requires explicit column mapping)
 from asebytes import ColumnMapping
 mapping = ColumnMapping(
     positions="pos", numbers="nums",
@@ -96,22 +92,55 @@ mapping = ColumnMapping(
 )
 db = ASEIO("hf://user/dataset", mapping=mapping, split="train")
 
-# Downloaded mode for random access (loads full dataset)
-db = ASEIO("colabfit://mlearn_Cu_train", split="train", streaming=False)
-energies = db["calc.energy"].to_list()
+# Downloaded mode for faster access
+db = ASEIO("colabfit://dataset", split="train", streaming=False)
+```
 
-# HDF5/H5MD format (pip install asebytes[h5md])
-db = ASEIO("trajectory.h5")
+## HDF5 / H5MD
+
+H5MD-standard files with support for variable particle counts, per-frame PBC, and bond connectivity.
+
+```python
+db = ASEIO("trajectory.h5", author_name="Jane Doe", compression="gzip")
 db.extend(atoms_list)
-atoms = db[0]
 
-# Persistent read-through cache for slow/remote sources
-# First epoch reads source and populates cache; subsequent reads hit cache only
-db = ASEIO("colabfit://mlearn_Cu_train", split="train", cache_to="cache.lmdb")
-for atoms in db:       # fills cache lazily
-    train(atoms)
-for atoms in db:       # all reads served from cache
-    train(atoms)
+# Multi-group files
+from asebytes import H5MDBackend
+groups = H5MDBackend.list_groups("multi.h5")
+db = ASEIO("multi.h5", particles_group="solvent")
+```
+
+## Key Convention
+
+All data follows a flat namespace:
+
+| Prefix | Content | Examples |
+|--------|---------|----------|
+| `arrays.*` | Per-atom arrays | `arrays.positions`, `arrays.numbers`, `arrays.forces` |
+| `calc.*` | Calculator results | `calc.energy`, `calc.stress` |
+| `info.*` | Frame metadata | `info.smiles`, `info.label` |
+| *(top-level)* | `cell`, `pbc`, `constraints` | |
+
+```python
+from asebytes import atoms_to_dict, dict_to_atoms
+
+d = atoms_to_dict(atoms)   # Atoms → flat dict (~5x faster than encode/decode)
+atoms = dict_to_atoms(d)   # flat dict → Atoms
+```
+
+## Custom Backends
+
+Implement `ReadableBackend` for read-only or `WritableBackend` for read-write:
+
+```python
+from asebytes import ASEIO, ReadableBackend
+
+class MyBackend(ReadableBackend):
+    def __len__(self): ...
+    def columns(self, index=0): ...
+    def read_row(self, index, keys=None): ...
+
+db = ASEIO(MyBackend())
 ```
 
 ## Benchmarks
