@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from collections import OrderedDict
 from collections.abc import Iterator
 from typing import Any
@@ -59,6 +60,7 @@ class HuggingFaceBackend(ReadableBackend):
         # Detect streaming vs downloaded
         # IterableDataset may have __getitem__ but never __len__
         self._streaming = not hasattr(dataset, "__len__")
+        self._lock = threading.Lock()
 
         if self._streaming:
             self._length: int | None = self._probe_length(dataset)
@@ -223,20 +225,21 @@ class HuggingFaceBackend(ReadableBackend):
         if not self._streaming and (index < 0 or index >= self._length):
             raise IndexError(index)
 
-        # Check cache
-        cached = self._cache_get(index)
-        if cached is not None:
-            if keys is not None:
-                return {k: cached[k] for k in keys if k in cached}
-            return cached
+        with self._lock:
+            # Check cache
+            cached = self._cache_get(index)
+            if cached is not None:
+                if keys is not None:
+                    return {k: cached[k] for k in keys if k in cached}
+                return cached
 
-        if self._streaming:
-            row = self._stream_to(index)
-        else:
-            # Downloaded mode: direct access
-            hf_row = self._dataset[index]
-            row = self._mapping.apply(hf_row)
-            self._cache_put(index, row)
+            if self._streaming:
+                row = self._stream_to(index)
+            else:
+                # Downloaded mode: direct access
+                hf_row = self._dataset[index]
+                row = self._mapping.apply(hf_row)
+                self._cache_put(index, row)
 
         if keys is not None:
             return {k: row[k] for k in keys if k in row}
