@@ -159,6 +159,11 @@ OPTIMADE = ColumnMapping(
     numbers="species_at_sites",
     cell="lattice_vectors",
     pbc="dimension_types",
+    calc={
+        "energy": "energy",
+        "forces": "forces",
+        "stress": "stress_tensor",
+    },
     species_are_strings=True,
     pbc_are_dimension_types=True,
 )
