@@ -13,14 +13,50 @@ _BACKEND_REGISTRY: dict[str, tuple[str, str | None, str]] = {
     "*.extxyz": ("asebytes.ase", None, "ASEReadOnlyBackend"),
 }
 
+# URI scheme -> (module_path, readonly_cls_name)
+# URI-based backends are always read-only.
+_URI_REGISTRY: dict[str, tuple[str, str]] = {
+    "hf": ("asebytes.hf._backend", "HuggingFaceBackend"),
+    "colabfit": ("asebytes.hf._backend", "HuggingFaceBackend"),
+    "optimade": ("asebytes.hf._backend", "HuggingFaceBackend"),
+}
 
-def get_backend_cls(path: str, *, readonly: bool | None = None):
-    """Resolve a file path to a backend class via glob pattern matching.
+
+def parse_uri(path: str) -> tuple[str | None, str]:
+    """Split *path* into ``(scheme, remainder)`` if it matches a known URI.
 
     Parameters
     ----------
     path : str
-        File path to match against registered patterns.
+        A URI like ``hf://user/dataset`` or a regular file path.
+
+    Returns
+    -------
+    tuple[str | None, str]
+        ``(scheme, remainder)`` when the scheme is registered in
+        ``_URI_REGISTRY``; ``(None, path)`` otherwise (including unknown
+        schemes and Windows drive-letter paths like ``C:\\...``).
+    """
+    sep = "://"
+    if sep not in path:
+        return None, path
+    scheme, remainder = path.split(sep, 1)
+    if scheme in _URI_REGISTRY:
+        return scheme, remainder
+    return None, path
+
+
+def get_backend_cls(path: str, *, readonly: bool | None = None):
+    """Resolve a file path or URI to a backend class.
+
+    URI schemes (e.g. ``hf://``, ``colabfit://``, ``optimade://``) are checked
+    first; if the path does not match a known URI it falls through to
+    glob-based pattern matching.
+
+    Parameters
+    ----------
+    path : str
+        File path or URI to match against registered backends.
     readonly : bool | None
         If True, return the read-only backend class.
         If False, return the writable backend class (raises TypeError if none).
@@ -39,6 +75,19 @@ def get_backend_cls(path: str, *, readonly: bool | None = None):
     TypeError
         If a writable backend is explicitly requested but none is available.
     """
+    # --- URI-based lookup (checked first) ---
+    scheme, _remainder = parse_uri(path)
+    if scheme is not None:
+        module_path, cls_name = _URI_REGISTRY[scheme]
+        if readonly is False:
+            raise TypeError(
+                f"Backend for '{path}' is read-only, "
+                "no writable variant available"
+            )
+        mod = importlib.import_module(module_path)
+        return getattr(mod, cls_name)
+
+    # --- Glob-based lookup ---
     for pattern, (module_path, writable, read_only) in _BACKEND_REGISTRY.items():
         if fnmatch.fnmatch(path, pattern):
             mod = importlib.import_module(module_path)
