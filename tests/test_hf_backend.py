@@ -167,6 +167,8 @@ class TestFromUri:
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
             calls.append({"path": path, "streaming": streaming, "split": split, **kwargs})
+            if streaming:
+                return _make_dataset(2).to_iterable_dataset()
             return _make_dataset(2)
 
         monkeypatch.setattr(
@@ -177,6 +179,7 @@ class TestFromUri:
             "hf://user/dataset", mapping=mapping
         )
         assert calls[0]["path"] == "user/dataset"
+        assert calls[0]["streaming"] is True
 
     def test_colabfit_auto_prepends_org(self, monkeypatch):
         """colabfit://dataset_name auto-prepends 'colabfit/' org."""
@@ -184,6 +187,8 @@ class TestFromUri:
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
             calls.append({"path": path, "streaming": streaming, "split": split})
+            if streaming:
+                return _make_dataset(2).to_iterable_dataset()
             return _make_dataset(2)
 
         monkeypatch.setattr(
@@ -198,6 +203,8 @@ class TestFromUri:
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
             calls.append({"path": path, "streaming": streaming, "split": split})
+            if streaming:
+                return _make_dataset(2).to_iterable_dataset()
             return _make_dataset(2)
 
         monkeypatch.setattr(
@@ -213,7 +220,7 @@ class TestFromUri:
         def fake_load(path, *, streaming=False, split=None, **kwargs):
             calls.append({"path": path, "streaming": streaming, "split": split})
             # Return dataset with OPTIMADE-style columns
-            return datasets.Dataset.from_dict(
+            ds = datasets.Dataset.from_dict(
                 {
                     "cartesian_site_positions": [[[0.0, 0.0, 0.0]]],
                     "species_at_sites": [["H"]],
@@ -221,6 +228,9 @@ class TestFromUri:
                     "dimension_types": [[1, 1, 1]],
                 }
             )
+            if streaming:
+                return ds.to_iterable_dataset()
+            return ds
 
         monkeypatch.setattr(
             "asebytes.hf._backend.load_dataset", fake_load
@@ -234,8 +244,8 @@ class TestFromUri:
             row["arrays.numbers"], np.array([1])  # H -> 1
         )
 
-    def test_streaming_flag_forwarded(self, monkeypatch):
-        """streaming=True should be forwarded to load_dataset."""
+    def test_streaming_false_forwarded(self, monkeypatch):
+        """streaming=False (non-default) should be forwarded to load_dataset."""
         calls = []
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
@@ -249,9 +259,10 @@ class TestFromUri:
         )
         mapping = ColumnMapping(positions="positions", numbers="atomic_numbers")
         backend = HuggingFaceBackend.from_uri(
-            "hf://user/dataset", mapping=mapping, streaming=True
+            "hf://user/dataset", mapping=mapping, streaming=False
         )
-        assert calls[0]["streaming"] is True
+        assert calls[0]["streaming"] is False
+        assert len(backend) == 2  # downloaded mode has known length
 
     def test_split_forwarded(self, monkeypatch):
         """split kwarg should be forwarded to load_dataset."""
@@ -259,6 +270,8 @@ class TestFromUri:
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
             calls.append({"path": path, "streaming": streaming, "split": split})
+            if streaming:
+                return _make_dataset(2).to_iterable_dataset()
             return _make_dataset(2)
 
         monkeypatch.setattr(
@@ -280,3 +293,30 @@ class TestFromUri:
         )
         with pytest.raises(ValueError, match="mapping"):
             HuggingFaceBackend.from_uri("hf://user/dataset")
+
+    def test_dataset_dict_auto_selects_split(self, monkeypatch):
+        """When load_dataset returns DatasetDict, auto-select first split."""
+
+        def fake_load(path, *, streaming=False, split=None, **kwargs):
+            ds = _make_dataset(3)
+            if split is None:
+                return datasets.DatasetDict({"train": ds})
+            return ds
+
+        monkeypatch.setattr(
+            "asebytes.hf._backend.load_dataset", fake_load
+        )
+        backend = HuggingFaceBackend.from_uri("colabfit://test_ds")
+        assert len(backend) == 3
+        row = backend.read_row(0)
+        assert "arrays.positions" in row
+
+    def test_malformed_uri_raises(self):
+        """URI without :// should raise ValueError."""
+        with pytest.raises(ValueError, match="Invalid URI"):
+            HuggingFaceBackend.from_uri("not_a_uri")
+
+    def test_empty_path_uri_raises(self):
+        """URI with empty path should raise ValueError."""
+        with pytest.raises(ValueError, match="Empty path"):
+            HuggingFaceBackend.from_uri("hf://")

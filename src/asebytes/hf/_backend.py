@@ -105,8 +105,8 @@ class HuggingFaceBackend(ReadableBackend):
         """Advance the stream to *index*, caching every row along the way.
 
         If *index* is behind the current stream position, the stream is
-        restarted (rows already in cache are not re-read from the dataset
-        but skipped quickly).
+        restarted.  For cached intermediate rows, the iterator is still
+        advanced (to keep it in sync) but ``apply()`` is not re-called.
         """
         it = self._ensure_stream()
 
@@ -118,8 +118,12 @@ class HuggingFaceBackend(ReadableBackend):
         while self._stream_pos <= index:
             # Check cache first (useful after restart)
             cached = self._cache_get(self._stream_pos)
-            if cached is not None and self._stream_pos < index:
-                # Still need to advance the underlying iterator
+            if cached is not None:
+                if self._stream_pos == index:
+                    # Target row is already cached — return without consuming iterator
+                    self._stream_pos += 1
+                    return cached
+                # Intermediate cached row — still must advance iterator to stay in sync
                 try:
                     next(it)
                 except StopIteration:
@@ -210,6 +214,12 @@ class HuggingFaceBackend(ReadableBackend):
         self, key: str, indices: list[int] | None = None
     ) -> list[Any]:
         if indices is None:
+            if self._streaming and self._length is None:
+                raise TypeError(
+                    "Cannot read full column from streaming dataset with "
+                    "unknown length. Pass explicit indices or iterate "
+                    "through the dataset first."
+                )
             indices = list(range(len(self)))
         return [self.read_row(i, [key])[key] for i in indices]
 
@@ -221,7 +231,7 @@ class HuggingFaceBackend(ReadableBackend):
         uri: str,
         *,
         mapping: ColumnMapping | None = None,
-        streaming: bool = False,
+        streaming: bool = True,
         split: str | None = None,
         cache_size: int = 1000,
         **load_kwargs,
@@ -252,7 +262,11 @@ class HuggingFaceBackend(ReadableBackend):
         **load_kwargs
             Extra keyword arguments forwarded to ``datasets.load_dataset``.
         """
+        if "://" not in uri:
+            raise ValueError(f"Invalid URI (expected 'scheme://path'): {uri!r}")
         scheme, remainder = uri.split("://", 1)
+        if not remainder:
+            raise ValueError(f"Empty path in URI: {uri!r}")
 
         # Scheme-specific defaults
         if scheme == "hf":
@@ -281,4 +295,18 @@ class HuggingFaceBackend(ReadableBackend):
         dataset = load_dataset(
             hf_path, streaming=streaming, split=split, **load_kwargs
         )
+
+        # load_dataset returns a DatasetDict when no split is specified.
+        # Auto-select the first available split.
+        try:
+            from datasets import DatasetDict, IterableDatasetDict
+            dict_types = (DatasetDict, IterableDatasetDict)
+        except ImportError:
+            dict_types = ()
+        if dict_types and isinstance(dataset, dict_types):
+            splits = list(dataset.keys())
+            if not splits:
+                raise ValueError(f"Dataset '{hf_path}' has no splits.")
+            dataset = dataset[splits[0]]
+
         return cls(dataset, mapping=mapping, cache_size=cache_size)
