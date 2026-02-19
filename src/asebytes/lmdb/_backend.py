@@ -6,7 +6,7 @@ from typing import Any
 import msgpack
 import msgpack_numpy as m
 
-from asebytes._bytesio import BytesIO
+from ._bytesio import BytesIO
 from asebytes._protocols import ReadableBackend, WritableBackend
 
 

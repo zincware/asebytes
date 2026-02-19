@@ -9,9 +9,6 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "ase>=3.26.0",
-    "lmdb>=1.7.5",
-    "msgpack>=1.1.2",
-    "msgpack-numpy>=0.4.8",
 ]
 
 [build-system]
@@ -20,6 +17,8 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "asebytes[lmdb]",
+    "asebytes[hf]",
     "ase-db-backends>=0.10.0",
     "ipykernel>=7.1.0",
     "matplotlib>=3.10.7",
@@ -28,7 +27,6 @@ dev = [
     "pytest>=8.4.2",
     "pytest-benchmark>=5.2.1",
     "znh5md>=0.4.8",
-    "datasets>=4.0.0",
 ]
 
 [project.urls]
@@ -37,6 +35,11 @@ Releases = "https://github.com/zincware/asebytes/releases"
 Discord = "https://discord.gg/7ncfwhsnm4"
 
 [project.optional-dependencies]
+lmdb = [
+    "lmdb>=1.7.5",
+    "msgpack>=1.1.2",
+    "msgpack-numpy>=0.4.8",
+]
 hf = [
     "datasets>=4.5.0",
 ]

@@ -21,6 +21,12 @@ _URI_REGISTRY: dict[str, tuple[str, str]] = {
     "optimade": ("asebytes.hf._backend", "HuggingFaceBackend"),
 }
 
+_EXTRAS_HINT: dict[str, str] = {
+    "asebytes.lmdb": "lmdb",
+    "asebytes.hf": "hf",
+    "asebytes.hf._backend": "hf",
+}
+
 
 def parse_uri(path: str) -> tuple[str | None, str]:
     """Split *path* into ``(scheme, remainder)`` if it matches a known URI.
@@ -84,13 +90,27 @@ def get_backend_cls(path: str, *, readonly: bool | None = None):
                 f"Backend for '{path}' is read-only, "
                 "no writable variant available"
             )
-        mod = importlib.import_module(module_path)
+        try:
+            mod = importlib.import_module(module_path)
+        except ImportError:
+            hint = _EXTRAS_HINT.get(module_path, module_path)
+            raise ImportError(
+                f"Backend '{module_path}' requires additional dependencies. "
+                f"Install them with: pip install asebytes[{hint}]"
+            ) from None
         return getattr(mod, cls_name)
 
     # --- Glob-based lookup ---
     for pattern, (module_path, writable, read_only) in _BACKEND_REGISTRY.items():
         if fnmatch.fnmatch(path, pattern):
-            mod = importlib.import_module(module_path)
+            try:
+                mod = importlib.import_module(module_path)
+            except ImportError:
+                hint = _EXTRAS_HINT.get(module_path, module_path)
+                raise ImportError(
+                    f"Backend '{module_path}' requires additional dependencies. "
+                    f"Install them with: pip install asebytes[{hint}]"
+                ) from None
             if readonly is True:
                 return getattr(mod, read_only)
             if readonly is False:
