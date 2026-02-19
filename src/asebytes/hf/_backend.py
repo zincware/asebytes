@@ -106,7 +106,7 @@ class HuggingFaceBackend(ReadableBackend):
                 n = info.splits[split_name].num_examples
                 if n is not None and n > 0:
                     return n
-        except Exception:
+        except (AttributeError, KeyError, TypeError):
             pass
         return None
 
