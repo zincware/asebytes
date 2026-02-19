@@ -338,10 +338,15 @@ class H5MDBackend(WritableBackend):
 
         if indices is None:
             raw = ds[()]
-        else:
-            raw = ds[sorted(indices)]
+            return [self._postprocess(raw[i], h5_name) for i in range(len(raw))]
 
-        return [self._postprocess(raw[i], h5_name) for i in range(len(raw))]
+        order = np.argsort(indices)
+        sorted_idx = [indices[j] for j in order]
+        raw = ds[sorted_idx]
+        result: list[Any] = [None] * len(indices)
+        for j in range(len(indices)):
+            result[order[j]] = self._postprocess(raw[j], h5_name)
+        return result
 
     # ------------------------------------------------------------------
     # WritableBackend (append-only)

@@ -46,6 +46,13 @@ else:
         "OPTIMADE",
     ]
 
+try:
+    from .h5md import H5MDBackend
+except ImportError:
+    pass
+else:
+    __all__ += ["H5MDBackend"]
+
 _OPTIONAL_ATTRS: dict[str, str] = {
     "BytesIO": "lmdb",
     "LMDBBackend": "lmdb",
@@ -54,6 +61,7 @@ _OPTIONAL_ATTRS: dict[str, str] = {
     "ColumnMapping": "hf",
     "COLABFIT": "hf",
     "OPTIMADE": "hf",
+    "H5MDBackend": "h5md",
 }
 
 

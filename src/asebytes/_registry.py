@@ -28,6 +28,7 @@ _EXTRAS_HINT: dict[str, str] = {
     "asebytes.hf": "hf",
     "asebytes.hf._backend": "hf",
     "asebytes.h5md": "h5md",
+    "asebytes.h5md._backend": "h5md",
 }
 
 
