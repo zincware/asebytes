@@ -1,9 +1,10 @@
 # asebytes
 
-Storage-agnostic, lazy-loading interface for [ASE](https://wiki.fysik.dtu.dk/ase/) Atoms objects. Pluggable backends (LMDB, HDF5/H5MD, HuggingFace Datasets, ASE file formats) behind a single `list`-like API with pandas-style column views.
+Storage-agnostic, lazy-loading interface for [ASE](https://wiki.fysik.dtu.dk/ase/) Atoms objects. Pluggable backends (LMDB, Zarr, HDF5/H5MD, HuggingFace Datasets, ASE file formats) behind a single `list`-like API with pandas-style column views.
 
 ```
 pip install asebytes[lmdb]      # LMDB backend (recommended)
+pip install asebytes[zarr]      # Zarr backend (fast compression)
 pip install asebytes[h5md]      # HDF5/H5MD backend
 pip install asebytes[hf]        # HuggingFace Datasets backend
 ```
@@ -29,6 +30,7 @@ Backend is auto-detected from the file extension:
 | Extension | Backend | Install extra |
 |-----------|---------|---------------|
 | `*.lmdb` | `LMDBBackend` | `asebytes[lmdb]` |
+| `*.zarr` | `ZarrBackend` | `asebytes[zarr]` |
 | `*.h5` / `*.h5md` | `H5MDBackend` | `asebytes[h5md]` |
 | `*.xyz` / `*.extxyz` / `*.traj` | `ASEReadOnlyBackend` | *(none)* |
 
@@ -96,6 +98,19 @@ db = ASEIO("hf://user/dataset", mapping=mapping, split="train")
 db = ASEIO("colabfit://dataset", split="train", streaming=False)
 ```
 
+## Zarr
+
+Zarr backend with flat layout and Blosc/LZ4 compression. Offers compact file sizes and fast read performance. Supports variable particle counts via NaN padding, append-only writes.
+
+```python
+db = ASEIO("trajectory.zarr")
+db.extend(atoms_list)
+
+# Custom compression
+from asebytes import ZarrBackend
+db = ASEIO(ZarrBackend("data.zarr", compressor="zstd", clevel=9))
+```
+
 ## HDF5 / H5MD
 
 H5MD-standard files with support for variable particle counts, per-frame PBC, and bond connectivity.
@@ -152,7 +167,7 @@ db = ASEIO(MyBackend())
 lemat = list(ASEIO("optimade://LeMaterial/LeMat-Traj", split="train", name="compatible_pbe")[:1000])
 ```
 
-> **Note:** HDF5 performance is heavily influenced by compression and chunking settings. Both asebytes H5MD and znh5md use gzip compression by default, which reduces file size at the cost of read/write speed.
+> **Note:** HDF5 performance is heavily influenced by compression and chunking settings. Both asebytes H5MD and znh5md use gzip compression by default, which reduces file size at the cost of read/write speed. The Zarr backend uses Blosc/LZ4 compression, which achieves compact file sizes with faster decompression than gzip.
 
 ### Write
 ![Write Performance](benchmark_write.png)

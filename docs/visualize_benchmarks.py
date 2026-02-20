@@ -21,6 +21,7 @@ import numpy as np
 # Backend display names and colors
 BACKEND_NAMES = {
     "asebytes_lmdb": "asebytes LMDB",
+    "asebytes_zarr": "asebytes Zarr",
     "asebytes_h5md": "asebytes H5MD",
     "aselmdb": "aselmdb",
     "znh5md": "znh5md",
@@ -31,6 +32,7 @@ BACKEND_NAMES = {
 
 COLORS = {
     "asebytes LMDB": "#2ecc71",
+    "asebytes Zarr": "#27ae60",
     "asebytes H5MD": "#1abc9c",
     "aselmdb": "#3498db",
     "znh5md": "#e74c3c",
@@ -42,6 +44,7 @@ COLORS = {
 # Order backends appear in charts
 BACKEND_ORDER = [
     "asebytes LMDB",
+    "asebytes Zarr",
     "asebytes H5MD",
     "aselmdb",
     "znh5md",
