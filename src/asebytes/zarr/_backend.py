@@ -16,21 +16,7 @@ from typing import Any
 import numpy as np
 import zarr
 
-
-def _jsonable(obj: Any) -> Any:
-    """Recursively convert numpy types so ``json.dumps`` succeeds."""
-    if isinstance(obj, np.ndarray):
-        return obj.tolist()
-    if isinstance(obj, np.integer):
-        return int(obj)
-    if isinstance(obj, np.floating):
-        return float(obj)
-    if isinstance(obj, dict):
-        return {k: _jsonable(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_jsonable(v) for v in obj]
-    return obj
-
+from asebytes._columnar import concat_varying, get_version, jsonable, strip_nan_padding
 from asebytes._protocols import WritableBackend
 
 
@@ -372,7 +358,7 @@ class ZarrBackend(WritableBackend):
 
             # Strip NaN padding for per-atom data
             if self._variable_shape and val.ndim >= 1 and val.dtype.kind == "f":
-                val = _strip_nan_padding(val)
+                val = strip_nan_padding(val)
                 if val.size == 0:
                     return None
 
@@ -448,7 +434,7 @@ class ZarrBackend(WritableBackend):
                 if v is None:
                     serialized.append("")
                 else:
-                    serialized.append(json.dumps(_jsonable(v)))
+                    serialized.append(json.dumps(jsonable(v)))
             return serialized, str, ""
 
         # --- Boolean (PBC) ---
@@ -475,7 +461,7 @@ class ZarrBackend(WritableBackend):
                     serialized.append("")
                 else:
                     serialized.append(
-                        json.dumps(_jsonable(v))
+                        json.dumps(jsonable(v))
                     )
             return serialized, str, ""
 
@@ -492,7 +478,7 @@ class ZarrBackend(WritableBackend):
                         np.full_like(ref, np.nan, dtype=np.float64)
                     )
             return (
-                _concat_varying(processed, np.nan),
+                concat_varying(processed, np.nan),
                 np.float64,
                 np.nan,
             )
@@ -616,62 +602,11 @@ class ZarrBackend(WritableBackend):
         self._root.attrs["n_frames"] = self._n_frames
         self._root.attrs["max_atoms"] = self._max_atoms
         self._root.attrs["columns"] = self._columns
-        self._root.attrs["asebytes_version"] = _get_version()
+        self._root.attrs["asebytes_version"] = get_version()
 
     @staticmethod
     def _serialize_value(val: Any) -> Any:
         """Serialize a single value for zarr storage."""
         if isinstance(val, (dict, list, str)):
-            return json.dumps(_jsonable(val))
+            return json.dumps(jsonable(val))
         return val
-
-
-# ------------------------------------------------------------------
-# Module-level helpers
-# ------------------------------------------------------------------
-
-
-def _get_version() -> str:
-    """Return the asebytes package version."""
-    try:
-        from asebytes import __version__
-
-        return __version__
-    except Exception:
-        return "unknown"
-
-
-def _strip_nan_padding(arr: np.ndarray) -> np.ndarray:
-    """Remove trailing NaN rows from a per-atom array."""
-    if arr.ndim == 0:
-        return arr
-    if arr.ndim == 1:
-        mask = ~np.isnan(arr)
-        if not mask.any():
-            return arr[:0]
-        last = len(mask) - np.argmax(mask[::-1])
-        return arr[:last]
-    # Multi-dim: collapse all but first axis
-    mask = ~np.isnan(arr)
-    valid = mask.reshape(arr.shape[0], -1).any(axis=1)
-    if not valid.any():
-        return arr[:0]
-    last = len(valid) - np.argmax(valid[::-1])
-    return arr[:last]
-
-
-def _concat_varying(
-    arrays: list[np.ndarray], fillvalue: float
-) -> np.ndarray:
-    """Concatenate arrays of varying shapes with padding."""
-    if not arrays:
-        return np.array([])
-    maxshape = list(arrays[0].shape)
-    for a in arrays[1:]:
-        for i, (m, s) in enumerate(zip(maxshape, a.shape)):
-            maxshape[i] = max(m, s)
-    out = np.full((len(arrays), *maxshape), fillvalue, dtype=np.float64)
-    for i, a in enumerate(arrays):
-        slices = tuple(slice(0, s) for s in a.shape)
-        out[(i,) + slices] = a
-    return out

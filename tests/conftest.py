@@ -167,9 +167,10 @@ def s22() -> list[ase.Atoms]:
 
 @pytest.fixture
 def s22_energy() -> list[ase.Atoms]:
+    rng = np.random.RandomState(10)
     images = []
     for atoms in ase.collections.s22:
-        calc = SinglePointCalculator(atoms, energy=np.random.rand())
+        calc = SinglePointCalculator(atoms, energy=rng.rand())
         atoms.calc = calc
         images.append(atoms)
     return images
@@ -177,10 +178,11 @@ def s22_energy() -> list[ase.Atoms]:
 
 @pytest.fixture
 def s22_energy_forces() -> list[ase.Atoms]:
+    rng = np.random.RandomState(11)
     images = []
     for atoms in ase.collections.s22:
         calc = SinglePointCalculator(
-            atoms, energy=np.random.rand(), forces=np.random.rand(len(atoms), 3)
+            atoms, energy=rng.rand(), forces=rng.rand(len(atoms), 3)
         )
         atoms.calc = calc
         images.append(atoms)
@@ -189,20 +191,21 @@ def s22_energy_forces() -> list[ase.Atoms]:
 
 @pytest.fixture
 def s22_all_properties() -> list[ase.Atoms]:
+    rng = np.random.RandomState(12)
     images = []
     for atoms in ase.collections.s22:
-        energy = np.random.rand()
-        energies = np.random.rand(len(atoms))
-        free_energy = np.random.rand()
-        forces = np.random.rand(len(atoms), 3)
-        stress = np.random.rand(6)
-        stresses = np.random.rand(len(atoms), 6)
-        dipole = np.random.rand(3)
-        magmom = np.random.rand()
-        magmoms = np.random.rand(len(atoms))
-        dielectric_tensor = np.random.rand(3, 3)
-        born_effective_charges = np.random.rand(len(atoms), 3)
-        polarization = np.random.rand(3)
+        energy = rng.rand()
+        energies = rng.rand(len(atoms))
+        free_energy = rng.rand()
+        forces = rng.rand(len(atoms), 3)
+        stress = rng.rand(6)
+        stresses = rng.rand(len(atoms), 6)
+        dipole = rng.rand(3)
+        magmom = rng.rand()
+        magmoms = rng.rand(len(atoms))
+        dielectric_tensor = rng.rand(3, 3)
+        born_effective_charges = rng.rand(len(atoms), 3)
+        polarization = rng.rand(3)
 
         calc = SinglePointCalculator(
             atoms,
@@ -226,23 +229,24 @@ def s22_all_properties() -> list[ase.Atoms]:
 
 @pytest.fixture
 def s22_info_arrays_calc() -> list[ase.Atoms]:
+    rng = np.random.RandomState(13)
     images = []
     for atoms in ase.collections.s22:
         atoms.info.update(
             {
-                "mlip_energy": np.random.rand(),
-                "mlip_energy_2": np.random.rand(),
-                "mlip_stress": np.random.rand(6),
+                "mlip_energy": rng.rand(),
+                "mlip_energy_2": rng.rand(),
+                "mlip_stress": rng.rand(6),
                 "collection": "s22",
                 "metadata": {"author": "Jane Doe", "date": "2021-09-01"},
                 "lst": [1, 2, 3],
             }
         )
-        atoms.new_array("mlip_forces", np.random.rand(len(atoms), 3))
-        atoms.new_array("mlip_forces_2", np.random.rand(len(atoms), 3))
-        atoms.set_velocities(np.random.rand(len(atoms), 3))
+        atoms.new_array("mlip_forces", rng.rand(len(atoms), 3))
+        atoms.new_array("mlip_forces_2", rng.rand(len(atoms), 3))
+        atoms.set_velocities(rng.rand(len(atoms), 3))
         calc = SinglePointCalculator(
-            atoms, energy=np.random.rand(), forces=np.random.rand(len(atoms), 3)
+            atoms, energy=rng.rand(), forces=rng.rand(len(atoms), 3)
         )
         atoms.calc = calc
         images.append(atoms)
@@ -251,28 +255,30 @@ def s22_info_arrays_calc() -> list[ase.Atoms]:
 
 @pytest.fixture
 def s22_mixed_pbc_cell() -> list[ase.Atoms]:
+    rng = np.random.RandomState(14)
     images = []
     for atoms in ase.collections.s22:
-        atoms.set_pbc(np.random.rand(3) > 0.5)
-        atoms.set_cell(np.random.rand(3, 3))
-        atoms.info["mlip_energy"] = np.random.rand()
-        atoms.new_array("mlip_forces", np.random.rand(len(atoms), 3))
+        atoms.set_pbc(rng.rand(3) > 0.5)
+        atoms.set_cell(rng.rand(3, 3))
+        atoms.info["mlip_energy"] = rng.rand()
+        atoms.new_array("mlip_forces", rng.rand(len(atoms), 3))
         images.append(atoms)
     return images
 
 
 @pytest.fixture
 def s22_illegal_calc_results() -> list[ase.Atoms]:
+    rng = np.random.RandomState(15)
     images = []
     for atoms in ase.collections.s22:
         atoms.calc = SinglePointCalculator(atoms)
-        atoms.calc.results["mlip_energy"] = np.random.rand()
+        atoms.calc.results["mlip_energy"] = rng.rand()
         atoms.calc.results["dict"] = {"author": "Jane Doe", "date": "2021-09-01"}
         atoms.calc.results["float"] = 3.14
         atoms.calc.results["int"] = 42
         atoms.calc.results["list"] = [1, 2, 3]
         atoms.calc.results["str"] = '{"author": "Jane Doe", "date": "2021-09-01"}'
-        atoms.calc.results["list_array"] = [np.random.rand(3), np.random.rand(3)]
+        atoms.calc.results["list_array"] = [rng.rand(3), rng.rand(3)]
         atoms.calc.results["list_str"] = ["Jane Doe", "John Doe"]
         images.append(atoms)
     return images
@@ -286,14 +292,15 @@ def water() -> list[ase.Atoms]:
 
 @pytest.fixture
 def s22_nested_calc() -> list[ase.Atoms]:
+    rng = np.random.RandomState(16)
     images = []
     for atoms in ase.collections.s22:
         atoms.calc = SinglePointCalculator(atoms)
-        atoms.calc.results["forces"] = np.random.rand(len(atoms), 3)
+        atoms.calc.results["forces"] = rng.rand(len(atoms), 3)
         atoms.calc.results["forces_contributions"] = [
             [
-                np.random.rand(len(atoms), 3),
-                np.random.rand(len(atoms), 3),
+                rng.rand(len(atoms), 3),
+                rng.rand(len(atoms), 3),
             ]
         ]
         images.append(atoms)
@@ -312,20 +319,21 @@ def full_water(water) -> ase.Atoms:
 
 @pytest.fixture
 def s22_info_arrays_calc_missing_inbetween() -> list[ase.Atoms]:
+    rng = np.random.RandomState(17)
     images = []
     for atoms in ase.collections.s22:
-        if np.random.random() > 0.5:
-            atoms.info.update({"mlip_energy": np.random.rand()})
-        if np.random.random() > 0.5:
-            atoms.new_array("mlip_forces", np.random.rand(len(atoms), 3))
-        if np.random.random() > 0.5:
+        if rng.random() > 0.5:
+            atoms.info.update({"mlip_energy": rng.rand()})
+        if rng.random() > 0.5:
+            atoms.new_array("mlip_forces", rng.rand(len(atoms), 3))
+        if rng.random() > 0.5:
             calc = SinglePointCalculator(atoms)
             set_calc = False
-            if np.random.random() > 0.5:
-                calc.results["energy"] = np.random.rand()
+            if rng.random() > 0.5:
+                calc.results["energy"] = rng.rand()
                 set_calc = True
-            if np.random.random() > 0.5:
-                calc.results["forces"] = np.random.rand(len(atoms), 3)
+            if rng.random() > 0.5:
+                calc.results["forces"] = rng.rand(len(atoms), 3)
                 set_calc = True
             if set_calc:
                 atoms.calc = calc

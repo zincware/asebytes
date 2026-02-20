@@ -36,17 +36,18 @@ def test_velocity(db_path, s22, state: t.Literal["before", "middle", "after"]):
     """Velocities set on only one frame; verify they survive round-trip."""
     io = asebytes.ASEIO(db_path)
 
+    rng = np.random.RandomState(99)
     velocity = None
 
     images = s22
     if state == "before":
-        velocity = np.random.random((len(images[0]), 3)) * 0.1
+        velocity = rng.random((len(images[0]), 3)) * 0.1
         images[0].set_velocities(velocity)
     elif state == "middle":
-        velocity = np.random.random((len(images[1]), 3)) * 0.1
+        velocity = rng.random((len(images[1]), 3)) * 0.1
         images[1].set_velocities(velocity)
     elif state == "after":
-        velocity = np.random.random((len(images[-1]), 3)) * 0.1
+        velocity = rng.random((len(images[-1]), 3)) * 0.1
         images[-1].set_velocities(velocity)
 
     io.extend(images)
