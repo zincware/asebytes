@@ -1,11 +1,13 @@
+import numpy as np
 import pytest
+from ase.calculators.singlepoint import SinglePointCalculator
 
 import asebytes
 
 
 @pytest.fixture
 def io(tmp_path):
-    return asebytes.ASEIO(str(tmp_path / "test.db"), prefix=b"atoms/")
+    return asebytes.ASEIO(str(tmp_path / "test.lmdb"), prefix=b"atoms/")
 
 
 def test_set_get(io, ethanol):
@@ -63,88 +65,41 @@ def test_iter(io, ethanol):
     assert atoms == list(ethanol)
 
 
-def test_get_all_keys(io, ethanol):
-    # Test that get() without keys parameter returns full Atoms object
+def test_getitem_returns_full_atoms(io, ethanol):
     io[0] = ethanol[0]
-    atoms_from_getitem = io[0]
-    atoms_from_get = io.get(0)
-    assert atoms_from_get == atoms_from_getitem
-
-
-def test_get_specific_keys(io, ethanol):
-    # Test that get() with keys parameter returns partial Atoms object
-    io[0] = ethanol[0]
-    # Request only positions and numbers, but not info keys
-    atoms = io.get(0, keys=[b"cell", b"pbc", b"arrays.positions", b"arrays.numbers"])
+    atoms = io[0]
     assert len(atoms) == len(ethanol[0])
-    # Info should be empty since we didn't request info keys
-    assert len(atoms.info) == 0
-
-
-def test_get_with_info_keys(io, ethanol):
-    # Test that get() includes requested info keys
-    io[0] = ethanol[0]
-    atoms = io.get(
-        0,
-        keys=[
-            b"cell",
-            b"pbc",
-            b"arrays.positions",
-            b"arrays.numbers",
-            b"info.smiles",
-        ],
-    )
     assert "smiles" in atoms.info
-    # connectivity should not be present since we didn't request it
-    assert "connectivity" not in atoms.info
+    assert "connectivity" in atoms.info
 
 
-def test_get_with_calc_keys(io, ethanol):
-    # Test that get() includes requested calc keys
-    import numpy as np
-    from ase.calculators.singlepoint import SinglePointCalculator
+def test_getitem_nonexistent_index_raises_indexerror(io):
+    with pytest.raises(IndexError):
+        io[0]
 
+
+def test_columns(io, ethanol):
+    io[0] = ethanol[0]
+    cols = io.columns
+    assert "cell" in cols
+    assert "pbc" in cols
+    assert "arrays.positions" in cols
+    assert "arrays.numbers" in cols
+    assert "info.smiles" in cols
+    assert "info.connectivity" in cols
+
+
+def test_columns_empty(io):
+    assert io.columns == []
+
+
+def test_getitem_with_calc(io, ethanol):
     atoms = ethanol[0].copy()
     atoms.calc = SinglePointCalculator(atoms)
     atoms.calc.results = {"energy": -10.5, "forces": np.array([[0.1, 0.2, 0.3]])}
     io[0] = atoms
 
-    # Get with calc keys
-    retrieved = io.get(
-        0,
-        keys=[
-            b"cell",
-            b"pbc",
-            b"arrays.positions",
-            b"arrays.numbers",
-            b"calc.energy",
-        ],
-    )
+    retrieved = io[0]
     assert retrieved.calc is not None
     assert "energy" in retrieved.calc.results
-    # forces should not be present since we didn't request it
-    assert "forces" not in retrieved.calc.results
-
-
-def test_get_nonexistent_index(io):
-    # Test that get() raises KeyError for non-existent index
-    with pytest.raises(KeyError, match="Index 0 not found"):
-        io.get(0)
-
-
-def test_get_available_keys(io, ethanol):
-    # Test that get_available_keys() returns all keys for an index
-    io[0] = ethanol[0]
-    keys = io.get_available_keys(0)
-    assert b"cell" in keys
-    assert b"pbc" in keys
-    assert b"arrays.positions" in keys
-    assert b"arrays.numbers" in keys
-    assert b"info.smiles" in keys
-    assert b"info.connectivity" in keys
-
-
-def test_get_available_keys_nonexistent_index(io):
-    # Test that get_available_keys() raises KeyError for non-existent index
-    with pytest.raises(KeyError, match="Index 0 not found"):
-        io.get_available_keys(0)
+    assert "forces" in retrieved.calc.results

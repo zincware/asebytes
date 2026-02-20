@@ -1,368 +1,304 @@
-"""Visualize pytest-benchmark results for ASE Atoms read/write performance.
+"""Visualize pytest-benchmark results for ASE Atoms storage backends.
 
-This script parses the JSON output from pytest-benchmark and creates
-publication-quality figures comparing different backend implementations.
+Produces one PNG per operation from pytest-benchmark JSON output.
 
 Usage:
-    # Run benchmarks and save results
     uv run pytest -m benchmark --benchmark-only --benchmark-json=benchmark_results.json
-
-    # Generate figures
     uv run python docs/visualize_benchmarks.py benchmark_results.json
 """
 
+from __future__ import annotations
+
 import argparse
 import json
+import re
+from collections import defaultdict
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Backend display names and colors
+BACKEND_NAMES = {
+    "asebytes_lmdb": "asebytes LMDB",
+    "asebytes_zarr": "asebytes Zarr",
+    "asebytes_h5md": "asebytes H5MD",
+    "aselmdb": "aselmdb",
+    "znh5md": "znh5md",
+    "h5py": "h5py",
+    "extxyz": "extxyz",
+    "sqlite": "sqlite",
+}
 
-def load_benchmark_results(json_path: str) -> dict:
-    """Load benchmark results from JSON file."""
-    with open(json_path) as f:
-        return json.load(f)
+COLORS = {
+    "asebytes LMDB": "#2ecc71",
+    "asebytes Zarr": "#27ae60",
+    "asebytes H5MD": "#1abc9c",
+    "aselmdb": "#3498db",
+    "znh5md": "#e74c3c",
+    "h5py": "#e74c3c",
+    "extxyz": "#f39c12",
+    "sqlite": "#9b59b6",
+}
+
+# Order backends appear in charts
+BACKEND_ORDER = [
+    "asebytes LMDB",
+    "asebytes Zarr",
+    "asebytes H5MD",
+    "aselmdb",
+    "znh5md",
+    "h5py",
+    "extxyz",
+    "sqlite",
+]
+
+OPERATIONS = {
+    "write": "Write Performance",
+    "read": "Sequential Read Performance",
+    "random_access": "Random Access Performance",
+    "column_access": "Column Access Performance",
+    "file_size": "File Size",
+}
+
+
+def _parse_test_name(name: str) -> tuple[str, str, str] | None:
+    """Extract (operation, backend_key, dataset) from a test name.
+
+    Expected patterns:
+        test_write_asebytes_lmdb[ethanol]
+        test_read_znh5md[lemat]
+        test_random_access_aselmdb[ethanol]
+        test_column_asebytes_h5md[lemat]
+        test_size_asebytes_lmdb[ethanol]
+    """
+    # Extract dataset from brackets
+    m = re.search(r"\[(\w+)\]$", name)
+    if not m:
+        return None
+    dataset = m.group(1)
+
+    # Strip test_ prefix and [dataset] suffix
+    core = name.removeprefix("test_").removesuffix(f"[{dataset}]")
+
+    # Match operation prefix
+    for op in ["write", "read", "random_access", "column", "size"]:
+        prefix = f"{op}_"
+        if core.startswith(prefix):
+            backend_key = core[len(prefix):]
+            # Normalize operation name
+            if op == "column":
+                op = "column_access"
+            elif op == "size":
+                op = "file_size"
+            if backend_key in BACKEND_NAMES:
+                return op, backend_key, dataset
+
+    return None
 
 
 def parse_benchmarks(data: dict) -> dict:
-    """Parse benchmark data into organized structure."""
-    results = {"read": {}, "write": {}, "random_access": {}}
+    """Parse benchmark JSON into {operation: {dataset: {backend: stats}}}."""
+    results: dict[str, dict[str, dict[str, dict]]] = defaultdict(
+        lambda: defaultdict(dict)
+    )
 
-    for benchmark in data["benchmarks"]:
-        name = benchmark["name"]
-        stats = benchmark["stats"]
-
-        # Extract backend type and operation
-        if "random_access" in name:
-            operation = "random_access"
-        elif "read" in name:
-            operation = "read"
-        elif "write" in name:
-            operation = "write"
-        else:
+    for bench in data["benchmarks"]:
+        parsed = _parse_test_name(bench["name"])
+        if parsed is None:
             continue
-
-        if "asebytes" in name:
-            backend = "ASEIO"
-        elif "aselmdb" in name:
-            backend = "ASE LMDB"
-        elif "lmdb_pickle" in name:
-            backend = "LMDB+Pickle"
-        elif "xyz" in name:
-            backend = "XYZ"
-        elif "sqlite" in name:
-            backend = "SQLite"
-        elif "znh5md" in name:
-            backend = "znh5md"
-        else:
-            continue
-
-        results[operation][backend] = {
+        op, backend_key, dataset = parsed
+        backend_name = BACKEND_NAMES[backend_key]
+        stats = bench["stats"]
+        entry = {
             "mean": stats["mean"],
             "stddev": stats["stddev"],
             "min": stats["min"],
             "max": stats["max"],
-            "median": stats["median"],
-            "rounds": stats["rounds"],
         }
+        # File size: extract from extra_info
+        if op == "file_size" and "extra_info" in bench:
+            size = bench["extra_info"].get("file_size_bytes")
+            if size is not None:
+                entry["file_size_bytes"] = size
+        results[op][dataset][backend_name] = entry
 
-    return results
+    return dict(results)
 
 
-def create_comparison_figure(
-    results: dict,
-    output_path: str = "benchmark_comparison.png",
-    use_log_scale: bool = True,
+def _make_grouped_bar_chart(
+    ax,
+    data: dict[str, dict[str, dict]],
+    title: str,
+    ylabel: str,
+    value_key: str = "mean",
+    error_key: str | None = "stddev",
+    log_scale: bool = True,
+    format_fn=None,
 ):
-    """Create a comprehensive comparison figure.
+    """Draw grouped bars (one group per dataset, one bar per backend)."""
+    datasets = sorted(data.keys())
+    # Collect backends present in any dataset, in standard order
+    all_backends = []
+    for ds in datasets:
+        for b in data[ds]:
+            if b not in all_backends:
+                all_backends.append(b)
+    backends = [b for b in BACKEND_ORDER if b in all_backends]
 
-    Args:
-        results: Parsed benchmark results
-        output_path: Path to save the figure
-        use_log_scale: If True, use log scale for y-axis (better for wide range of values)
-    """
-    # Check if we have random_access data
-    has_random_access = bool(results.get("random_access"))
-    num_panels = 4 if has_random_access else 3
-
-    fig, axes = plt.subplots(
-        1, num_panels, figsize=(20 if has_random_access else 16, 5)
-    )
-    fig.suptitle(
-        "ASE Atoms Storage Backend Performance Comparison\n1000 Ethanol Molecules",
-        fontsize=14,
-        fontweight="bold",
-    )
-
-    # Define colors for each backend
-    colors = {
-        "ASEIO": "#2ecc71",
-        "ASE LMDB": "#3498db",
-        "LMDB+Pickle": "#e74c3c",
-        "XYZ": "#f39c12",
-        "SQLite": "#9b59b6",
-        "znh5md": "#1abc9c",
-    }
-
-    # 1. Write Performance (left)
-    ax = axes[0]
-    write_data = results["write"]
-    backends = list(write_data.keys())
-    means = [write_data[b]["mean"] for b in backends]
-    stds = [write_data[b]["stddev"] for b in backends]
-
-    x = np.arange(len(backends))
-    bars = ax.bar(
-        x, means, yerr=stds, capsize=5, alpha=0.8, color=[colors[b] for b in backends]
+    n_datasets = len(datasets)
+    n_backends = len(backends)
+    x = np.arange(n_backends)
+    width = 0.8 / n_datasets
+    offsets = np.linspace(
+        -(n_datasets - 1) * width / 2,
+        (n_datasets - 1) * width / 2,
+        n_datasets,
     )
 
-    ax.set_ylabel("Time / s", fontweight="bold")
-    ax.set_title("Write Performance", fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(backends, rotation=15, ha="right")
-    ax.grid(axis="y", alpha=0.3)
+    # First dataset: solid fill. Second dataset: hatched overlay.
+    hatches = ["", "//"]
 
-    if use_log_scale:
-        ax.set_yscale("log")
-        # Add value labels on bars for log scale
-        for i, mean in enumerate(means):
-            ax.text(i, mean, f"{mean:.3f}s", ha="center", va="bottom", fontsize=9)
-    else:
-        # Add value labels on bars
-        for i, (mean, std) in enumerate(zip(means, stds)):
-            ax.text(i, mean + std, f"{mean:.3f}s", ha="center", va="bottom", fontsize=9)
-
-    # 2. Read Performance (center)
-    ax = axes[1]
-    read_data = results["read"]
-    backends = list(read_data.keys())
-    means = [read_data[b]["mean"] for b in backends]
-    stds = [read_data[b]["stddev"] for b in backends]
-
-    x = np.arange(len(backends))
-    bars = ax.bar(
-        x, means, yerr=stds, capsize=5, alpha=0.8, color=[colors[b] for b in backends]
-    )
-
-    ax.set_ylabel("Time / s", fontweight="bold")
-    ax.set_title("Read Performance", fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(backends, rotation=15, ha="right")
-    ax.grid(axis="y", alpha=0.3)
-
-    if use_log_scale:
-        ax.set_yscale("log")
-        # Add value labels on bars for log scale
-        for i, mean in enumerate(means):
-            ax.text(i, mean, f"{mean:.3f}s", ha="center", va="bottom", fontsize=9)
-    else:
-        # Add value labels on bars
-        for i, (mean, std) in enumerate(zip(means, stds)):
-            ax.text(i, mean + std, f"{mean:.3f}s", ha="center", va="bottom", fontsize=9)
-
-    # 3. Random Access Performance (if available)
-    if has_random_access:
-        ax = axes[2]
-        random_data = results["random_access"]
-        backends = list(random_data.keys())
-        means = [random_data[b]["mean"] for b in backends]
-        stds = [random_data[b]["stddev"] for b in backends]
-
-        x = np.arange(len(backends))
-        bars = ax.bar(
-            x,
-            means,
-            yerr=stds,
-            capsize=5,
-            alpha=0.8,
-            color=[colors[b] for b in backends],
+    for i, ds in enumerate(datasets):
+        vals = [data[ds].get(b, {}).get(value_key, 0) for b in backends]
+        errs = (
+            [data[ds].get(b, {}).get(error_key, 0) for b in backends]
+            if error_key
+            else None
         )
-
-        ax.set_ylabel("Time / s", fontweight="bold")
-        ax.set_title("Random Access Performance", fontweight="bold")
-        ax.set_xticks(x)
-        ax.set_xticklabels(backends, rotation=15, ha="right")
-        ax.grid(axis="y", alpha=0.3)
-
-        if use_log_scale:
-            ax.set_yscale("log")
-            # Add value labels on bars for log scale
-            for i, mean in enumerate(means):
-                ax.text(i, mean, f"{mean:.3f}s", ha="center", va="bottom", fontsize=9)
-        else:
-            # Add value labels on bars
-            for i, (mean, std) in enumerate(zip(means, stds)):
+        colors = [COLORS.get(b, "#999999") for b in backends]
+        ax.bar(
+            x + offsets[i],
+            vals,
+            width,
+            yerr=errs,
+            capsize=3,
+            alpha=0.85,
+            color=colors,
+            hatch=hatches[i % len(hatches)],
+            edgecolor="white" if i > 0 else "none",
+            linewidth=0.5,
+            label=ds,
+        )
+        # Value labels
+        fmt = format_fn or (lambda v: f"{v:.3f}s")
+        for j, v in enumerate(vals):
+            if v > 0:
                 ax.text(
-                    i, mean + std, f"{mean:.3f}s", ha="center", va="bottom", fontsize=9
+                    x[j] + offsets[i],
+                    v,
+                    fmt(v),
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                    rotation=45,
                 )
 
-    # 4. Per-molecule Time (right)
-    ax = axes[3 if has_random_access else 2]
-
-    num_molecules = 1000
-    write_backends = list(write_data.keys())
-    write_per_mol = [
-        write_data[b]["mean"] / num_molecules * 1000 for b in write_backends
-    ]  # ms
-    read_per_mol = [
-        read_data[b]["mean"] / num_molecules * 1000 for b in write_backends
-    ]  # ms
-
-    x = np.arange(len(write_backends))
-    width = 0.35
-
-    # Use distinct colors that don't overlap with backend colors
-    # Teal for write, coral for read - both visually distinct
-    ax.bar(
-        x - width / 2, write_per_mol, width, label="Write", alpha=0.8, color="#00CED1"
-    )
-    ax.bar(x + width / 2, read_per_mol, width, label="Read", alpha=0.8, color="#FF7F50")
-
-    ax.set_ylabel("Time / ms", fontweight="bold")
-    ax.set_title("Time per Molecule", fontweight="bold")
+    ax.set_title(title, fontweight="bold")
+    ax.set_ylabel(ylabel, fontweight="bold")
     ax.set_xticks(x)
-    ax.set_xticklabels(write_backends, rotation=15, ha="right")
-    ax.legend()
+    ax.set_xticklabels(backends, rotation=20, ha="right", fontsize=9)
+    ax.legend(fontsize=9)
     ax.grid(axis="y", alpha=0.3)
-
-    if use_log_scale:
+    if log_scale:
         ax.set_yscale("log")
 
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=300, bbox_inches="tight")
-    scale_note = " (log scale)" if use_log_scale else ""
-    print(f"Figure saved to: {output_path}{scale_note}")
-    plt.close()
 
+def create_figures(results: dict, output_dir: str = ".") -> list[str]:
+    """Create one figure per operation. Returns list of output paths."""
+    out = Path(output_dir)
+    paths = []
 
-def create_detailed_stats_table(results: dict):
-    """Print detailed statistics table."""
-    print("\n" + "=" * 100)
-    print("DETAILED BENCHMARK STATISTICS")
-    print("=" * 100)
-
-    operations = ["write", "read"]
-    if results.get("random_access"):
-        operations.append("random_access")
-
-    for operation in operations:
-        if operation not in results or not results[operation]:
+    for op, title in OPERATIONS.items():
+        if op not in results:
             continue
 
-        print(f"\n{operation.upper().replace('_', ' ')} PERFORMANCE:")
-        print("-" * 100)
-        print(
-            f"{'Backend':<20} {'Mean (s)':<12} {'StdDev (s)':<12} {'Min (s)':<12} "
-            f"{'Max (s)':<12} {'Rounds':<10}"
-        )
-        print("-" * 100)
+        fig, ax = plt.subplots(figsize=(10, 5))
 
-        for backend, stats in results[operation].items():
-            print(
-                f"{backend:<20} {stats['mean']:<12.4f} {stats['stddev']:<12.4f} "
-                f"{stats['min']:<12.4f} {stats['max']:<12.4f} {stats['rounds']:<10}"
+        if op == "file_size":
+            _make_grouped_bar_chart(
+                ax,
+                results[op],
+                title,
+                ylabel="Size / MB",
+                value_key="file_size_bytes",
+                error_key=None,
+                log_scale=True,
+                format_fn=lambda v: f"{v / 1e6:.1f}MB",
             )
-
-    print("\n" + "=" * 100)
-    print("SPEEDUP ANALYSIS (Relative to ASEIO)")
-    print("=" * 100)
-
-    if "ASEIO" in results["write"] and "ASEIO" in results["read"]:
-        aseio_write = results["write"]["ASEIO"]["mean"]
-        aseio_read = results["read"]["ASEIO"]["mean"]
-        has_random = (
-            results.get("random_access") and "ASEIO" in results["random_access"]
-        )
-        aseio_random = results["random_access"]["ASEIO"]["mean"] if has_random else None
-
-        # Print header based on available data
-        if has_random:
-            print(
-                f"{'Backend':<20} {'Write Speedup':<20} {'Read Speedup':<20} {'Random Access Speedup':<25}"
-            )
-            print("-" * 85)
         else:
-            print(f"{'Backend':<20} {'Write Speedup':<20} {'Read Speedup':<20}")
-            print("-" * 60)
+            _make_grouped_bar_chart(
+                ax,
+                results[op],
+                title,
+                ylabel="Time / s",
+            )
 
-        for backend in results["write"].keys():
-            if backend != "ASEIO":
-                write_speedup = results["write"][backend]["mean"] / aseio_write
-                read_speedup = results["read"][backend]["mean"] / aseio_read
+        fig.tight_layout()
+        path = out / f"benchmark_{op}.png"
+        fig.savefig(str(path), dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        paths.append(str(path))
+        print(f"  {path}")
 
-                write_str = f"{write_speedup:.2f}x {'(slower)' if write_speedup > 1 else '(faster)'}"
-                read_str = f"{read_speedup:.2f}x {'(slower)' if read_speedup > 1 else '(faster)'}"
+    return paths
 
-                if has_random and backend in results["random_access"]:
-                    random_speedup = (
-                        results["random_access"][backend]["mean"] / aseio_random
-                    )
-                    random_str = f"{random_speedup:.2f}x {'(slower)' if random_speedup > 1 else '(faster)'}"
-                    print(
-                        f"{backend:<20} {write_str:<20} {read_str:<20} {random_str:<25}"
-                    )
+
+def print_stats(results: dict) -> None:
+    """Print summary statistics table."""
+    for op, datasets in results.items():
+        print(f"\n{'=' * 80}")
+        print(f"  {OPERATIONS.get(op, op).upper()}")
+        print(f"{'=' * 80}")
+        for ds, backends in sorted(datasets.items()):
+            print(f"\n  Dataset: {ds}")
+            print(f"  {'Backend':<20} {'Mean':>10} {'StdDev':>10}")
+            print(f"  {'-' * 40}")
+            for b in BACKEND_ORDER:
+                if b not in backends:
+                    continue
+                s = backends[b]
+                if "file_size_bytes" in s:
+                    mb = s["file_size_bytes"] / 1e6
+                    print(f"  {b:<20} {mb:>9.2f}MB")
                 else:
-                    print(f"{backend:<20} {write_str:<20} {read_str:<20}")
-
-    print("=" * 100 + "\n")
+                    print(
+                        f"  {b:<20} {s['mean']:>9.4f}s {s['stddev']:>9.4f}s"
+                    )
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Visualize pytest-benchmark results for ASE storage backends"
+        description="Visualize benchmark results (one figure per operation)"
     )
+    parser.add_argument("benchmark_json", help="Path to benchmark JSON file")
     parser.add_argument(
-        "benchmark_json", type=str, help="Path to benchmark results JSON file"
+        "-o", "--output-dir", default=".", help="Directory for output PNGs"
     )
-    parser.add_argument(
-        "-o",
-        "--output",
-        type=str,
-        default="benchmark_comparison.png",
-        help="Output figure path (default: benchmark_comparison.png)",
-    )
-    parser.add_argument(
-        "--linear",
-        action="store_true",
-        help="Use linear scale instead of log scale (default: log scale)",
-    )
-    parser.add_argument(
-        "--split-view",
-        action="store_true",
-        help="Create separate panels for fast and slow backends",
-    )
-
     args = parser.parse_args()
 
-    # Check if input file exists
-    if not Path(args.benchmark_json).exists():
-        print(f"Error: Benchmark file '{args.benchmark_json}' not found!")
-        print("\nPlease run benchmarks first:")
+    path = Path(args.benchmark_json)
+    if not path.exists():
+        print(f"Error: {path} not found.")
+        print("Run benchmarks first:")
         print(
-            "  uv run pytest -m benchmark --benchmark-only --benchmark-json=benchmark_results.json"
+            "  uv run pytest -m benchmark --benchmark-only "
+            "--benchmark-json=benchmark_results.json"
         )
         return 1
 
-    # Load and parse results
-    print(f"Loading benchmark results from: {args.benchmark_json}")
-    data = load_benchmark_results(args.benchmark_json)
+    print(f"Loading: {path}")
+    with open(path) as f:
+        data = json.load(f)
+
     results = parse_benchmarks(data)
+    print(f"Found operations: {list(results.keys())}")
 
-    # Create visualizations
-    print("Creating visualization...")
-    use_log = not args.linear
+    print("\nCreating figures:")
+    create_figures(results, args.output_dir)
 
-    if args.split_view:
-        print("Split view not yet implemented - using standard view with log scale")
-        use_log = True
-
-    create_comparison_figure(results, args.output, use_log_scale=use_log)
-
-    # Print statistics
-    create_detailed_stats_table(results)
-
-    print("\nAnalysis complete!")
+    print_stats(results)
+    print("\nDone.")
     return 0
 
 

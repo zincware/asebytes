@@ -1,171 +1,133 @@
-"""Benchmark random index access performance comparison across different backends.
+"""Benchmark random-index access performance across backends.
 
-Compare random access performance of:
-- asebytes (ASEIO)
-- ASE's aselmdb backend
-- Raw lmdb + pickle
-- XYZ file format (using index parameter)
-- SQLite database
-- znh5md (H5MD format)
+Backends: asebytes LMDB, asebytes H5MD, aselmdb, znh5md, sqlite.
+(extxyz skipped — requires full file scan per access.)
+Datasets: ethanol (1000 small molecules), lemat (1000 periodic structures).
 """
 
-import pickle
 import random
 
 import ase
-import ase.io
 import pytest
 from ase.db import connect
 
 from asebytes import ASEIO
 
+DATASETS = ["ethanol", "lemat"]
+
+
+@pytest.fixture(params=DATASETS)
+def dataset(request):
+    return request.param, request.getfixturevalue(request.param)
+
+
+def _random_indices(n: int, seed: int = 42) -> list[int]:
+    rng = random.Random(seed)
+    return [rng.randint(0, n - 1) for _ in range(n)]
+
+
+# ---------------------------------------------------------------------------
+# Random access benchmarks
+# ---------------------------------------------------------------------------
+
 
 @pytest.mark.benchmark(group="random_access")
-def test_random_access_asebytes(benchmark, ethanol, tmp_path):
-    """Random access 1000 ethanol molecules using asebytes.ASEIO."""
-    db_path = tmp_path / "random_asebytes.lmdb"
-    db = ASEIO(str(db_path))
-    db.extend(ethanol)
+def test_random_access_asebytes_lmdb(benchmark, dataset, tmp_path):
+    name, frames = dataset
+    p = tmp_path / f"ra_{name}.lmdb"
+    db = ASEIO(str(p))
+    db.extend(frames)
+    indices = _random_indices(len(frames))
 
-    # Generate random indices (seeded for reproducibility)
-    random.seed(42)
-    indices = [random.randint(0, len(ethanol) - 1) for _ in range(len(ethanol))]
-
-    def random_access():
+    def access():
         return [db[i] for i in indices]
 
-    results = benchmark(random_access)
-    assert len(results) == len(ethanol)
-    assert all(isinstance(mol, ase.Atoms) for mol in results)
+    results = benchmark(access)
+    assert len(results) == len(frames)
+    assert all(isinstance(a, ase.Atoms) for a in results)
 
 
 @pytest.mark.benchmark(group="random_access")
-def test_random_access_aselmdb(benchmark, ethanol, tmp_path):
-    """Random access 1000 ethanol molecules using ASE aselmdb backend."""
-    db_path = tmp_path / "random_aselmdb.lmdb"
-    db = connect(str(db_path), type="aselmdb")
+def test_random_access_asebytes_zarr(benchmark, dataset, tmp_path):
+    name, frames = dataset
+    p = tmp_path / f"ra_{name}.zarr"
+    db_w = ASEIO(str(p))
+    db_w.extend(frames)
+    indices = _random_indices(len(frames))
 
-    # Setup: write data
-    for mol in ethanol:
+    def access():
+        db = ASEIO(str(p))
+        return list(db[indices])
+
+    results = benchmark(access)
+    assert len(results) == len(frames)
+
+
+@pytest.mark.benchmark(group="random_access")
+def test_random_access_asebytes_h5md(benchmark, dataset, tmp_path):
+    name, frames = dataset
+    p = tmp_path / f"ra_{name}.h5"
+    db_w = ASEIO(str(p))
+    db_w.extend(frames)
+    indices = _random_indices(len(frames))
+
+    def access():
+        db = ASEIO(str(p))
+        return list(db[indices])
+
+    results = benchmark(access)
+    assert len(results) == len(frames)
+
+
+@pytest.mark.benchmark(group="random_access")
+def test_random_access_aselmdb(benchmark, dataset, tmp_path):
+    name, frames = dataset
+    p = tmp_path / f"ra_{name}_aselmdb.lmdb"
+    db = connect(str(p), type="aselmdb")
+    for mol in frames:
         db.write(mol)
+    # aselmdb uses 1-based indexing
+    indices = [i + 1 for i in _random_indices(len(frames))]
 
-    # Generate random indices (seeded for reproducibility)
-    random.seed(42)
-    indices = [
-        random.randint(1, len(ethanol)) for _ in range(len(ethanol))
-    ]  # ASE DB uses 1-based indexing
-
-    def random_access():
+    def access():
         return [db.get(id=i).toatoms() for i in indices]
 
-    results = benchmark(random_access)
-    assert len(results) == len(ethanol)
-    assert all(isinstance(mol, ase.Atoms) for mol in results)
+    results = benchmark(access)
+    assert len(results) == len(frames)
 
 
 @pytest.mark.benchmark(group="random_access")
-def test_random_access_lmdb_pickle(benchmark, ethanol, tmp_path):
-    """Random access 1000 ethanol molecules using raw lmdb + pickle."""
-    import lmdb
-
-    db_path = tmp_path / "random_pickle.lmdb"
-    env = lmdb.open(str(db_path))
-
-    # Setup: write data
-    with env.begin(write=True) as txn:
-        for i, mol in enumerate(ethanol):
-            key = str(i).encode()
-            value = pickle.dumps(mol)
-            txn.put(key, value)
-
-    # Generate random indices (seeded for reproducibility)
-    random.seed(42)
-    indices = [random.randint(0, len(ethanol) - 1) for _ in range(len(ethanol))]
-
-    def random_access():
-        results = []
-        with env.begin() as txn:
-            for i in indices:
-                key = str(i).encode()
-                value = txn.get(key)
-                mol = pickle.loads(value)
-                results.append(mol)
-        return results
-
-    results = benchmark(random_access)
-    assert len(results) == len(ethanol)
-    assert all(isinstance(mol, ase.Atoms) for mol in results)
-
-    env.close()
-
-
-@pytest.mark.skip(reason="XYZ random access is slow; enable only for specific testing")
-@pytest.mark.benchmark(group="random_access")
-def test_random_access_xyz(benchmark, ethanol, tmp_path):
-    """Random access 1000 ethanol molecules using XYZ format with index parameter."""
-    xyz_path = tmp_path / "random_xyz.xyz"
-
-    # Setup: write data
-    ase.io.write(str(xyz_path), ethanol, format="xyz")
-
-    # Generate random indices (seeded for reproducibility)
-    random.seed(42)
-    indices = [random.randint(0, len(ethanol) - 1) for _ in range(len(ethanol))]
-
-    def random_access():
-        return [ase.io.read(str(xyz_path), index=i, format="xyz") for i in indices]
-
-    results = benchmark(random_access)
-    assert len(results) == len(ethanol)
-    assert all(isinstance(mol, ase.Atoms) for mol in results)
-
-
-@pytest.mark.benchmark(group="random_access")
-def test_random_access_sqlite(benchmark, ethanol, tmp_path):
-    """Random access 1000 ethanol molecules using SQLite database."""
-    db_path = tmp_path / "random_sqlite.db"
-    db = connect(str(db_path), type="db")
-
-    # Setup: write data
-    for mol in ethanol:
-        db.write(mol)
-
-    # Generate random indices (seeded for reproducibility)
-    random.seed(42)
-    indices = [
-        random.randint(1, len(ethanol)) for _ in range(len(ethanol))
-    ]  # ASE DB uses 1-based indexing
-
-    def random_access():
-        return [db.get(id=i).toatoms() for i in indices]
-
-    results = benchmark(random_access)
-    assert len(results) == len(ethanol)
-    assert all(isinstance(mol, ase.Atoms) for mol in results)
-
-
-@pytest.mark.benchmark(group="random_access")
-def test_random_access_znh5md(benchmark, ethanol, tmp_path):
-    """Random access 1000 ethanol molecules using znh5md (H5MD format)."""
+def test_random_access_znh5md(benchmark, dataset, tmp_path):
     import h5py
     import znh5md
 
-    h5_path = tmp_path / "random_znh5md.h5"
+    name, frames = dataset
+    p = tmp_path / f"ra_{name}_znh5md.h5"
+    io_w = znh5md.IO(filename=str(p))
+    io_w.extend(frames)
+    indices = _random_indices(len(frames))
 
-    # Setup: write data using filename parameter
-    io_write = znh5md.IO(filename=str(h5_path))
-    io_write.extend(ethanol)
-
-    # Generate random indices (seeded for reproducibility)
-    random.seed(42)
-    indices = [random.randint(0, len(ethanol) - 1) for _ in range(len(ethanol))]
-
-    def random_access():
-        # Use file_handle for best read performance
-        with h5py.File(str(h5_path), "r") as f:
+    def access():
+        with h5py.File(str(p), "r") as f:
             io = znh5md.IO(file_handle=f)
             return [io[i] for i in indices]
 
-    results = benchmark(random_access)
-    assert len(results) == len(ethanol)
-    assert all(isinstance(mol, ase.Atoms) for mol in results)
+    results = benchmark(access)
+    assert len(results) == len(frames)
+
+
+@pytest.mark.benchmark(group="random_access")
+def test_random_access_sqlite(benchmark, dataset, tmp_path):
+    name, frames = dataset
+    p = tmp_path / f"ra_{name}_sqlite.db"
+    db = connect(str(p), type="db")
+    for mol in frames:
+        db.write(mol)
+    # sqlite uses 1-based indexing
+    indices = [i + 1 for i in _random_indices(len(frames))]
+
+    def access():
+        return [db.get(id=i).toatoms() for i in indices]
+
+    results = benchmark(access)
+    assert len(results) == len(frames)

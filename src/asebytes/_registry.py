@@ -1,0 +1,134 @@
+"""Backend registry for mapping file patterns to backend classes."""
+
+from __future__ import annotations
+
+import fnmatch
+import importlib
+
+# pattern -> (module_path, writable_cls_name | None, readonly_cls_name)
+_BACKEND_REGISTRY: dict[str, tuple[str, str | None, str]] = {
+    "*.lmdb": ("asebytes.lmdb", "LMDBBackend", "LMDBReadOnlyBackend"),
+    "*.h5": ("asebytes.h5md", "H5MDBackend", "H5MDBackend"),
+    "*.h5md": ("asebytes.h5md", "H5MDBackend", "H5MDBackend"),
+    "*.zarr": ("asebytes.zarr", "ZarrBackend", "ZarrBackend"),
+    "*.traj": ("asebytes.ase", None, "ASEReadOnlyBackend"),
+    "*.xyz": ("asebytes.ase", None, "ASEReadOnlyBackend"),
+    "*.extxyz": ("asebytes.ase", None, "ASEReadOnlyBackend"),
+}
+
+# URI scheme -> (module_path, readonly_cls_name)
+# URI-based backends are always read-only.
+_URI_REGISTRY: dict[str, tuple[str, str]] = {
+    "hf": ("asebytes.hf._backend", "HuggingFaceBackend"),
+    "colabfit": ("asebytes.hf._backend", "HuggingFaceBackend"),
+    "optimade": ("asebytes.hf._backend", "HuggingFaceBackend"),
+}
+
+_EXTRAS_HINT: dict[str, str] = {
+    "asebytes.lmdb": "lmdb",
+    "asebytes.hf": "hf",
+    "asebytes.hf._backend": "hf",
+    "asebytes.h5md": "h5md",
+    "asebytes.h5md._backend": "h5md",
+    "asebytes.zarr": "zarr",
+    "asebytes.zarr._backend": "zarr",
+}
+
+
+def parse_uri(path: str) -> tuple[str | None, str]:
+    """Split *path* into ``(scheme, remainder)`` if it matches a known URI.
+
+    Parameters
+    ----------
+    path : str
+        A URI like ``hf://user/dataset`` or a regular file path.
+
+    Returns
+    -------
+    tuple[str | None, str]
+        ``(scheme, remainder)`` when the scheme is registered in
+        ``_URI_REGISTRY``; ``(None, path)`` otherwise (including unknown
+        schemes and Windows drive-letter paths like ``C:\\...``).
+    """
+    sep = "://"
+    if sep not in path:
+        return None, path
+    scheme, remainder = path.split(sep, 1)
+    if scheme in _URI_REGISTRY:
+        return scheme, remainder
+    return None, path
+
+
+def get_backend_cls(path: str, *, readonly: bool | None = None):
+    """Resolve a file path or URI to a backend class.
+
+    URI schemes (e.g. ``hf://``, ``colabfit://``, ``optimade://``) are checked
+    first; if the path does not match a known URI it falls through to
+    glob-based pattern matching.
+
+    Parameters
+    ----------
+    path : str
+        File path or URI to match against registered backends.
+    readonly : bool | None
+        If True, return the read-only backend class.
+        If False, return the writable backend class (raises TypeError if none).
+        If None (default), auto-detect: prefer writable if available, else
+        read-only.
+
+    Returns
+    -------
+    type
+        The matched backend class.
+
+    Raises
+    ------
+    KeyError
+        If no backend is registered for the given path.
+    TypeError
+        If a writable backend is explicitly requested but none is available.
+    """
+    # --- URI-based lookup (checked first) ---
+    scheme, _remainder = parse_uri(path)
+    if scheme is not None:
+        module_path, cls_name = _URI_REGISTRY[scheme]
+        if readonly is False:
+            raise TypeError(
+                f"Backend for '{path}' is read-only, "
+                "no writable variant available"
+            )
+        try:
+            mod = importlib.import_module(module_path)
+        except ImportError:
+            hint = _EXTRAS_HINT.get(module_path, module_path)
+            raise ImportError(
+                f"Backend '{module_path}' requires additional dependencies. "
+                f"Install them with: pip install asebytes[{hint}]"
+            ) from None
+        return getattr(mod, cls_name)
+
+    # --- Glob-based lookup ---
+    for pattern, (module_path, writable, read_only) in _BACKEND_REGISTRY.items():
+        if fnmatch.fnmatch(path, pattern):
+            try:
+                mod = importlib.import_module(module_path)
+            except ImportError:
+                hint = _EXTRAS_HINT.get(module_path, module_path)
+                raise ImportError(
+                    f"Backend '{module_path}' requires additional dependencies. "
+                    f"Install them with: pip install asebytes[{hint}]"
+                ) from None
+            if readonly is True:
+                return getattr(mod, read_only)
+            if readonly is False:
+                if writable is None:
+                    raise TypeError(
+                        f"Backend for '{path}' is read-only, "
+                        "no writable variant available"
+                    )
+                return getattr(mod, writable)
+            # readonly is None — auto-detect
+            if writable is not None:
+                return getattr(mod, writable)
+            return getattr(mod, read_only)
+    raise KeyError(f"No backend registered for '{path}'")

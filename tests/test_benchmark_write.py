@@ -1,15 +1,9 @@
-"""Benchmark write performance comparison across different backends.
+"""Benchmark write performance across backends.
 
-Compare write performance of:
-- asebytes (ASEIO)
-- ASE's aselmdb backend
-- Raw lmdb + pickle
-- XYZ file format
-- SQLite database
-- znh5md (H5MD format)
+Backends: asebytes LMDB, asebytes H5MD, aselmdb, znh5md, extxyz, sqlite.
+Datasets: ethanol (1000 small molecules), lemat (1000 periodic structures).
 """
 
-import pickle
 import uuid
 
 import ase.io
@@ -19,29 +13,73 @@ from ase.db import connect
 from asebytes import ASEIO
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+DATASETS = ["ethanol", "lemat"]
+
+
+@pytest.fixture(params=DATASETS)
+def dataset(request):
+    return request.param, request.getfixturevalue(request.param)
+
+
+# ---------------------------------------------------------------------------
+# Write benchmarks
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.benchmark(group="write")
-def test_write_asebytes(benchmark, ethanol, tmp_path):
-    """Write 1000 ethanol molecules using asebytes.ASEIO."""
+def test_write_asebytes_lmdb(benchmark, dataset, tmp_path):
+    name, frames = dataset
 
     def write_all():
-        db_path = tmp_path / f"write_asebytes_{uuid.uuid4().hex}.lmdb"
-        db = ASEIO(str(db_path))
-        db.extend(ethanol)
+        p = tmp_path / f"w_{name}_lmdb_{uuid.uuid4().hex}.lmdb"
+        db = ASEIO(str(p))
+        db.extend(frames)
         return db
 
     db = benchmark(write_all)
-    assert len(db) == len(ethanol)
+    assert len(db) == len(frames)
 
 
 @pytest.mark.benchmark(group="write")
-def test_write_aselmdb(benchmark, ethanol, tmp_path):
-    """Write 1000 ethanol molecules using ASE aselmdb backend."""
+def test_write_asebytes_zarr(benchmark, dataset, tmp_path):
+    name, frames = dataset
 
     def write_all():
-        db_path = tmp_path / f"write_aselmdb_{uuid.uuid4().hex}.lmdb"
-        db = connect(str(db_path), type="aselmdb")
-        # TODO: use bulk insert, if available
-        for mol in ethanol:
+        p = tmp_path / f"w_{name}_zarr_{uuid.uuid4().hex}.zarr"
+        db = ASEIO(str(p))
+        db.extend(frames)
+        return db
+
+    db = benchmark(write_all)
+    assert len(db) == len(frames)
+
+
+@pytest.mark.benchmark(group="write")
+def test_write_asebytes_h5md(benchmark, dataset, tmp_path):
+    name, frames = dataset
+
+    def write_all():
+        p = tmp_path / f"w_{name}_h5md_{uuid.uuid4().hex}.h5"
+        db = ASEIO(str(p))
+        db.extend(frames)
+        return db
+
+    db = benchmark(write_all)
+    assert len(db) == len(frames)
+
+
+@pytest.mark.benchmark(group="write")
+def test_write_aselmdb(benchmark, dataset, tmp_path):
+    name, frames = dataset
+
+    def write_all():
+        p = tmp_path / f"w_{name}_aselmdb_{uuid.uuid4().hex}.lmdb"
+        db = connect(str(p), type="aselmdb")
+        for mol in frames:
             db.write(mol)
         return db
 
@@ -49,62 +87,41 @@ def test_write_aselmdb(benchmark, ethanol, tmp_path):
 
 
 @pytest.mark.benchmark(group="write")
-def test_write_lmdb_pickle(benchmark, ethanol, tmp_path):
-    """Write 1000 ethanol molecules using raw lmdb + pickle."""
-    import lmdb
-
-    def write_all():
-        db_path = tmp_path / f"write_pickle_{uuid.uuid4().hex}.lmdb"
-        env = lmdb.open(str(db_path))
-        # TODO: use putmulti
-        with env.begin(write=True) as txn:
-            for i, mol in enumerate(ethanol):
-                key = str(i).encode()
-                value = pickle.dumps(mol)
-                txn.put(key, value)
-
-        return env
-
-    env = benchmark(write_all)
-    env.close()
-
-
-@pytest.mark.benchmark(group="write")
-def test_write_xyz(benchmark, ethanol, tmp_path):
-    """Write 1000 ethanol molecules using XYZ format."""
-
-    def write_all():
-        xyz_path = tmp_path / f"write_xyz_{uuid.uuid4().hex}.xyz"
-        ase.io.write(str(xyz_path), ethanol, format="xyz")
-        return xyz_path
-
-    benchmark(write_all)
-
-
-@pytest.mark.benchmark(group="write")
-def test_write_sqlite(benchmark, ethanol, tmp_path):
-    """Write 1000 ethanol molecules using SQLite database."""
-
-    def write_all():
-        db_path = tmp_path / f"write_sqlite_{uuid.uuid4().hex}.db"
-        db = connect(str(db_path), type="db")
-        # TODO: use bulk insert, if available
-        for mol in ethanol:
-            db.write(mol)
-        return db
-
-    benchmark(write_all)
-
-
-@pytest.mark.benchmark(group="write")
-def test_write_znh5md(benchmark, ethanol, tmp_path):
-    """Write 1000 ethanol molecules using znh5md (H5MD format)."""
+def test_write_znh5md(benchmark, dataset, tmp_path):
     import znh5md
 
+    name, frames = dataset
+
     def write_all():
-        h5_path = tmp_path / f"write_znh5md_{uuid.uuid4().hex}.h5"
-        io = znh5md.IO(filename=str(h5_path))
-        io.extend(ethanol)
-        return h5_path
+        p = tmp_path / f"w_{name}_znh5md_{uuid.uuid4().hex}.h5"
+        io = znh5md.IO(filename=str(p))
+        io.extend(frames)
+        return p
+
+    benchmark(write_all)
+
+
+@pytest.mark.benchmark(group="write")
+def test_write_extxyz(benchmark, dataset, tmp_path):
+    name, frames = dataset
+
+    def write_all():
+        p = tmp_path / f"w_{name}_extxyz_{uuid.uuid4().hex}.extxyz"
+        ase.io.write(str(p), frames, format="extxyz")
+        return p
+
+    benchmark(write_all)
+
+
+@pytest.mark.benchmark(group="write")
+def test_write_sqlite(benchmark, dataset, tmp_path):
+    name, frames = dataset
+
+    def write_all():
+        p = tmp_path / f"w_{name}_sqlite_{uuid.uuid4().hex}.db"
+        db = connect(str(p), type="db")
+        for mol in frames:
+            db.write(mol)
+        return db
 
     benchmark(write_all)

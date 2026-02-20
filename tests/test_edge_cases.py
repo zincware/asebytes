@@ -253,14 +253,14 @@ def test_info_key_resembling_prefix_roundtrip():
 
 def test_bytesio_with_empty_prefix(tmp_path):
     """Test BytesIO with empty prefix (default behavior)."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"), prefix=b"")
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"), prefix=b"")
     io[0] = {b"test": b"data"}
     assert io[0] == {b"test": b"data"}
 
 
 def test_bytesio_with_custom_prefix(tmp_path):
     """Test BytesIO with custom prefix."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"), prefix=b"myprefix/")
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"), prefix=b"myprefix/")
     io[0] = {b"test": b"data"}
     assert io[0] == {b"test": b"data"}
     assert len(io) == 1
@@ -268,7 +268,7 @@ def test_bytesio_with_custom_prefix(tmp_path):
 
 def test_bytesio_multiple_prefixes_isolated(tmp_path):
     """Test that different prefixes create isolated namespaces."""
-    db_path = str(tmp_path / "test.db")
+    db_path = str(tmp_path / "test.lmdb")
     io1 = asebytes.BytesIO(db_path, prefix=b"prefix1/")
     io2 = asebytes.BytesIO(db_path, prefix=b"prefix2/")
 
@@ -283,7 +283,7 @@ def test_bytesio_multiple_prefixes_isolated(tmp_path):
 
 def test_bytesio_empty_data_dict(tmp_path):
     """Test BytesIO with empty data dictionary."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     io[0] = {}
     assert io[0] == {}
     assert len(io) == 1
@@ -291,14 +291,14 @@ def test_bytesio_empty_data_dict(tmp_path):
 
 def test_bytesio_single_key_value(tmp_path):
     """Test BytesIO with single key-value pair."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     io[0] = {b"single": b"value"}
     assert io[0] == {b"single": b"value"}
 
 
 def test_bytesio_many_keys(tmp_path):
     """Test BytesIO with many keys in single entry."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     data = {f"key{i}".encode(): f"value{i}".encode() for i in range(100)}
     io[0] = data
     recovered = io[0]
@@ -309,7 +309,7 @@ def test_bytesio_many_keys(tmp_path):
 
 def test_bytesio_extend_empty_list(tmp_path):
     """Test extending BytesIO with empty list."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     io[0] = {b"test": b"data"}
     io.extend([])
     assert len(io) == 1
@@ -317,7 +317,7 @@ def test_bytesio_extend_empty_list(tmp_path):
 
 def test_bytesio_extend_single_item(tmp_path):
     """Test extending BytesIO with single item."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     io.extend([{b"test": b"data"}])
     assert len(io) == 1
     assert io[0] == {b"test": b"data"}
@@ -325,7 +325,7 @@ def test_bytesio_extend_single_item(tmp_path):
 
 def test_bytesio_insert_at_zero_empty(tmp_path):
     """Test inserting at index 0 in empty BytesIO."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     io.insert(0, {b"test": b"data"})
     assert len(io) == 1
     assert io[0] == {b"test": b"data"}
@@ -333,7 +333,7 @@ def test_bytesio_insert_at_zero_empty(tmp_path):
 
 def test_bytesio_insert_negative_clamped_to_zero(tmp_path):
     """Test that negative insert index is clamped to 0."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     io[0] = {b"first": b"data"}
     io.insert(-10, {b"inserted": b"data"})
 
@@ -344,7 +344,7 @@ def test_bytesio_insert_negative_clamped_to_zero(tmp_path):
 
 def test_bytesio_insert_beyond_length_appends(tmp_path):
     """Test that insert beyond length appends to end."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     io[0] = {b"first": b"data"}
     io.insert(100, {b"last": b"data"})
 
@@ -354,7 +354,7 @@ def test_bytesio_insert_beyond_length_appends(tmp_path):
 
 def test_bytesio_get_with_empty_keys_list(tmp_path):
     """Test BytesIO.get() with empty keys list returns empty dict."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     io[0] = {b"key1": b"value1", b"key2": b"value2"}
     result = io.get(0, keys=[])
 
@@ -368,7 +368,7 @@ def test_bytesio_get_with_empty_keys_list(tmp_path):
 
 def test_aseio_with_empty_prefix(tmp_path):
     """Test ASEIO with empty prefix."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"), prefix=b"")
+    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"), prefix=b"")
     atoms = Atoms("H", positions=[[0, 0, 0]])
     io[0] = atoms
     assert io[0] == atoms
@@ -376,7 +376,7 @@ def test_aseio_with_empty_prefix(tmp_path):
 
 def test_aseio_with_custom_prefix(tmp_path):
     """Test ASEIO with custom prefix."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"), prefix=b"atoms/")
+    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"), prefix=b"atoms/")
     atoms = Atoms("H", positions=[[0, 0, 0]])
     io[0] = atoms
     assert io[0] == atoms
@@ -384,7 +384,7 @@ def test_aseio_with_custom_prefix(tmp_path):
 
 def test_aseio_extend_empty_list(tmp_path):
     """Test extending ASEIO with empty list."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
+    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
     atoms = Atoms("H", positions=[[0, 0, 0]])
     io[0] = atoms
     io.extend([])
@@ -393,7 +393,7 @@ def test_aseio_extend_empty_list(tmp_path):
 
 def test_aseio_extend_single_atom(tmp_path):
     """Test extending ASEIO with single atoms object."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
+    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
     atoms = Atoms("H", positions=[[0, 0, 0]])
     io.extend([atoms])
     assert len(io) == 1
@@ -402,7 +402,7 @@ def test_aseio_extend_single_atom(tmp_path):
 
 def test_aseio_insert_at_zero_empty(tmp_path):
     """Test inserting at index 0 in empty ASEIO."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
+    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
     atoms = Atoms("H", positions=[[0, 0, 0]])
     io.insert(0, atoms)
     assert len(io) == 1
@@ -411,52 +411,14 @@ def test_aseio_insert_at_zero_empty(tmp_path):
 
 def test_aseio_iteration_empty(tmp_path):
     """Test iteration over empty ASEIO."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
+    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
     result = list(io)
     assert result == []
 
 
-def test_aseio_get_with_no_keys_parameter(tmp_path):
-    """Test ASEIO.get() without keys parameter returns full atoms."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
-    atoms = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
-    atoms.info["test"] = "value"
-    io[0] = atoms
-
-    recovered = io.get(0)
-    assert recovered == atoms
-    assert recovered.info["test"] == "value"
-
-
-def test_aseio_get_with_empty_keys_list(tmp_path):
-    """Test ASEIO.get() with empty keys list."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
-    atoms = Atoms("H", positions=[[0, 0, 0]])
-    io[0] = atoms
-
-    # With empty keys list, decode will create an empty atoms object
-    recovered = io.get(0, keys=[])
-    assert len(recovered) == 0  # Empty atoms since no data was retrieved
-
-
-def test_aseio_get_only_required_keys(tmp_path):
-    """Test ASEIO.get() with only the minimum required keys."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
-    atoms = Atoms("H", positions=[[0, 0, 0]])
-    atoms.info["extra"] = "data"
-    io[0] = atoms
-
-    # Get only required keys (cell, pbc, numbers, positions)
-    recovered = io.get(
-        0, keys=[b"cell", b"pbc", b"arrays.numbers", b"arrays.positions"]
-    )
-    assert len(recovered) == 1
-    assert "extra" not in recovered.info
-
-
 def test_aseio_multiple_prefixes_isolated(tmp_path):
     """Test that different ASEIO prefixes create isolated namespaces."""
-    db_path = str(tmp_path / "test.db")
+    db_path = str(tmp_path / "test.lmdb")
     io1 = asebytes.ASEIO(db_path, prefix=b"set1/")
     io2 = asebytes.ASEIO(db_path, prefix=b"set2/")
 
@@ -474,7 +436,7 @@ def test_aseio_multiple_prefixes_isolated(tmp_path):
 
 def test_aseio_len_after_operations(tmp_path):
     """Test that len() is correct after various operations."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
+    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
     atoms = Atoms("H", positions=[[0, 0, 0]])
 
     assert len(io) == 0

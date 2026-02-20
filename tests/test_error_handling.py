@@ -152,14 +152,14 @@ def test_decode_empty_atoms_both_modes(fast):
 
 def test_bytesio_getitem_nonexistent_index_raises_keyerror(tmp_path):
     """Test that accessing non-existent index raises KeyError."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     with pytest.raises(KeyError, match="Index 0 not found"):
         _ = io[0]
 
 
 def test_bytesio_getitem_negative_index_nonexistent_raises_keyerror(tmp_path):
     """Test that accessing negative non-existent index raises KeyError."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     io[0] = {b"test": b"data"}
     # Negative indices are not supported, so it tries to look up mapping for -1
     with pytest.raises(KeyError):
@@ -168,7 +168,7 @@ def test_bytesio_getitem_negative_index_nonexistent_raises_keyerror(tmp_path):
 
 def test_bytesio_delitem_out_of_bounds_raises_indexerror(tmp_path):
     """Test that deleting out-of-bounds index raises IndexError."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     io[0] = {b"test": b"data"}
 
     with pytest.raises(IndexError, match="Index 5 out of range"):
@@ -177,30 +177,30 @@ def test_bytesio_delitem_out_of_bounds_raises_indexerror(tmp_path):
 
 def test_bytesio_delitem_negative_out_of_bounds_raises_indexerror(tmp_path):
     """Test that deleting negative out-of-bounds index raises IndexError."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     io[0] = {b"test": b"data"}
 
-    with pytest.raises(IndexError, match="Index -1 out of range"):
-        del io[-1]
+    with pytest.raises(IndexError):
+        del io[-2]
 
 
 def test_bytesio_get_nonexistent_index_raises_keyerror(tmp_path):
     """Test that get() with non-existent index raises KeyError."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     with pytest.raises(KeyError, match="Index 0 not found"):
         io.get(0)
 
 
 def test_bytesio_get_available_keys_nonexistent_raises_keyerror(tmp_path):
     """Test that get_available_keys() with non-existent index raises KeyError."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     with pytest.raises(KeyError, match="Index 0 not found"):
         io.get_available_keys(0)
 
 
 def test_bytesio_get_with_invalid_keys_raises_keyerror(tmp_path):
     """Test that get() with any invalid keys raises KeyError."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     io[0] = {b"key1": b"value1", b"key2": b"value2"}
 
     # Requesting only nonexistent keys should raise KeyError
@@ -218,7 +218,7 @@ def test_bytesio_get_with_invalid_keys_raises_keyerror(tmp_path):
 
 def test_bytesio_getitem_after_delete_raises_keyerror(tmp_path):
     """Test that accessing deleted index raises KeyError."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     io[0] = {b"test": b"data1"}
     io[1] = {b"test": b"data2"}
     del io[0]
@@ -231,7 +231,7 @@ def test_bytesio_getitem_after_delete_raises_keyerror(tmp_path):
 
 def test_bytesio_delete_from_empty_raises_indexerror(tmp_path):
     """Test that deleting from empty BytesIO raises IndexError."""
-    io = asebytes.BytesIO(str(tmp_path / "test.db"))
+    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
     with pytest.raises(IndexError, match="Index 0 out of range"):
         del io[0]
 
@@ -241,16 +241,16 @@ def test_bytesio_delete_from_empty_raises_indexerror(tmp_path):
 # =============================================================================
 
 
-def test_aseio_getitem_nonexistent_index_raises_keyerror(tmp_path):
-    """Test that accessing non-existent index raises KeyError."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
-    with pytest.raises(KeyError, match="Index 0 not found"):
+def test_aseio_getitem_nonexistent_index_raises_indexerror(tmp_path):
+    """Test that accessing non-existent index raises IndexError."""
+    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
+    with pytest.raises(IndexError):
         _ = io[0]
 
 
 def test_aseio_delitem_out_of_bounds_raises_indexerror(tmp_path):
     """Test that deleting out-of-bounds index raises IndexError."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
+    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
     atoms = Atoms("H", positions=[[0, 0, 0]])
     io[0] = atoms
 
@@ -258,62 +258,29 @@ def test_aseio_delitem_out_of_bounds_raises_indexerror(tmp_path):
         del io[5]
 
 
-def test_aseio_get_nonexistent_index_raises_keyerror(tmp_path):
-    """Test that get() with non-existent index raises KeyError."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
-    with pytest.raises(KeyError, match="Index 0 not found"):
-        io.get(0)
-
-
-def test_aseio_get_available_keys_nonexistent_raises_keyerror(tmp_path):
-    """Test that get_available_keys() with non-existent index raises KeyError."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
-    with pytest.raises(KeyError, match="Index 0 not found"):
-        io.get_available_keys(0)
-
-
-def test_aseio_get_with_invalid_keys_raises_keyerror(tmp_path):
-    """Test that get() with any invalid keys raises KeyError."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
-    atoms = Atoms("H2O", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
-    io[0] = atoms
-
-    # Requesting only nonexistent keys should raise KeyError
-    with pytest.raises(KeyError, match="Invalid keys"):
-        io.get(0, keys=[b"nonexistent_key"])
-
-    # Multiple nonexistent keys should also raise
-    with pytest.raises(KeyError, match="Invalid keys"):
-        io.get(0, keys=[b"nonexistent1", b"nonexistent2"])
-
-    # Mix of valid and invalid keys should also raise
-    with pytest.raises(KeyError, match="Invalid keys"):
-        io.get(0, keys=[b"cell", b"nonexistent_key"])
-
-
 def test_aseio_setitem_with_non_atoms_raises_typeerror(tmp_path):
     """Test that setting non-Atoms object raises TypeError."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
+    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
     with pytest.raises(TypeError, match="Input must be an ase.Atoms object"):
         io[0] = "not an atoms object"
 
 
 def test_aseio_insert_with_non_atoms_raises_typeerror(tmp_path):
     """Test that inserting non-Atoms object raises TypeError."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
+    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
     with pytest.raises(TypeError, match="Input must be an ase.Atoms object"):
         io.insert(0, {"not": "atoms"})
 
 
 def test_aseio_extend_with_non_atoms_list_raises_typeerror(tmp_path):
     """Test that extending with non-Atoms objects raises TypeError."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
+    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
     with pytest.raises(TypeError, match="Input must be an ase.Atoms object"):
         io.extend(["not", "atoms", "objects"])
 
 
 def test_aseio_delete_from_empty_raises_indexerror(tmp_path):
     """Test that deleting from empty ASEIO raises IndexError."""
-    io = asebytes.ASEIO(str(tmp_path / "test.db"))
+    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
     with pytest.raises(IndexError, match="Index 0 out of range"):
         del io[0]

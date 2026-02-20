@@ -9,7 +9,7 @@ import asebytes
 @pytest.fixture
 def io(tmp_path):
     """Create an ASEIO instance for testing."""
-    return asebytes.ASEIO(str(tmp_path / "test.db"))
+    return asebytes.ASEIO(str(tmp_path / "test.lmdb"))
 
 
 def test_update_info_add_new_keys(io, ethanol):
@@ -132,10 +132,10 @@ def test_update_empty_args_does_nothing(io, ethanol):
     assert atoms_after_empty_dicts == initial_atoms
 
 
-def test_update_nonexistent_index_raises_keyerror(io):
-    """Test that updating non-existent index raises KeyError."""
+def test_update_nonexistent_index_raises_indexerror(io):
+    """Test that updating non-existent index raises IndexError."""
     # Act & Assert
-    with pytest.raises(KeyError, match="Index 0 not found"):
+    with pytest.raises(IndexError):
         io.update(0, info={"test": "value"})
 
 
