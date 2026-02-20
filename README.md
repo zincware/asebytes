@@ -170,16 +170,16 @@ lemat = list(ASEIO("optimade://LeMaterial/LeMat-Traj", split="train", name="comp
 > **Note:** HDF5 performance is heavily influenced by compression and chunking settings. Both asebytes H5MD and znh5md use gzip compression by default, which reduces file size at the cost of read/write speed. The Zarr backend uses Blosc/LZ4 compression, which achieves compact file sizes with faster decompression than gzip.
 
 ### Write
-![Write Performance](benchmark_write.png)
+![Write Performance](docs/benchmark_write.png)
 
 ### Sequential Read
-![Read Performance](benchmark_read.png)
+![Read Performance](docs/benchmark_read.png)
 
 ### Random Access
-![Random Access Performance](benchmark_random_access.png)
+![Random Access Performance](docs/benchmark_random_access.png)
 
 ### Column Access
-![Column Access Performance](benchmark_column_access.png)
+![Column Access Performance](docs/benchmark_column_access.png)
 
 ### File Size
-![File Size](benchmark_file_size.png)
+![File Size](docs/benchmark_file_size.png)
