@@ -159,6 +159,8 @@ class ASEIO(MutableSequence):
         if isinstance(index, int):
             if index < 0:
                 index += len(self)  # raises TypeError if unknown
+            if index < 0:
+                raise IndexError(index)
             row = self._read_row(index)
             return dict_to_atoms(row)
         if isinstance(index, slice):

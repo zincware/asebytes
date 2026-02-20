@@ -16,6 +16,21 @@ from typing import Any
 import numpy as np
 import zarr
 
+
+def _jsonable(obj: Any) -> Any:
+    """Recursively convert numpy types so ``json.dumps`` succeeds."""
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, dict):
+        return {k: _jsonable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_jsonable(v) for v in obj]
+    return obj
+
 from asebytes._protocols import WritableBackend
 
 
@@ -254,6 +269,14 @@ class ZarrBackend(WritableBackend):
             is_per_atom = self._is_per_atom(key, data)
             self._write_column(key, values, is_per_atom, max_atoms)
 
+        # Extend existing columns not in this batch so all arrays stay aligned
+        new_total = self._n_frames + n_new
+        touched = set(all_keys)
+        for col_name, arr in list(self._col_cache.items()):
+            if col_name not in touched and arr.shape[0] < new_total:
+                target = (new_total,) + arr.shape[1:]
+                arr.resize(target)
+
         self._max_atoms = max_atoms
         self._n_frames += n_new
         self._update_attrs(all_keys)
@@ -424,14 +447,8 @@ class ZarrBackend(WritableBackend):
             for v in values:
                 if v is None:
                     serialized.append("")
-                elif isinstance(v, str):
-                    serialized.append(v)
                 else:
-                    serialized.append(
-                        json.dumps(
-                            v.tolist() if isinstance(v, np.ndarray) else v
-                        )
-                    )
+                    serialized.append(json.dumps(_jsonable(v)))
             return serialized, str, ""
 
         # --- Boolean (PBC) ---
@@ -458,9 +475,7 @@ class ZarrBackend(WritableBackend):
                     serialized.append("")
                 else:
                     serialized.append(
-                        json.dumps(
-                            v.tolist() if isinstance(v, np.ndarray) else v
-                        )
+                        json.dumps(_jsonable(v))
                     )
             return serialized, str, ""
 
@@ -606,10 +621,8 @@ class ZarrBackend(WritableBackend):
     @staticmethod
     def _serialize_value(val: Any) -> Any:
         """Serialize a single value for zarr storage."""
-        if isinstance(val, (dict, list)):
-            return json.dumps(
-                val.tolist() if isinstance(val, np.ndarray) else val
-            )
+        if isinstance(val, (dict, list, str)):
+            return json.dumps(_jsonable(val))
         return val
 
 

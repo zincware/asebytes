@@ -12,15 +12,6 @@ from ase.calculators.singlepoint import SinglePointCalculator
 import asebytes
 
 
-EXTENSIONS = [".lmdb", ".h5", ".zarr"]
-
-
-@pytest.fixture(params=EXTENSIONS)
-def db_path(tmp_path, request):
-    """Yield a fresh path with each writable-backend extension."""
-    return str(tmp_path / f"test{request.param}")
-
-
 @pytest.fixture
 def mixed_calc_frames():
     """4 groups x 3 frames with different sizes and calc properties.

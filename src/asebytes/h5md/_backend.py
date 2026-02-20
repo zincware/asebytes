@@ -15,6 +15,21 @@ from typing import Any
 import h5py
 import numpy as np
 
+
+def _jsonable(obj: Any) -> Any:
+    """Recursively convert numpy types so ``json.dumps`` succeeds."""
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, dict):
+        return {k: _jsonable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_jsonable(v) for v in obj]
+    return obj
+
 from asebytes._protocols import WritableBackend
 from asebytes.h5md._mapping import (
     ASE_TO_H5MD,
@@ -209,8 +224,13 @@ class H5MDBackend(WritableBackend):
         for key, (ds, h5_name) in self._col_cache.items():
             if keys is not None and key not in keys:
                 continue
+            # Skip columns shorter than the requested index (backward compat)
+            if index >= ds.shape[0]:
+                continue
             val = ds[index]
-            result[key] = self._postprocess(val, h5_name)
+            val = self._postprocess(val, h5_name)
+            if val is not None:
+                result[key] = val
 
         # Connectivity (H5MD connectivity/ group)
         if self._conn_cache and (keys is None or "info.connectivity" in keys):
@@ -280,7 +300,9 @@ class H5MDBackend(WritableBackend):
                 continue
             bulk = ds[h5_sel]
             for j in range(n_unique):
-                unique_rows[j][key] = self._postprocess(bulk[j], h5_name)
+                val = self._postprocess(bulk[j], h5_name)
+                if val is not None:
+                    unique_rows[j][key] = val
 
         # Connectivity (H5MD connectivity/ group)
         if self._conn_cache and (keys is None or "info.connectivity" in keys):
@@ -384,6 +406,20 @@ class H5MDBackend(WritableBackend):
 
         self._write_connectivity(data)
 
+        # Extend existing columns not in this batch so all datasets stay aligned
+        new_total = self._n_frames + n_new
+        touched = set(all_keys)
+        for key, (ds, h5_name) in list(self._col_cache.items()):
+            if key not in touched and ds.shape[0] < new_total:
+                target = (new_total,) + ds.shape[1:]
+                ds.resize(target)
+        for box_key in ("cell", "pbc"):
+            if box_key not in touched and box_key in self._box_cache:
+                kind, ref = self._box_cache[box_key]
+                if kind == "td" and ref.shape[0] < new_total:
+                    target = (new_total,) + ref.shape[1:]
+                    ref.resize(target)
+
         self._max_atoms = max_atoms
         self._n_frames += n_new
         self._discover()  # Rebuild dataset cache for new/extended datasets
@@ -478,6 +514,12 @@ class H5MDBackend(WritableBackend):
             except (json.JSONDecodeError, ValueError):
                 return val
 
+        # Handle numpy scalars (h5py returns np.float64 for scalar datasets)
+        if isinstance(val, np.floating):
+            return None if np.isnan(val) else val.item()
+        if isinstance(val, np.integer):
+            return val.item()
+
         if isinstance(val, np.ndarray):
             # String arrays
             if val.dtype.kind in ("S", "U", "O"):
@@ -499,6 +541,8 @@ class H5MDBackend(WritableBackend):
             # Strip NaN padding for per-atom data
             if self._variable_shape and val.ndim >= 1 and val.dtype.kind == "f":
                 val = _strip_nan_padding(val)
+                if val.size == 0:
+                    return None
 
             # Species/numbers should be int
             if h5_name == "species" and val.dtype.kind == "f":
@@ -506,7 +550,10 @@ class H5MDBackend(WritableBackend):
 
             # Scalar
             if val.ndim == 0:
-                return val.item()
+                v = val.item()
+                if isinstance(v, float) and np.isnan(v):
+                    return None
+                return v
 
         return val
 
@@ -886,14 +933,8 @@ class H5MDBackend(WritableBackend):
             for v in values:
                 if v is None:
                     serialized.append("")
-                elif isinstance(v, str):
-                    serialized.append(v)
                 else:
-                    serialized.append(
-                        json.dumps(
-                            v.tolist() if isinstance(v, np.ndarray) else v
-                        )
-                    )
+                    serialized.append(json.dumps(_jsonable(v)))
             return serialized, h5py.string_dtype(), ""
 
         # --- Boolean (PBC) ---
@@ -920,9 +961,7 @@ class H5MDBackend(WritableBackend):
                     serialized.append("")
                 else:
                     serialized.append(
-                        json.dumps(
-                            v.tolist() if isinstance(v, np.ndarray) else v
-                        )
+                        json.dumps(_jsonable(v))
                     )
             return serialized, h5py.string_dtype(), ""
 
@@ -1083,10 +1122,8 @@ class H5MDBackend(WritableBackend):
     @staticmethod
     def _serialize_value(val: Any) -> Any:
         """Serialize a single value for HDF5 storage."""
-        if isinstance(val, (dict, list)):
-            return json.dumps(
-                val.tolist() if isinstance(val, np.ndarray) else val
-            )
+        if isinstance(val, (dict, list, str)):
+            return json.dumps(_jsonable(val))
         return val
 
 
