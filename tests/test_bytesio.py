@@ -71,27 +71,29 @@ def test_iter(io, ethanol):
     assert atoms == list(ethanol)
 
 
-def test_counter_mapping(io):
-    # Test that we can store and retrieve mapping
-    # This is an internal test - users won't call these methods directly
+def test_blocked_index_internals(io):
+    # Test that blocked index and sort key allocation work correctly
     with io.env.begin(write=True) as txn:
-        # Store mappings with integer sort keys
-        io._set_mapping(txn, 0, 100)
-        io._set_mapping(txn, 1, 101)
-        io._set_count(txn, 2)
-        io._set_next_sort_key(txn, 102)
+        io._set_count(txn, 0)
+        io._set_next_sort_key(txn, 100)
 
     with io.env.begin() as txn:
-        assert io._get_mapping(txn, 0) == 100
-        assert io._get_mapping(txn, 1) == 101
-        assert io._get_count(txn) == 2
-        assert io._get_next_sort_key(txn) == 102
+        assert io._get_count(txn) == 0
+        assert io._get_next_sort_key(txn) == 100
 
-        # Test allocation
+    # Test sort key allocation
     with io.env.begin(write=True) as txn:
-        new_key = io._allocate_sort_key(txn)
-        assert new_key == 102
-        assert io._get_next_sort_key(txn) == 103
+        sk = io._allocate_sort_key(txn)
+        assert sk == 100
+        assert io._get_next_sort_key(txn) == 101
+
+    # Test that extend populates blocks and schema
+    io.extend([{b"field_a": b"v1", b"field_b": b"v2"}])
+    with io.env.begin() as txn:
+        io._ensure_cache(txn)
+        assert len(io._blocks) == 1
+        assert len(io._blocks[0]) == 1
+        assert io._schema == [b"field_a", b"field_b"]
 
 
 def test_get_all_keys(io, ethanol):

@@ -57,8 +57,7 @@ class LMDBReadOnlyBackend(ReadableBackend):
 
     def columns(self, index: int = 0) -> list[str]:
         self._check_index(index)
-        keys = self._store.get_available_keys(index)
-        return [k.decode() for k in keys]
+        return [k.decode() for k in self._store.get_schema()]
 
     def read_row(
         self, index: int, keys: list[str] | None = None

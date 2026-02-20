@@ -7,6 +7,7 @@ and per-frame PBC.
 
 from __future__ import annotations
 
+import enum
 import json
 from collections.abc import Iterator
 from pathlib import Path
@@ -23,6 +24,18 @@ from asebytes.h5md._mapping import (
     KNOWN_PARTICLE_ELEMENTS,
     ORIGIN_ATTR,
 )
+
+
+class _PostProc(enum.IntEnum):
+    """Type tags for fast-path postprocessing dispatch."""
+
+    SCALAR_FLOAT = 0
+    SCALAR_INT = 1
+    PER_ATOM_FLOAT = 2  # needs NaN strip
+    SPECIES_INT = 3  # float → int + NaN strip
+    STRING_JSON = 4  # decode + json.loads
+    NDARRAY_FLOAT = 5  # float ndarray, no NaN strip
+    NDARRAY_PLAIN = 6  # return as-is
 
 
 class H5MDBackend(WritableBackend):
@@ -48,13 +61,14 @@ class H5MDBackend(WritableBackend):
         chunk_size: int | tuple[int, ...] | list[int] | None = (64, 64),
         author_name: str | None = None,
         author_email: str | None = None,
+        rdcc_nbytes: int = 64 * 1024 * 1024,
     ):
         if file_handle is not None:
             self._file = file_handle
             self._owns_file = False
         elif file is not None:
             mode = "r" if readonly else "a"
-            self._file = h5py.File(file, mode)
+            self._file = h5py.File(file, mode, rdcc_nbytes=rdcc_nbytes)
             self._owns_file = True
         else:
             raise ValueError("Provide either file or file_handle")
@@ -97,9 +111,41 @@ class H5MDBackend(WritableBackend):
                 return []
             return list(f["particles"].keys())
 
+    def _classify(self, ds: h5py.Dataset, h5_name: str) -> _PostProc:
+        """Classify a dataset for fast-path postprocessing dispatch."""
+        dtype = ds.dtype
+        frame_ndim = ds.ndim - 1  # ndim of a single value after frame indexing
+
+        # String types
+        if dtype.kind in ("S", "U", "O") or dtype == h5py.string_dtype():
+            return _PostProc.STRING_JSON
+
+        # Species (float → int + NaN strip)
+        if h5_name == "species":
+            return _PostProc.SPECIES_INT
+
+        # Scalar float
+        if frame_ndim == 0 and dtype.kind == "f":
+            return _PostProc.SCALAR_FLOAT
+
+        # Scalar int
+        if frame_ndim == 0 and dtype.kind in ("i", "u"):
+            return _PostProc.SCALAR_INT
+
+        # Float array with potential NaN padding
+        if frame_ndim >= 1 and dtype.kind == "f" and self._variable_shape:
+            return _PostProc.PER_ATOM_FLOAT
+
+        # Float array without NaN stripping
+        if frame_ndim >= 1 and dtype.kind == "f":
+            return _PostProc.NDARRAY_FLOAT
+
+        # Everything else
+        return _PostProc.NDARRAY_PLAIN
+
     def _discover(self) -> None:
         """Read frame count, max-atoms, and cache dataset references."""
-        self._col_cache: dict[str, tuple[h5py.Dataset, str]] = {}
+        self._col_cache: dict[str, tuple[h5py.Dataset, str, _PostProc]] = {}
         self._box_cache: dict[str, tuple[str, Any]] = {}
         self._conn_cache: dict[str, tuple[str, Any]] = {}
 
@@ -123,7 +169,8 @@ class H5MDBackend(WritableBackend):
             if not isinstance(elem, h5py.Group) or "value" not in elem:
                 continue
             key = self._h5_to_key(name, elem)
-            self._col_cache[key] = (elem["value"], name)
+            ds = elem["value"]
+            self._col_cache[key] = (ds, name, self._classify(ds, name))
 
         # Cache observable dataset references
         opath = f"observables/{self._grp_name}"
@@ -133,7 +180,8 @@ class H5MDBackend(WritableBackend):
                 if not isinstance(elem, h5py.Group) or "value" not in elem:
                     continue
                 key = self._h5_to_key(name, elem)
-                self._col_cache[key] = (elem["value"], name)
+                ds = elem["value"]
+                self._col_cache[key] = (ds, name, self._classify(ds, name))
 
         # Cache connectivity dataset references
         conn_path = f"connectivity/{self._grp_name}"
@@ -207,14 +255,14 @@ class H5MDBackend(WritableBackend):
                     [b not in ("none", b"none") for b in ref], dtype=bool
                 )
 
-        for key, (ds, h5_name) in self._col_cache.items():
+        for key, (ds, h5_name, tag) in self._col_cache.items():
             if keys is not None and key not in keys:
                 continue
             # Skip columns shorter than the requested index (backward compat)
             if index >= ds.shape[0]:
                 continue
             val = ds[index]
-            val = self._postprocess(val, h5_name)
+            val = self._postprocess_typed(val, tag)
             if val is not None:
                 result[key] = val
 
@@ -281,12 +329,12 @@ class H5MDBackend(WritableBackend):
                     row[box_key] = pbc
 
         # Regular columns — one bulk read per dataset
-        for key, (ds, h5_name) in self._col_cache.items():
+        for key, (ds, h5_name, tag) in self._col_cache.items():
             if keys is not None and key not in keys:
                 continue
             bulk = ds[h5_sel]
             for j in range(n_unique):
-                val = self._postprocess(bulk[j], h5_name)
+                val = self._postprocess_typed(bulk[j], tag)
                 if val is not None:
                     unique_rows[j][key] = val
 
@@ -335,7 +383,7 @@ class H5MDBackend(WritableBackend):
     def read_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
         """Optimised: reads a single HDF5 dataset directly."""
         if key in self._col_cache:
-            ds, h5_name = self._col_cache[key]
+            ds, h5_name, tag = self._col_cache[key]
         else:
             h5_path = self._find_dataset_path(key)
             if h5_path is None:
@@ -343,17 +391,18 @@ class H5MDBackend(WritableBackend):
             grp = self._file[h5_path]
             ds = grp["value"]
             h5_name = h5_path.rsplit("/", 1)[-1]
+            tag = self._classify(ds, h5_name)
 
         if indices is None:
             raw = ds[()]
-            return [self._postprocess(raw[i], h5_name) for i in range(len(raw))]
+            return [self._postprocess_typed(raw[i], tag) for i in range(len(raw))]
 
         order = np.argsort(indices)
         sorted_idx = [indices[j] for j in order]
         raw = ds[sorted_idx]
         result: list[Any] = [None] * len(indices)
         for j in range(len(indices)):
-            result[order[j]] = self._postprocess(raw[j], h5_name)
+            result[order[j]] = self._postprocess_typed(raw[j], tag)
         return result
 
     # ------------------------------------------------------------------
@@ -395,7 +444,7 @@ class H5MDBackend(WritableBackend):
         # Extend existing columns not in this batch so all datasets stay aligned
         new_total = self._n_frames + n_new
         touched = set(all_keys)
-        for key, (ds, h5_name) in list(self._col_cache.items()):
+        for key, (ds, h5_name, _tag) in list(self._col_cache.items()):
             if key not in touched and ds.shape[0] < new_total:
                 target = (new_total,) + ds.shape[1:]
                 ds.resize(target)
@@ -487,6 +536,57 @@ class H5MDBackend(WritableBackend):
             return f"arrays.{ase_name}"
         # Observables default to calc.*
         return f"calc.{ase_name}"
+
+    def _postprocess_typed(self, val: Any, tag: _PostProc) -> Any:
+        """Fast-path postprocessor using pre-classified type tags."""
+        if tag == _PostProc.SCALAR_FLOAT:
+            v = float(val)
+            if v != v:  # NaN check
+                return None
+            return v
+
+        if tag == _PostProc.SCALAR_INT:
+            return int(val)
+
+        if tag == _PostProc.PER_ATOM_FLOAT:
+            if isinstance(val, np.ndarray):
+                val = strip_nan_padding(val)
+                if val.size == 0:
+                    return None
+                if val.ndim == 0:
+                    v = val.item()
+                    if isinstance(v, float) and v != v:
+                        return None
+                    return v
+            elif isinstance(val, np.floating):
+                return None if np.isnan(val) else val.item()
+            return val
+
+        if tag == _PostProc.SPECIES_INT:
+            if isinstance(val, np.ndarray):
+                val = strip_nan_padding(val)
+                if val.size == 0:
+                    return None
+                if val.dtype.kind == "f":
+                    val = val.astype(int)
+            return val
+
+        if tag == _PostProc.STRING_JSON:
+            # Delegate to existing _postprocess for string handling
+            return self._postprocess(val, "")
+
+        if tag == _PostProc.NDARRAY_FLOAT:
+            if isinstance(val, np.ndarray) and val.ndim == 0:
+                v = val.item()
+                if isinstance(v, float) and v != v:
+                    return None
+                return v
+            return val
+
+        # NDARRAY_PLAIN
+        if isinstance(val, np.ndarray) and val.ndim == 0:
+            return val.item()
+        return val
 
     def _postprocess(self, val: Any, h5_name: str) -> Any:
         """Strip NaN padding and cast types after reading."""
@@ -589,7 +689,7 @@ class H5MDBackend(WritableBackend):
         """Find the H5MD group path for an asebytes key."""
         # Fast path: check cache
         if key in self._col_cache:
-            ds, _ = self._col_cache[key]
+            ds, _, _tag = self._col_cache[key]
             return ds.parent.name
         if key in self._box_cache:
             kind, ref = self._box_cache[key]

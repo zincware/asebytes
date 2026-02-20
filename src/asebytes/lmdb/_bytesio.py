@@ -1,11 +1,18 @@
+import struct
 from collections.abc import MutableSequence
 
 import lmdb
+
+BLOCK_SIZE = 1024
 
 
 class BytesIO(MutableSequence):
     """
     LMDB-backed mutable sequence for byte dictionaries.
+
+    Uses a blocked index + global schema for efficient reads.
+    Sort keys are stored in packed blocks of up to BLOCK_SIZE entries,
+    and field names are tracked in a single global schema (union of all fields).
 
     Parameters
     ----------
@@ -38,8 +45,125 @@ class BytesIO(MutableSequence):
             readonly=readonly,
             **lmdb_kwargs,
         )
+        # Lazily-loaded cache (invalidated on writes)
+        self._blocks: list[list[int]] | None = None
+        self._schema: list[bytes] | None = None
+        self._block_sizes: list[int] | None = None
 
-    # Metadata helpers
+    # ------------------------------------------------------------------
+    # Cache management
+    # ------------------------------------------------------------------
+
+    def _invalidate_cache(self) -> None:
+        self._blocks = None
+        self._schema = None
+        self._block_sizes = None
+
+    def _ensure_cache(self, txn) -> None:
+        """Load blocks + schema from LMDB if not already cached."""
+        if self._blocks is not None:
+            return
+
+        # Schema
+        schema_bytes = txn.get(self.prefix + b"__schema__")
+        if schema_bytes is not None and schema_bytes:
+            self._schema = schema_bytes.split(b"\n")
+        else:
+            self._schema = []
+
+        # Block count
+        blk_count_bytes = txn.get(self.prefix + b"__blk_count__")
+        if blk_count_bytes is None:
+            self._blocks = []
+            self._block_sizes = []
+            return
+
+        n_blocks = struct.unpack("<I", blk_count_bytes)[0]
+
+        # Block sizes
+        sizes_bytes = txn.get(self.prefix + b"__blk_sizes__")
+        self._block_sizes = list(struct.unpack(f"<{n_blocks}I", sizes_bytes))
+
+        # Load all blocks
+        self._blocks = []
+        for i in range(n_blocks):
+            blk_key = self.prefix + b"__blk__" + struct.pack("<I", i)
+            blk_bytes = txn.get(blk_key)
+            size = self._block_sizes[i]
+            sort_keys = list(struct.unpack(f"<{size}Q", blk_bytes))
+            self._blocks.append(sort_keys)
+
+    # ------------------------------------------------------------------
+    # Index resolution (cached, no LMDB lookups)
+    # ------------------------------------------------------------------
+
+    def _resolve_sort_key(self, index: int) -> int:
+        """Resolve logical index to sort_key using cached blocks."""
+        if index < 0:
+            raise KeyError(f"Index {index} not found")
+        cumsum = 0
+        for i, size in enumerate(self._block_sizes):
+            if cumsum + size > index:
+                return self._blocks[i][index - cumsum]
+            cumsum += size
+        raise KeyError(f"Index {index} not found")
+
+    def _find_block(self, index: int) -> tuple[int, int]:
+        """Find (block_index, local_offset) for a logical index.
+
+        Also handles index == total (append position).
+        """
+        cumsum = 0
+        for i, size in enumerate(self._block_sizes):
+            if cumsum + size > index:
+                return i, index - cumsum
+            cumsum += size
+        # index == total count: return end of last block
+        if index == cumsum:
+            if self._block_sizes:
+                last = len(self._block_sizes) - 1
+                return last, self._block_sizes[last]
+            return 0, 0
+        raise IndexError(f"Index {index} out of range")
+
+    # ------------------------------------------------------------------
+    # Block persistence helpers
+    # ------------------------------------------------------------------
+
+    def _save_block_metadata(self, txn) -> None:
+        """Write block count + sizes to LMDB."""
+        n_blocks = len(self._blocks)
+        txn.put(self.prefix + b"__blk_count__", struct.pack("<I", n_blocks))
+        self._block_sizes = [len(blk) for blk in self._blocks]
+        if n_blocks:
+            txn.put(
+                self.prefix + b"__blk_sizes__",
+                struct.pack(f"<{n_blocks}I", *self._block_sizes),
+            )
+
+    def _save_block(self, txn, block_index: int) -> None:
+        """Write a single block to LMDB."""
+        blk = self._blocks[block_index]
+        blk_key = self.prefix + b"__blk__" + struct.pack("<I", block_index)
+        txn.put(blk_key, struct.pack(f"<{len(blk)}Q", *blk))
+
+    def _save_schema(self, txn) -> None:
+        """Write global schema to LMDB."""
+        txn.put(self.prefix + b"__schema__", b"\n".join(self._schema))
+
+    def _merge_schema(self, field_keys: set[bytes]) -> bool:
+        """Merge new field keys into schema. Returns True if schema grew."""
+        existing = set(self._schema)
+        new_keys = field_keys - existing
+        if new_keys:
+            self._schema = sorted(existing | new_keys)
+            return True
+        return False
+
+    # ------------------------------------------------------------------
+    # Metadata helpers (count + sort key counter)
+    # ------------------------------------------------------------------
+
     def _get_count(self, txn) -> int:
         """Get the current count from metadata (returns 0 if not set)."""
         count_key = self.prefix + b"__meta__count"
@@ -66,112 +190,55 @@ class BytesIO(MutableSequence):
         key = self.prefix + b"__meta__next_sort_key"
         txn.put(key, str(value).encode())
 
-    # Mapping helpers (logical_index → sort_key)
-    def _get_mapping(self, txn, logical_index: int) -> int | None:
-        """Get sort_key for a logical index (returns None if not found)."""
-        mapping_key = self.prefix + b"__idx__" + str(logical_index).encode()
-        sort_key_bytes = txn.get(mapping_key)
-        if sort_key_bytes is None:
-            return None
-        return int(sort_key_bytes.decode())
-
-    def _set_mapping(self, txn, logical_index: int, sort_key: int) -> None:
-        """Set the mapping from logical_index to sort_key."""
-        mapping_key = self.prefix + b"__idx__" + str(logical_index).encode()
-        txn.put(mapping_key, str(sort_key).encode())
-
-    def _delete_mapping(self, txn, logical_index: int) -> None:
-        """Delete the mapping for a logical index."""
-        mapping_key = self.prefix + b"__idx__" + str(logical_index).encode()
-        txn.delete(mapping_key)
-
     def _allocate_sort_key(self, txn) -> int:
         """Allocate a new unique sort key by incrementing the counter."""
         next_key = self._get_next_sort_key(txn)
         self._set_next_sort_key(txn, next_key + 1)
         return next_key
 
-    # Metadata helpers for field keys
-    def _get_field_keys_metadata(self, txn, sort_key: int) -> list[bytes] | None:
-        """
-        Get field keys for a sort key from metadata.
+    # ------------------------------------------------------------------
+    # Public schema accessor
+    # ------------------------------------------------------------------
 
-        Parameters
-        ----------
-        txn : lmdb.Transaction
-            LMDB transaction.
-        sort_key : int
-            Sort key to query.
+    def get_schema(self) -> list[bytes]:
+        """Return the global schema (union of all field names)."""
+        with self.env.begin() as txn:
+            self._ensure_cache(txn)
+            return list(self._schema)
 
-        Returns
-        -------
-        list[bytes] or None
-            Field keys (without prefix) or None if not found.
-        """
-        metadata_key = self.prefix + b"__keys__" + str(sort_key).encode()
-        metadata_bytes = txn.get(metadata_key)
-        if metadata_bytes is None:
-            return None
-        # Deserialize the list of keys (stored as newline-separated bytes)
-        return metadata_bytes.split(b"\n") if metadata_bytes else []
-
-    def _set_field_keys_metadata(
-        self, txn, sort_key: int, field_keys: list[bytes]
-    ) -> None:
-        """
-        Store field keys for a sort key in metadata.
-
-        Parameters
-        ----------
-        txn : lmdb.Transaction
-            LMDB transaction.
-        sort_key : int
-            Sort key.
-        field_keys : list[bytes]
-            Field keys (without prefix).
-        """
-        metadata_key = self.prefix + b"__keys__" + str(sort_key).encode()
-        # Serialize as newline-separated bytes
-        metadata_bytes = b"\n".join(field_keys)
-        txn.put(metadata_key, metadata_bytes)
-
-    def _delete_field_keys_metadata(self, txn, sort_key: int) -> None:
-        """
-        Delete field keys metadata for a sort key.
-
-        Parameters
-        ----------
-        txn : lmdb.Transaction
-            LMDB transaction.
-        sort_key : int
-            Sort key.
-        """
-        metadata_key = self.prefix + b"__keys__" + str(sort_key).encode()
-        txn.delete(metadata_key)
+    # ------------------------------------------------------------------
+    # MutableSequence implementation
+    # ------------------------------------------------------------------
 
     def __setitem__(self, index: int, data: dict[bytes, bytes]) -> None:
         with self.env.begin(write=True) as txn:
+            self._ensure_cache(txn)
             current_count = self._get_count(txn)
 
-            # Get or allocate sort key for this index
-            sort_key = self._get_mapping(txn, index)
-            is_new_index = sort_key is None
+            if index < current_count:
+                # Overwrite existing entry
+                sort_key = self._resolve_sort_key(index)
 
-            if is_new_index:
-                # Allocate new unique sort key
-                sort_key = self._allocate_sort_key(txn)
-                self._set_mapping(txn, index, sort_key)
+                # Delete old data using schema
+                sort_key_str = str(sort_key).encode()
+                prefix = self.prefix + sort_key_str + b"-"
+                for field in self._schema:
+                    txn.delete(prefix + field)
             else:
-                # Delete existing data keys if overwriting
-                try:
-                    _, _, keys_to_delete = self._get_full_keys(txn, index)
-                    for key in keys_to_delete:
-                        txn.delete(key)
-                except KeyError:
-                    # No existing data, continue
-                    pass
+                # Append new entry
+                sort_key = self._allocate_sort_key(txn)
 
-            # Write new data with sort key prefix using putmulti
+                # Add sort_key to blocks
+                if not self._blocks or len(self._blocks[-1]) >= BLOCK_SIZE:
+                    self._blocks.append([sort_key])
+                else:
+                    self._blocks[-1].append(sort_key)
+
+                # Save affected block + metadata
+                self._save_block(txn, len(self._blocks) - 1)
+                self._save_block_metadata(txn)
+
+            # Write new data
             sort_key_str = str(sort_key).encode()
             items_to_insert = [
                 (self.prefix + sort_key_str + b"-" + key, value)
@@ -181,68 +248,31 @@ class BytesIO(MutableSequence):
                 cursor = txn.cursor()
                 cursor.putmulti(items_to_insert, dupdata=False)
 
-            # Store metadata for field keys
-            field_keys = list(data.keys())
-            self._set_field_keys_metadata(txn, sort_key, field_keys)
+            # Update schema
+            if self._merge_schema(set(data.keys())):
+                self._save_schema(txn)
 
-            # Update count if needed (when index == current_count, we're appending)
-            if is_new_index and index >= current_count:
+            # Update count
+            if index >= current_count:
                 self._set_count(txn, index + 1)
 
-    def _get_full_keys(self, txn, index: int) -> tuple[int, bytes, list[bytes]]:
-        """
-        Get sort key, prefix, and all full keys for an index.
-
-        Parameters
-        ----------
-        txn : lmdb.Transaction
-            LMDB transaction.
-        index : int
-            Logical index to query.
-
-        Returns
-        -------
-        tuple[int, bytes, list[bytes]]
-            Tuple of (sort_key, prefix, full keys including prefix).
-
-        Raises
-        ------
-        KeyError
-            If the index does not exist.
-        """
-        # Look up the sort key for this logical index
-        sort_key = self._get_mapping(txn, index)
-
-        if sort_key is None:
-            raise KeyError(f"Index {index} not found")
-
-        # Build prefix
-        sort_key_str = str(sort_key).encode()
-        prefix = self.prefix + sort_key_str + b"-"
-
-        # Get field keys from metadata
-        field_keys = self._get_field_keys_metadata(txn, sort_key)
-        if field_keys is None:
-            raise KeyError(
-                f"Metadata not found for index {index} (sort_key {sort_key})"
-            )
-
-        # Build full keys with prefix
-        keys_to_fetch = [prefix + field_key for field_key in field_keys]
-
-        return sort_key, prefix, keys_to_fetch
+        self._invalidate_cache()
 
     def __getitem__(self, index: int) -> dict[bytes, bytes]:
         with self.env.begin() as txn:
-            _, prefix, keys_to_fetch = self._get_full_keys(txn, index)
+            self._ensure_cache(txn)
+            sort_key = self._resolve_sort_key(index)
+            sort_key_str = str(sort_key).encode()
+            prefix = self.prefix + sort_key_str + b"-"
 
-            # Use getmulti for efficient batch retrieval
+            # Build keys from global schema
+            keys_to_fetch = [prefix + f for f in self._schema]
+
             result = {}
             if keys_to_fetch:
                 cursor = txn.cursor()
                 for key, value in cursor.getmulti(keys_to_fetch):
-                    # Extract the field name after the sort_key prefix
-                    field_name = key[len(prefix) :]
+                    field_name = key[len(prefix):]
                     result[field_name] = value
 
             return result
@@ -267,17 +297,25 @@ class BytesIO(MutableSequence):
             If the index does not exist.
         """
         with self.env.begin() as txn:
-            _, prefix, keys_to_fetch = self._get_full_keys(txn, index)
+            self._ensure_cache(txn)
+            sort_key = self._resolve_sort_key(index)
+            sort_key_str = str(sort_key).encode()
+            prefix = self.prefix + sort_key_str + b"-"
 
-            # Extract field names from full keys
-            return [key[len(prefix) :] for key in keys_to_fetch]
+            # Use global schema to check which keys exist
+            keys_to_check = [prefix + f for f in self._schema]
+            result = []
+            if keys_to_check:
+                cursor = txn.cursor()
+                for key, _ in cursor.getmulti(keys_to_check):
+                    result.append(key[len(prefix):])
+            return result
 
-    def get_with_txn(self, txn, index: int, keys: list[bytes] | None = None) -> dict[bytes, bytes]:
+    def get_with_txn(
+        self, txn, index: int, keys: list[bytes] | None = None
+    ) -> dict[bytes, bytes]:
         """
         Get data at index using an existing LMDB transaction.
-
-        Same as get() but accepts an external transaction for batched reads
-        within a single transaction scope.
 
         Parameters
         ----------
@@ -293,28 +331,37 @@ class BytesIO(MutableSequence):
         dict[bytes, bytes]
             Key-value pairs.
         """
-        _, prefix, keys_to_fetch = self._get_full_keys(txn, index)
+        self._ensure_cache(txn)
+        sort_key = self._resolve_sort_key(index)
+        sort_key_str = str(sort_key).encode()
+        prefix = self.prefix + sort_key_str + b"-"
 
-        keys_set = None
         if keys is not None:
             keys_set = set(keys)
-            keys_to_fetch = [prefix + field_key for field_key in keys_set]
+            keys_to_fetch = [prefix + f for f in keys_set]
+        else:
+            keys_set = None
+            keys_to_fetch = [prefix + f for f in self._schema]
 
         result = {}
         if keys_to_fetch:
             cursor = txn.cursor()
             for key, value in cursor.getmulti(keys_to_fetch):
-                field_name = key[len(prefix) :]
+                field_name = key[len(prefix):]
                 result[field_name] = value
 
         if keys_set is not None and len(result) != len(keys_set):
             retrieved_keys = set(result.keys())
             invalid_keys = keys_set - retrieved_keys
-            raise KeyError(f"Invalid keys at index {index}: {sorted(invalid_keys)}")
+            raise KeyError(
+                f"Invalid keys at index {index}: {sorted(invalid_keys)}"
+            )
 
         return result
 
-    def get(self, index: int, keys: list[bytes] | None = None) -> dict[bytes, bytes]:
+    def get(
+        self, index: int, keys: list[bytes] | None = None
+    ) -> dict[bytes, bytes]:
         """
         Get data at index, optionally filtering to specific keys.
 
@@ -328,12 +375,12 @@ class BytesIO(MutableSequence):
         Returns
         -------
         dict[bytes, bytes]
-            Key-value pairs. If keys provided, only existing keys are returned.
+            Key-value pairs.
 
         Raises
         ------
         KeyError
-            If the index does not exist or if any of the requested keys are not found.
+            If the index does not exist or if any requested keys are not found.
         """
         with self.env.begin() as txn:
             return self.get_with_txn(txn, index, keys)
@@ -342,117 +389,92 @@ class BytesIO(MutableSequence):
         """
         Update or add specific keys to an existing entry without overwriting all data.
 
-        This method performs an atomic update of specific keys at the given index.
-        All updates succeed or fail together as a single transaction.
-
         Parameters
         ----------
         index : int
             Index of the entry to update.
         data : dict[bytes, bytes]
-            Dictionary of keys to add/update. Keys are field names (e.g., b"info.s22"),
-            values must be msgpack-encoded bytes.
+            Dictionary of keys to add/update.
 
         Raises
         ------
         KeyError
             If the index does not exist.
-
-        Examples
-        --------
-        >>> import msgpack
-        >>> import msgpack_numpy as m
-        >>> db = BytesIO("molecules.lmdb")
-        >>> # Add new keys to existing entry
-        >>> db.update(0, {
-        ...     b"info.s22": msgpack.packb(123.45, default=m.encode),
-        ...     b"info.connectivity": msgpack.packb([[0,1],[1,2]], default=m.encode)
-        ... })
         """
-        # Empty dict is a no-op
         if not data:
             return
 
         with self.env.begin(write=True) as txn:
-            # Verify index exists
-            sort_key = self._get_mapping(txn, index)
-            if sort_key is None:
-                raise KeyError(f"Index {index} not found")
-
-            # Get existing field keys to update metadata later
-            existing_field_keys = self._get_field_keys_metadata(txn, sort_key)
-            if existing_field_keys is None:
-                existing_field_keys = []
-
-            # Build the set of all field keys (existing + new)
-            new_field_keys = set(data.keys())
-            all_field_keys = set(existing_field_keys) | new_field_keys
-
-            # Build full keys with prefix and perform atomic multiset
+            self._ensure_cache(txn)
+            sort_key = self._resolve_sort_key(index)
             sort_key_str = str(sort_key).encode()
             prefix = self.prefix + sort_key_str + b"-"
 
             items_to_update = [
-                (prefix + field_key, value) for field_key, value in data.items()
+                (prefix + field_key, value)
+                for field_key, value in data.items()
             ]
 
-            # Atomic put: all keys updated or none
             if items_to_update:
                 cursor = txn.cursor()
                 cursor.putmulti(items_to_update, dupdata=False, overwrite=True)
 
-            # Update metadata with complete field key list
-            self._set_field_keys_metadata(txn, sort_key, sorted(all_field_keys))
+            # Update schema if new fields
+            if self._merge_schema(set(data.keys())):
+                self._save_schema(txn)
+
+        self._invalidate_cache()
 
     def __delitem__(self, key: int) -> None:
         with self.env.begin(write=True) as txn:
+            self._ensure_cache(txn)
             current_count = self._get_count(txn)
 
             if key < 0:
                 key += current_count
             if key < 0 or key >= current_count:
-                raise IndexError(f"Index {key} out of range [0, {current_count})")
+                raise IndexError(
+                    f"Index {key} out of range [0, {current_count})"
+                )
 
-            # Get the sort key for this index and data keys before deleting mapping
-            sort_key = self._get_mapping(txn, key)
-            if sort_key is None:
-                raise KeyError(f"Index {key} not found")
+            # Find block and sort_key
+            blk_idx, local = self._find_block(key)
+            sort_key = self._blocks[blk_idx][local]
 
-            # Get the data keys to delete before modifying mappings
-            _, _, keys_to_delete = self._get_full_keys(txn, key)
+            # Remove from block
+            self._blocks[blk_idx].pop(local)
 
-            # Collect all mappings that need to be shifted
-            # We need to shift indices [key+1, key+2, ..., count-1] down by 1
-            mappings_to_shift = []
-            for i in range(key + 1, current_count):
-                sk = self._get_mapping(txn, i)
-                if sk is not None:
-                    mappings_to_shift.append((i, sk))
+            if not self._blocks[blk_idx]:
+                # Block is empty — remove it and shift subsequent block keys
+                n_before = len(self._blocks)
+                self._blocks.pop(blk_idx)
+                # Rewrite shifted blocks
+                for i in range(blk_idx, len(self._blocks)):
+                    self._save_block(txn, i)
+                # Delete the old last block key
+                old_last_key = (
+                    self.prefix + b"__blk__" + struct.pack("<I", n_before - 1)
+                )
+                txn.delete(old_last_key)
+            else:
+                self._save_block(txn, blk_idx)
 
-            # Delete the mapping for the deleted index
-            self._delete_mapping(txn, key)
+            self._save_block_metadata(txn)
 
-            # Shift all subsequent mappings down by 1
-            # Delete old mappings first, then write new ones
-            for old_index, sk in mappings_to_shift:
-                self._delete_mapping(txn, old_index)
-
-            for old_index, sk in mappings_to_shift:
-                new_index = old_index - 1
-                self._set_mapping(txn, new_index, sk)
-
-            # Delete the data keys
-            for k in keys_to_delete:
-                txn.delete(k)
-
-            # Delete metadata for field keys
-            self._delete_field_keys_metadata(txn, sort_key)
+            # Delete data keys using schema
+            sort_key_str = str(sort_key).encode()
+            prefix = self.prefix + sort_key_str + b"-"
+            for field in self._schema:
+                txn.delete(prefix + field)
 
             # Update count
             self._set_count(txn, current_count - 1)
 
+        self._invalidate_cache()
+
     def insert(self, index: int, input: dict[bytes, bytes]) -> None:
         with self.env.begin(write=True) as txn:
+            self._ensure_cache(txn)
             current_count = self._get_count(txn)
 
             # Clamp index to valid range [0, count]
@@ -461,29 +483,32 @@ class BytesIO(MutableSequence):
             if index > current_count:
                 index = current_count
 
-            # Collect all mappings that need to be shifted right
-            # We need to shift indices [index, index+1, ..., count-1] up by 1
-            mappings_to_shift = []
-            for i in range(index, current_count):
-                sk = self._get_mapping(txn, i)
-                if sk is not None:
-                    mappings_to_shift.append((i, sk))
-
-            # Shift all mappings up by 1
-            # Do this in reverse order to avoid conflicts
-            # Delete old mappings first, then write new ones
-            for old_index, sk in mappings_to_shift:
-                self._delete_mapping(txn, old_index)
-
-            for old_index, sk in reversed(mappings_to_shift):
-                new_index = old_index + 1
-                self._set_mapping(txn, new_index, sk)
-
-            # Allocate a new sort key for the new item
             sort_key = self._allocate_sort_key(txn)
-            self._set_mapping(txn, index, sort_key)
 
-            # Write the new data with sort key prefix using putmulti
+            if not self._blocks:
+                # First entry ever
+                self._blocks.append([sort_key])
+                self._save_block(txn, 0)
+            else:
+                blk_idx, local = self._find_block(index)
+                self._blocks[blk_idx].insert(local, sort_key)
+
+                # Split if block overflows
+                if len(self._blocks[blk_idx]) > BLOCK_SIZE:
+                    mid = len(self._blocks[blk_idx]) // 2
+                    left = self._blocks[blk_idx][:mid]
+                    right = self._blocks[blk_idx][mid:]
+                    self._blocks[blk_idx] = left
+                    self._blocks.insert(blk_idx + 1, right)
+                    # Rewrite split block and all shifted blocks
+                    for i in range(blk_idx, len(self._blocks)):
+                        self._save_block(txn, i)
+                else:
+                    self._save_block(txn, blk_idx)
+
+            self._save_block_metadata(txn)
+
+            # Write data
             sort_key_str = str(sort_key).encode()
             items_to_insert = [
                 (self.prefix + sort_key_str + b"-" + key, value)
@@ -493,12 +518,14 @@ class BytesIO(MutableSequence):
                 cursor = txn.cursor()
                 cursor.putmulti(items_to_insert, dupdata=False)
 
-            # Store metadata for field keys
-            field_keys = list(input.keys())
-            self._set_field_keys_metadata(txn, sort_key, field_keys)
+            # Update schema
+            if self._merge_schema(set(input.keys())):
+                self._save_schema(txn)
 
             # Update count
             self._set_count(txn, current_count + 1)
+
+        self._invalidate_cache()
 
     def extend(self, items: list[dict[bytes, bytes]]) -> None:
         """
@@ -513,37 +540,86 @@ class BytesIO(MutableSequence):
             return
 
         with self.env.begin(write=True) as txn:
+            self._ensure_cache(txn)
             current_count = self._get_count(txn)
 
-            # Prepare all items with their mappings, data keys, and metadata
-            items_to_insert = []
+            # Allocate all sort keys at once
+            next_key = self._get_next_sort_key(txn)
+            n = len(items)
+            sort_keys = list(range(next_key, next_key + n))
+            self._set_next_sort_key(txn, next_key + n)
 
-            for idx, item in enumerate(items):
-                logical_index = current_count + idx
-                sort_key = self._allocate_sort_key(txn)
+            all_items = []
+            modified_blocks: set[int] = set()
+            all_field_keys: set[bytes] = set()
+
+            for sort_key, item in zip(sort_keys, items):
                 sort_key_str = str(sort_key).encode()
 
-                # Add mapping entry
-                mapping_key = self.prefix + b"__idx__" + str(logical_index).encode()
-                items_to_insert.append((mapping_key, sort_key_str))
+                # Add sort_key to blocks
+                if (
+                    not self._blocks
+                    or len(self._blocks[-1]) >= BLOCK_SIZE
+                ):
+                    self._blocks.append([sort_key])
+                    modified_blocks.add(len(self._blocks) - 1)
+                else:
+                    self._blocks[-1].append(sort_key)
+                    modified_blocks.add(len(self._blocks) - 1)
 
-                # Collect field keys and add data entries
-                field_keys = list(item.keys())
+                # Collect data entries
                 for field_key, field_value in item.items():
                     data_key = self.prefix + sort_key_str + b"-" + field_key
-                    items_to_insert.append((data_key, field_value))
+                    all_items.append((data_key, field_value))
 
-                # Add metadata entry (inline with other inserts for single putmulti)
-                metadata_key = self.prefix + b"__keys__" + sort_key_str
-                metadata_value = b"\n".join(field_keys)
-                items_to_insert.append((metadata_key, metadata_value))
+                all_field_keys.update(item.keys())
 
-            # Bulk insert all items (mappings + data + metadata) in one call
+            # Save modified blocks into the putmulti batch
+            for blk_idx in modified_blocks:
+                blk = self._blocks[blk_idx]
+                blk_key = (
+                    self.prefix + b"__blk__" + struct.pack("<I", blk_idx)
+                )
+                all_items.append(
+                    (blk_key, struct.pack(f"<{len(blk)}Q", *blk))
+                )
+
+            # Block metadata
+            n_blocks = len(self._blocks)
+            self._block_sizes = [len(blk) for blk in self._blocks]
+            all_items.append(
+                (
+                    self.prefix + b"__blk_count__",
+                    struct.pack("<I", n_blocks),
+                )
+            )
+            if n_blocks:
+                all_items.append(
+                    (
+                        self.prefix + b"__blk_sizes__",
+                        struct.pack(
+                            f"<{n_blocks}I", *self._block_sizes
+                        ),
+                    )
+                )
+
+            # Update schema
+            if self._merge_schema(all_field_keys):
+                all_items.append(
+                    (
+                        self.prefix + b"__schema__",
+                        b"\n".join(self._schema),
+                    )
+                )
+
+            # Bulk insert everything
             cursor = txn.cursor()
-            cursor.putmulti(items_to_insert, dupdata=False)
+            cursor.putmulti(all_items, dupdata=False, overwrite=True)
 
             # Update count
-            self._set_count(txn, current_count + len(items))
+            self._set_count(txn, current_count + n)
+
+        self._invalidate_cache()
 
     def __iter__(self):
         for i in range(len(self)):
