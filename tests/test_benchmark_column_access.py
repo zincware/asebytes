@@ -38,6 +38,21 @@ def test_column_asebytes_lmdb(benchmark, dataset, tmp_path):
 
 
 @pytest.mark.benchmark(group="column_access")
+def test_column_asebytes_zarr(benchmark, dataset, tmp_path):
+    name, frames = dataset
+    p = tmp_path / f"col_{name}.zarr"
+    db = ASEIO(str(p))
+    db.extend(frames)
+
+    def read_energies():
+        db2 = ASEIO(str(p), readonly=True)
+        return db2["calc.energy"].to_list()
+
+    energies = benchmark(read_energies)
+    assert len(energies) == len(frames)
+
+
+@pytest.mark.benchmark(group="column_access")
 def test_column_asebytes_h5md(benchmark, dataset, tmp_path):
     name, frames = dataset
     p = tmp_path / f"col_{name}.h5"

@@ -45,6 +45,20 @@ def test_write_asebytes_lmdb(benchmark, dataset, tmp_path):
 
 
 @pytest.mark.benchmark(group="write")
+def test_write_asebytes_zarr(benchmark, dataset, tmp_path):
+    name, frames = dataset
+
+    def write_all():
+        p = tmp_path / f"w_{name}_zarr_{uuid.uuid4().hex}.zarr"
+        db = ASEIO(str(p))
+        db.extend(frames)
+        return db
+
+    db = benchmark(write_all)
+    assert len(db) == len(frames)
+
+
+@pytest.mark.benchmark(group="write")
 def test_write_asebytes_h5md(benchmark, dataset, tmp_path):
     name, frames = dataset
 

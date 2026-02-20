@@ -48,6 +48,22 @@ def test_random_access_asebytes_lmdb(benchmark, dataset, tmp_path):
 
 
 @pytest.mark.benchmark(group="random_access")
+def test_random_access_asebytes_zarr(benchmark, dataset, tmp_path):
+    name, frames = dataset
+    p = tmp_path / f"ra_{name}.zarr"
+    db_w = ASEIO(str(p))
+    db_w.extend(frames)
+    indices = _random_indices(len(frames))
+
+    def access():
+        db = ASEIO(str(p))
+        return list(db[indices])
+
+    results = benchmark(access)
+    assert len(results) == len(frames)
+
+
+@pytest.mark.benchmark(group="random_access")
 def test_random_access_asebytes_h5md(benchmark, dataset, tmp_path):
     name, frames = dataset
     p = tmp_path / f"ra_{name}.h5"

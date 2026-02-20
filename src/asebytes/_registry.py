@@ -10,6 +10,7 @@ _BACKEND_REGISTRY: dict[str, tuple[str, str | None, str]] = {
     "*.lmdb": ("asebytes.lmdb", "LMDBBackend", "LMDBReadOnlyBackend"),
     "*.h5": ("asebytes.h5md", "H5MDBackend", "H5MDBackend"),
     "*.h5md": ("asebytes.h5md", "H5MDBackend", "H5MDBackend"),
+    "*.zarr": ("asebytes.zarr", "ZarrBackend", "ZarrBackend"),
     "*.traj": ("asebytes.ase", None, "ASEReadOnlyBackend"),
     "*.xyz": ("asebytes.ase", None, "ASEReadOnlyBackend"),
     "*.extxyz": ("asebytes.ase", None, "ASEReadOnlyBackend"),
@@ -29,6 +30,8 @@ _EXTRAS_HINT: dict[str, str] = {
     "asebytes.hf._backend": "hf",
     "asebytes.h5md": "h5md",
     "asebytes.h5md._backend": "h5md",
+    "asebytes.zarr": "zarr",
+    "asebytes.zarr._backend": "zarr",
 }
 
 

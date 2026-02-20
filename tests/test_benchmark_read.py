@@ -40,6 +40,21 @@ def test_read_asebytes_lmdb(benchmark, dataset, tmp_path):
 
 
 @pytest.mark.benchmark(group="read")
+def test_read_asebytes_zarr(benchmark, dataset, tmp_path):
+    name, frames = dataset
+    p = tmp_path / f"r_{name}.zarr"
+    db_w = ASEIO(str(p))
+    db_w.extend(frames)
+
+    def read_all():
+        db = ASEIO(str(p))
+        return list(db[:])
+
+    results = benchmark(read_all)
+    assert len(results) == len(frames)
+
+
+@pytest.mark.benchmark(group="read")
 def test_read_asebytes_h5md(benchmark, dataset, tmp_path):
     name, frames = dataset
     p = tmp_path / f"r_{name}.h5"

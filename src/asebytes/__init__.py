@@ -53,6 +53,13 @@ except ImportError:
 else:
     __all__ += ["H5MDBackend"]
 
+try:
+    from .zarr import ZarrBackend
+except ImportError:
+    pass
+else:
+    __all__ += ["ZarrBackend"]
+
 _OPTIONAL_ATTRS: dict[str, str] = {
     "BytesIO": "lmdb",
     "LMDBBackend": "lmdb",
@@ -62,6 +69,7 @@ _OPTIONAL_ATTRS: dict[str, str] = {
     "COLABFIT": "hf",
     "OPTIMADE": "hf",
     "H5MDBackend": "h5md",
+    "ZarrBackend": "zarr",
 }
 
 

@@ -55,6 +55,20 @@ def test_size_asebytes_lmdb(benchmark, dataset, tmp_path):
 
 
 @pytest.mark.benchmark(group="file_size")
+def test_size_asebytes_zarr(benchmark, dataset, tmp_path):
+    name, frames = dataset
+
+    def write_and_measure():
+        p = tmp_path / f"sz_{name}_{uuid.uuid4().hex}.zarr"
+        db = ASEIO(str(p))
+        db.extend(frames)
+        return _dir_size(str(p))
+
+    size = benchmark(write_and_measure)
+    benchmark.extra_info["file_size_bytes"] = size
+
+
+@pytest.mark.benchmark(group="file_size")
 def test_size_asebytes_h5md(benchmark, dataset, tmp_path):
     name, frames = dataset
 
