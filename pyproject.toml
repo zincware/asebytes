@@ -1,7 +1,7 @@
 [project]
 name = "asebytes"
 version = "0.2.0"
-description = "LMDB-based storage for ASE."
+description = "Fast binary serialization and storage for ASE Atoms."
 authors = [
     { name = "Fabian Zills", email = "fzills@icp.uni-stuttgart.de" },
 ]
@@ -9,6 +9,8 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "ase>=3.26.0",
+    "msgpack>=1.1.2",
+    "msgpack-numpy>=0.4.8",
 ]
 
 [build-system]
@@ -39,8 +41,6 @@ Discord = "https://discord.gg/7ncfwhsnm4"
 [project.optional-dependencies]
 lmdb = [
     "lmdb>=1.7.5",
-    "msgpack>=1.1.2",
-    "msgpack-numpy>=0.4.8",
 ]
 hf = [
     "datasets>=4.5.0",
