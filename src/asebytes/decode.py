@@ -115,6 +115,8 @@ def decode(data: dict[bytes, bytes], fast: bool = True, copy: bool = True) -> as
                     _calc.atoms = atoms
                     _calc.parameters = None
                     _calc._directory = None
+                    _calc.prefix = None
+                    _calc.use_cache = False
                     atoms._calc = _calc
                 else:
                     _calc = SinglePointCalculator(atoms)

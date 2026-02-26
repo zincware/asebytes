@@ -137,6 +137,8 @@ def dict_to_atoms(data: dict[str, Any], fast: bool = True) -> ase.Atoms:
                     _calc.atoms = atoms
                     _calc.parameters = None
                     _calc._directory = None
+                    _calc.prefix = None
+                    _calc.use_cache = False
                     atoms._calc = _calc
                 else:
                     _calc = SinglePointCalculator(atoms)
