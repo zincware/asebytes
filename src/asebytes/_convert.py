@@ -33,6 +33,12 @@ def atoms_to_dict(atoms: ase.Atoms) -> dict[str, Any]:
     if not isinstance(atoms, ase.Atoms):
         raise TypeError("Input must be an ase.Atoms object.")
 
+    if hasattr(atoms, "_celldisp") and atoms._celldisp.any():
+        raise ValueError(
+            "Atoms object has a non-zero cell displacement (_celldisp), "
+            "which is not supported by asebytes serialization."
+        )
+
     data: dict[str, Any] = {}
     data["cell"] = atoms.get_cell().array
     data["pbc"] = atoms.get_pbc()
@@ -47,10 +53,15 @@ def atoms_to_dict(atoms: ase.Atoms) -> dict[str, Any]:
         for key, value in atoms.calc.results.items():
             data[f"calc.{key}"] = value
 
-    # All ASE constraint classes implement todict() → {'name': ..., 'kwargs': ...}
-    # and dict2constraint() is the universal deserializer.
     if atoms.constraints:
-        constraints_data = [c.todict() for c in atoms.constraints]
+        constraints_data = []
+        for constraint in atoms.constraints:
+            if not isinstance(constraint, ase.constraints.FixConstraint):
+                raise TypeError(
+                    f"Constraint {type(constraint).__name__} does not inherit "
+                    f"from ase.constraints.FixConstraint and cannot be serialized."
+                )
+            constraints_data.append(constraint.todict())
         if constraints_data:
             data["constraints"] = constraints_data
 

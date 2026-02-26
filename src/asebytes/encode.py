@@ -25,6 +25,13 @@ def encode(atoms: ase.Atoms) -> dict[bytes, bytes]:
     """
     if not isinstance(atoms, ase.Atoms):
         raise TypeError("Input must be an ase.Atoms object.")
+
+    if hasattr(atoms, "_celldisp") and atoms._celldisp.any():
+        raise ValueError(
+            "Atoms object has a non-zero cell displacement (_celldisp), "
+            "which is not supported by asebytes serialization."
+        )
+
     data: dict[bytes, bytes] = {}
     cell: np.ndarray = atoms.get_cell().array
     data[b"cell"] = msgpack.packb(cell, default=m.encode)
@@ -46,8 +53,12 @@ def encode(atoms: ase.Atoms) -> dict[bytes, bytes]:
     if atoms.constraints:
         constraints_data = []
         for constraint in atoms.constraints:
-            if isinstance(constraint, ase.constraints.FixConstraint):
-                constraints_data.append(constraint.todict())
+            if not isinstance(constraint, ase.constraints.FixConstraint):
+                raise TypeError(
+                    f"Constraint {type(constraint).__name__} does not inherit "
+                    f"from ase.constraints.FixConstraint and cannot be serialized."
+                )
+            constraints_data.append(constraint.todict())
         if constraints_data:
             data[b"constraints"] = msgpack.packb(constraints_data, default=m.encode)
 
