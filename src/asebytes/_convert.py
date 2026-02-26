@@ -8,6 +8,8 @@ import numpy as np
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.cell import Cell
 
+_SKIP_KEYS = frozenset(("cell", "pbc", "arrays.numbers"))
+
 
 def atoms_to_dict(atoms: ase.Atoms) -> dict[str, Any]:
     """Convert an ASE Atoms object to a logical dict.
@@ -101,9 +103,11 @@ def dict_to_atoms(data: dict[str, Any], fast: bool = True) -> ase.Atoms:
     else:
         atoms = ase.Atoms(numbers=numbers, cell=cell, pbc=pbc)
 
+    _calc = None
     for key, value in data.items():
-        if key in ("cell", "pbc", "arrays.numbers"):
+        if key in _SKIP_KEYS:
             continue
+
         if key.startswith("arrays."):
             array_name = key[7:]  # len("arrays.") == 7
             atoms.arrays[array_name] = (
@@ -113,21 +117,26 @@ def dict_to_atoms(data: dict[str, Any], fast: bool = True) -> ase.Atoms:
             info_key = key[5:]  # len("info.") == 5
             atoms.info[info_key] = value
         elif key.startswith("calc."):
-            if atoms._calc is None:
-                # Bypass SinglePointCalculator.__init__ which calls
-                # atoms.copy() — a full deep copy we don't need here.
-                calc = SinglePointCalculator.__new__(SinglePointCalculator)
-                calc.results = {}
-                calc.atoms = atoms
-                calc.parameters = None
-                calc._directory = None
-                atoms._calc = calc
+            if _calc is None:
+                if fast:
+                    # Bypass SinglePointCalculator.__init__ which calls
+                    # atoms.copy() — a full deep copy we don't need.
+                    _calc = SinglePointCalculator.__new__(SinglePointCalculator)
+                    _calc.results = {}
+                    _calc.atoms = atoms
+                    _calc.parameters = None
+                    _calc._directory = None
+                    atoms._calc = _calc
+                else:
+                    _calc = SinglePointCalculator(atoms)
+                    atoms.calc = _calc
             calc_key = key[5:]  # len("calc.") == 5
-            atoms.calc.results[calc_key] = value
+            _calc.results[calc_key] = value
         elif key == "constraints":
-            constraints = []
-            for constraint_dict in value:
-                constraints.append(ase.constraints.dict2constraint(constraint_dict))
+            constraints = [
+                ase.constraints.dict2constraint(cd)
+                for cd in value
+            ]
             atoms.set_constraint(constraints)
 
     return atoms
