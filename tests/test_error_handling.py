@@ -30,6 +30,60 @@ def test_encode_with_dict_raises_typeerror():
         asebytes.encode({"positions": [[0, 0, 0]]})
 
 
+def test_encode_with_nonzero_celldisp_raises_valueerror():
+    """Test that encode raises ValueError when _celldisp is non-zero."""
+    atoms = Atoms("H", positions=[[0, 0, 0]])
+    atoms._celldisp = np.array([[1.0], [0.0], [0.0]])
+    with pytest.raises(ValueError, match="non-zero cell displacement"):
+        asebytes.encode(atoms)
+
+
+def test_encode_with_zero_celldisp_succeeds():
+    """Test that encode works fine when _celldisp is all zeros."""
+    atoms = Atoms("H", positions=[[0, 0, 0]])
+    # Default _celldisp is zeros — should not raise
+    asebytes.encode(atoms)
+
+
+def test_encode_with_non_fixconstraint_raises_typeerror():
+    """Test that encode raises TypeError for non-FixConstraint constraints."""
+
+    class CustomConstraint:
+        """A constraint that does NOT inherit from FixConstraint."""
+
+        def todict(self):
+            return {"name": "CustomConstraint", "kwargs": {}}
+
+    atoms = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
+    atoms._constraints = [CustomConstraint()]
+    with pytest.raises(TypeError, match="does not inherit.*FixConstraint"):
+        asebytes.encode(atoms)
+
+
+def test_atoms_to_dict_with_nonzero_celldisp_raises_valueerror():
+    """Test that atoms_to_dict raises ValueError when _celldisp is non-zero."""
+    from asebytes._convert import atoms_to_dict
+
+    atoms = Atoms("H", positions=[[0, 0, 0]])
+    atoms._celldisp = np.array([[1.0], [0.0], [0.0]])
+    with pytest.raises(ValueError, match="non-zero cell displacement"):
+        atoms_to_dict(atoms)
+
+
+def test_atoms_to_dict_with_non_fixconstraint_raises_typeerror():
+    """Test that atoms_to_dict raises TypeError for non-FixConstraint."""
+    from asebytes._convert import atoms_to_dict
+
+    class CustomConstraint:
+        def todict(self):
+            return {"name": "CustomConstraint", "kwargs": {}}
+
+    atoms = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
+    atoms._constraints = [CustomConstraint()]
+    with pytest.raises(TypeError, match="does not inherit.*FixConstraint"):
+        atoms_to_dict(atoms)
+
+
 def test_encode_with_list_raises_typeerror():
     """Test that encode raises TypeError for list input."""
     with pytest.raises(TypeError, match="Input must be an ase.Atoms object"):
