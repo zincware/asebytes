@@ -113,8 +113,15 @@ def dict_to_atoms(data: dict[str, Any], fast: bool = True) -> ase.Atoms:
             info_key = key[5:]  # len("info.") == 5
             atoms.info[info_key] = value
         elif key.startswith("calc."):
-            if atoms.calc is None:
-                atoms.calc = SinglePointCalculator(atoms)
+            if atoms._calc is None:
+                # Bypass SinglePointCalculator.__init__ which calls
+                # atoms.copy() — a full deep copy we don't need here.
+                calc = SinglePointCalculator.__new__(SinglePointCalculator)
+                calc.results = {}
+                calc.atoms = atoms
+                calc.parameters = None
+                calc._directory = None
+                atoms._calc = calc
             calc_key = key[5:]  # len("calc.") == 5
             atoms.calc.results[calc_key] = value
         elif key == "constraints":

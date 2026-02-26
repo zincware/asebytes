@@ -99,8 +99,15 @@ def decode(data: dict[bytes, bytes], fast: bool = True, copy: bool = True) -> as
                 info_array = np.array(info_array, copy=True)
             atoms.info[info_key] = info_array
         elif key.startswith(b"calc."):
-            if not hasattr(atoms, "calc") or atoms.calc is None:
-                atoms.calc = SinglePointCalculator(atoms)
+            if atoms._calc is None:
+                # Bypass SinglePointCalculator.__init__ which calls
+                # atoms.copy() — a full deep copy we don't need here.
+                calc = SinglePointCalculator.__new__(SinglePointCalculator)
+                calc.results = {}
+                calc.atoms = atoms
+                calc.parameters = None
+                calc._directory = None
+                atoms._calc = calc
             calc_key = key[5:].decode()  # len(b"calc.") = 5
             calc_array = msgpack.unpackb(data[key], object_hook=m.decode)
             if copy and isinstance(calc_array, np.ndarray):
