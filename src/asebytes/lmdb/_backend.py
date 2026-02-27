@@ -5,8 +5,6 @@ from typing import Any
 
 import msgpack
 import msgpack_numpy as m
-from typing_extensions import deprecated
-
 from ._blob_backend import LMDBBlobBackend
 from .._backends import ReadBackend, ReadWriteBackend
 
@@ -55,9 +53,6 @@ class LMDBObjectReadBackend(ReadBackend[str, Any]):
     def _check_index(self, index: int) -> None:
         if index < 0 or index >= len(self._store):
             raise IndexError(index)
-
-    def schema(self) -> list[str]:
-        return [k.decode() for k in self._store.schema()]
 
     def get(
         self, index: int, keys: list[str] | None = None
@@ -165,17 +160,3 @@ class LMDBObjectBackend(LMDBObjectReadBackend, ReadWriteBackend[str, Any]):
         raw = {k.encode(): msgpack.packb(v, default=m.encode) for k, v in data.items()}
         self._check_index(index)
         self._store.update(index, raw)
-
-
-@deprecated(
-    "Use LMDBObjectReadBackend instead", category=DeprecationWarning, stacklevel=2
-)
-class LMDBReadOnlyBackend(LMDBObjectReadBackend):
-    """Deprecated alias for LMDBObjectReadBackend."""
-
-
-@deprecated(
-    "Use LMDBObjectBackend instead", category=DeprecationWarning, stacklevel=2
-)
-class LMDBBackend(LMDBObjectBackend):
-    """Deprecated alias for LMDBObjectBackend."""

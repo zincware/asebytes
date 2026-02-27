@@ -96,38 +96,38 @@ def test_count_frames_single(single_frame):
 
 
 # =============================================================================
-# read_row
+# get
 # =============================================================================
 
 
-def test_read_row(trajectory):
+def test_get(trajectory):
     backend = ASEReadOnlyBackend(trajectory)
-    row = backend.read_row(0)
+    row = backend.get(0)
     assert "arrays.numbers" in row
     assert "arrays.positions" in row
     assert np.array_equal(row["arrays.numbers"], [1, 1, 8])
 
 
-def test_read_row_with_keys(trajectory):
+def test_get_with_keys(trajectory):
     backend = ASEReadOnlyBackend(trajectory)
-    row = backend.read_row(0, keys=["arrays.positions"])
+    row = backend.get(0, keys=["arrays.positions"])
     assert "arrays.positions" in row
     assert "arrays.numbers" not in row
 
 
-def test_read_row_negative_index(trajectory):
+def test_get_negative_index(trajectory):
     """Negative indices are passed through to ase.io.read."""
     backend = ASEReadOnlyBackend(trajectory)
-    row = backend.read_row(-1)
+    row = backend.get(-1)
     assert "arrays.positions" in row
     # Last frame has positions shifted by 4 * 0.1
     assert row["arrays.positions"][0, 0] == pytest.approx(0.4)
 
 
-def test_read_row_out_of_bounds(trajectory):
+def test_get_out_of_bounds(trajectory):
     backend = ASEReadOnlyBackend(trajectory)
     with pytest.raises(IndexError):
-        backend.read_row(100)
+        backend.get(100)
 
 
 # =============================================================================
@@ -137,16 +137,16 @@ def test_read_row_out_of_bounds(trajectory):
 
 def test_cache_hit(trajectory):
     backend = ASEReadOnlyBackend(trajectory)
-    row1 = backend.read_row(0)
-    row2 = backend.read_row(0)
+    row1 = backend.get(0)
+    row2 = backend.get(0)
     assert row1 is row2  # Same object from cache
 
 
 def test_cache_eviction(trajectory):
     backend = ASEReadOnlyBackend(trajectory, cache_size=2)
-    backend.read_row(0)
-    backend.read_row(1)
-    backend.read_row(2)  # Evicts frame 0
+    backend.get(0)
+    backend.get(1)
+    backend.get(2)  # Evicts frame 0
     assert 0 not in backend._cache
     assert 1 in backend._cache
     assert 2 in backend._cache
@@ -154,10 +154,10 @@ def test_cache_eviction(trajectory):
 
 def test_cache_lru_order(trajectory):
     backend = ASEReadOnlyBackend(trajectory, cache_size=2)
-    backend.read_row(0)
-    backend.read_row(1)
-    backend.read_row(0)  # Access 0 again, making 1 the oldest
-    backend.read_row(2)  # Evicts frame 1 (oldest)
+    backend.get(0)
+    backend.get(1)
+    backend.get(0)  # Access 0 again, making 1 the oldest
+    backend.get(2)  # Evicts frame 1 (oldest)
     assert 0 in backend._cache
     assert 1 not in backend._cache
     assert 2 in backend._cache
@@ -167,7 +167,7 @@ def test_cache_negative_index_normalized(trajectory):
     """Negative indices are normalized to positive cache keys when length known."""
     backend = ASEReadOnlyBackend(trajectory)
     backend.count_frames()  # length = 5
-    backend.read_row(-1)  # Should cache under key 4
+    backend.get(-1)  # Should cache under key 4
     assert 4 in backend._cache
     assert -1 not in backend._cache
 
@@ -176,20 +176,20 @@ def test_length_auto_discovery(trajectory):
     """Reading frames 0..N then N+1 (fail) auto-discovers length."""
     backend = ASEReadOnlyBackend(trajectory)
     for i in range(5):
-        backend.read_row(i)
+        backend.get(i)
     with pytest.raises(IndexError):
-        backend.read_row(5)
+        backend.get(5)
     assert len(backend) == 5
 
 
 # =============================================================================
-# read_rows
+# get_many
 # =============================================================================
 
 
-def test_read_rows(trajectory):
+def test_get_many(trajectory):
     backend = ASEReadOnlyBackend(trajectory)
-    rows = backend.read_rows([0, 2, 4])
+    rows = backend.get_many([0, 2, 4])
     assert len(rows) == 3
     assert all("arrays.positions" in r for r in rows)
 
@@ -228,13 +228,13 @@ def test_iter_rows_with_keys(trajectory):
 
 
 # =============================================================================
-# columns
+# keys
 # =============================================================================
 
 
-def test_columns(trajectory):
+def test_keys(trajectory):
     backend = ASEReadOnlyBackend(trajectory)
-    cols = backend.columns()
+    cols = backend.keys(0)
     assert "arrays.numbers" in cols
     assert "arrays.positions" in cols
     assert "cell" in cols
@@ -242,20 +242,20 @@ def test_columns(trajectory):
 
 
 # =============================================================================
-# read_column
+# get_column
 # =============================================================================
 
 
-def test_read_column(trajectory):
+def test_get_column(trajectory):
     backend = ASEReadOnlyBackend(trajectory)
     backend.count_frames()  # Need length for default indices
-    positions = backend.read_column("arrays.positions")
+    positions = backend.get_column("arrays.positions")
     assert len(positions) == 5
 
 
-def test_read_column_with_indices(trajectory):
+def test_get_column_with_indices(trajectory):
     backend = ASEReadOnlyBackend(trajectory)
-    positions = backend.read_column("arrays.positions", indices=[0, 2])
+    positions = backend.get_column("arrays.positions", indices=[0, 2])
     assert len(positions) == 2
 
 
@@ -365,10 +365,10 @@ def test_aseio_info_preserved(trajectory):
     assert atoms4.info["step"] == 4
 
 
-def test_aseio_columns_unknown_length(trajectory):
-    """ASEIO.columns works even when length is unknown."""
+def test_aseio_keys_unknown_length(trajectory):
+    """ASEIO.keys(0) works even when length is unknown."""
     db = asebytes.ASEIO(trajectory)
-    cols = db.columns
+    cols = db.keys(0)
     assert "arrays.numbers" in cols
     assert "arrays.positions" in cols
 

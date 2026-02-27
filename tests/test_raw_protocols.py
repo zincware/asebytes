@@ -1,8 +1,7 @@
-"""Tests for RawReadableBackend / RawWritableBackend ABCs.
+"""Tests for ReadBackend / ReadWriteBackend ABCs.
 
 These are bytes-level protocols (dict[bytes, bytes] | None) that
-BytesIO and AsyncBytesIO delegate to. Currently no ABC exists for this
-level — BytesIO is LMDB-concrete.
+BlobIO and AsyncBytesIO delegate to.
 """
 
 from __future__ import annotations
@@ -11,13 +10,13 @@ from typing import Iterator
 
 import pytest
 
-from asebytes._protocols import RawReadableBackend, RawWritableBackend
+from asebytes._backends import ReadBackend, ReadWriteBackend
 
 
 # ── Minimal in-memory implementations for testing defaults ──────────────
 
 
-class MemoryRawReadable(RawReadableBackend):
+class MemoryRawReadable(ReadBackend):
     """In-memory implementation of the read-only bytes-level protocol."""
 
     def __init__(self, data: list[dict[bytes, bytes] | None] | None = None):
@@ -26,12 +25,11 @@ class MemoryRawReadable(RawReadableBackend):
     def __len__(self) -> int:
         return len(self._data)
 
-    def schema(self) -> list[bytes]:
-        keys: set[bytes] = set()
-        for row in self._data:
-            if row is not None:
-                keys.update(row.keys())
-        return sorted(keys)
+    def keys(self, index: int) -> list[bytes]:
+        row = self._data[index] if index < len(self._data) else None
+        if row is None:
+            return []
+        return sorted(row.keys())
 
     def get(
         self, index: int, keys: list[bytes] | None = None
@@ -46,7 +44,7 @@ class MemoryRawReadable(RawReadableBackend):
         return dict(row)
 
 
-class MemoryRawWritable(MemoryRawReadable, RawWritableBackend):
+class MemoryRawWritable(MemoryRawReadable, ReadWriteBackend):
     """In-memory implementation of the read-write bytes-level protocol."""
 
     def set(self, index: int, data: dict[bytes, bytes] | None) -> None:
@@ -73,14 +71,14 @@ class MemoryRawWritable(MemoryRawReadable, RawWritableBackend):
 class TestAbstractInstantiation:
     def test_cannot_instantiate_raw_readable(self):
         with pytest.raises(TypeError):
-            RawReadableBackend()
+            ReadBackend()
 
     def test_cannot_instantiate_raw_writable(self):
         with pytest.raises(TypeError):
-            RawWritableBackend()
+            ReadWriteBackend()
 
 
-# ── Tests: RawReadableBackend ───────────────────────────────────────────
+# ── Tests: ReadBackend ───────────────────────────────────────────
 
 
 class TestRawReadable:
@@ -92,52 +90,52 @@ class TestRawReadable:
         backend = MemoryRawReadable([])
         assert len(backend) == 0
 
-    def test_get_schema(self):
+    def test_get_keys(self):
         backend = MemoryRawReadable([
             {b"a": b"1", b"b": b"2"},
             {b"b": b"3", b"c": b"4"},
         ])
-        assert backend.get_schema() == [b"a", b"b", b"c"]
+        assert backend.keys(0) == [b"a", b"b"]
 
-    def test_get_schema_skips_none_placeholders(self):
+    def test_get_keys_skips_none_placeholders(self):
         backend = MemoryRawReadable([{b"a": b"1"}, None, {b"b": b"2"}])
-        assert backend.get_schema() == [b"a", b"b"]
+        assert backend.keys(0) == [b"a"]
 
-    def test_read_row(self):
+    def test_get(self):
         backend = MemoryRawReadable([{b"a": b"1", b"b": b"2"}])
-        assert backend.read_row(0) == {b"a": b"1", b"b": b"2"}
+        assert backend.get(0) == {b"a": b"1", b"b": b"2"}
 
-    def test_read_row_with_keys(self):
+    def test_get_with_keys(self):
         backend = MemoryRawReadable([{b"a": b"1", b"b": b"2"}])
-        assert backend.read_row(0, keys=[b"a"]) == {b"a": b"1"}
+        assert backend.get(0, keys=[b"a"]) == {b"a": b"1"}
 
-    def test_read_row_none_placeholder(self):
+    def test_get_none_placeholder(self):
         backend = MemoryRawReadable([None])
-        assert backend.read_row(0) is None
+        assert backend.get(0) is None
 
-    def test_read_row_out_of_bounds(self):
+    def test_get_out_of_bounds(self):
         backend = MemoryRawReadable([{b"a": b"1"}])
         with pytest.raises(IndexError):
-            backend.read_row(5)
+            backend.get(5)
 
     # -- Default implementations --
 
-    def test_get_available_keys(self):
+    def test_keys(self):
         backend = MemoryRawReadable([{b"a": b"1", b"b": b"2"}])
-        assert sorted(backend.get_available_keys(0)) == [b"a", b"b"]
+        assert sorted(backend.keys(0)) == [b"a", b"b"]
 
-    def test_get_available_keys_none_placeholder(self):
+    def test_keys_none_placeholder(self):
         backend = MemoryRawReadable([None])
-        assert backend.get_available_keys(0) == []
+        assert backend.keys(0) == []
 
-    def test_read_rows_default(self):
+    def test_get_many_default(self):
         backend = MemoryRawReadable([{b"a": b"1"}, {b"a": b"2"}, {b"a": b"3"}])
-        rows = backend.read_rows([0, 2])
+        rows = backend.get_many([0, 2])
         assert rows == [{b"a": b"1"}, {b"a": b"3"}]
 
-    def test_read_rows_with_none(self):
+    def test_get_many_with_none(self):
         backend = MemoryRawReadable([{b"a": b"1"}, None, {b"a": b"3"}])
-        rows = backend.read_rows([0, 1, 2])
+        rows = backend.get_many([0, 1, 2])
         assert rows == [{b"a": b"1"}, None, {b"a": b"3"}]
 
     def test_iter_rows_default(self):
@@ -151,82 +149,82 @@ class TestRawReadable:
         assert hasattr(it, "__next__")
 
 
-# ── Tests: RawWritableBackend ───────────────────────────────────────────
+# ── Tests: ReadWriteBackend ───────────────────────────────────────────
 
 
 class TestRawWritable:
-    def test_write_row(self):
+    def test_set(self):
         backend = MemoryRawWritable([{b"a": b"1"}])
-        backend.write_row(0, {b"a": b"99"})
-        assert backend.read_row(0) == {b"a": b"99"}
+        backend.set(0, {b"a": b"99"})
+        assert backend.get(0) == {b"a": b"99"}
 
-    def test_write_row_none(self):
+    def test_set_none(self):
         backend = MemoryRawWritable([{b"a": b"1"}])
-        backend.write_row(0, None)
-        assert backend.read_row(0) is None
+        backend.set(0, None)
+        assert backend.get(0) is None
 
-    def test_insert_row(self):
+    def test_insert(self):
         backend = MemoryRawWritable([{b"a": b"1"}, {b"a": b"3"}])
-        backend.insert_row(1, {b"a": b"2"})
+        backend.insert(1, {b"a": b"2"})
         assert len(backend) == 3
-        assert backend.read_row(1) == {b"a": b"2"}
+        assert backend.get(1) == {b"a": b"2"}
 
-    def test_insert_row_none(self):
+    def test_insert_none(self):
         backend = MemoryRawWritable([{b"a": b"1"}])
-        backend.insert_row(0, None)
+        backend.insert(0, None)
         assert len(backend) == 2
-        assert backend.read_row(0) is None
-        assert backend.read_row(1) == {b"a": b"1"}
+        assert backend.get(0) is None
+        assert backend.get(1) == {b"a": b"1"}
 
-    def test_delete_row(self):
+    def test_delete(self):
         backend = MemoryRawWritable([{b"a": b"1"}, {b"a": b"2"}])
-        backend.delete_row(0)
+        backend.delete(0)
         assert len(backend) == 1
-        assert backend.read_row(0) == {b"a": b"2"}
+        assert backend.get(0) == {b"a": b"2"}
 
-    def test_append_rows(self):
+    def test_extend(self):
         backend = MemoryRawWritable([])
-        backend.append_rows([{b"a": b"1"}, {b"a": b"2"}])
+        backend.extend([{b"a": b"1"}, {b"a": b"2"}])
         assert len(backend) == 2
 
-    def test_append_rows_with_none(self):
+    def test_extend_with_none(self):
         backend = MemoryRawWritable([])
-        backend.append_rows([{b"a": b"1"}, None, {b"a": b"3"}])
+        backend.extend([{b"a": b"1"}, None, {b"a": b"3"}])
         assert len(backend) == 3
-        assert backend.read_row(1) is None
+        assert backend.get(1) is None
 
     # -- Default implementations of new methods --
 
-    def test_update_row_default(self):
-        """Default update_row does read-modify-write."""
+    def test_update_default(self):
+        """Default update does read-modify-write."""
         backend = MemoryRawWritable([{b"a": b"1", b"b": b"2"}])
-        backend.update_row(0, {b"a": b"99"})
-        assert backend.read_row(0) == {b"a": b"99", b"b": b"2"}
+        backend.update(0, {b"a": b"99"})
+        assert backend.get(0) == {b"a": b"99", b"b": b"2"}
 
-    def test_update_row_on_none_placeholder(self):
+    def test_update_on_none_placeholder(self):
         """Updating a None placeholder should create a row with the given keys."""
         backend = MemoryRawWritable([None])
-        backend.update_row(0, {b"a": b"1"})
-        assert backend.read_row(0) == {b"a": b"1"}
+        backend.update(0, {b"a": b"1"})
+        assert backend.get(0) == {b"a": b"1"}
 
-    def test_delete_rows_default(self):
-        """Default delete_rows deletes contiguous range [start, stop)."""
+    def test_delete_many_default(self):
+        """Default delete_many deletes contiguous range [start, stop)."""
         backend = MemoryRawWritable([
             {b"a": b"0"}, {b"a": b"1"}, {b"a": b"2"},
             {b"a": b"3"}, {b"a": b"4"},
         ])
-        backend.delete_rows(1, 4)  # delete indices 1, 2, 3
+        backend.delete_many(1, 4)  # delete indices 1, 2, 3
         assert len(backend) == 2
-        assert backend.read_row(0) == {b"a": b"0"}
-        assert backend.read_row(1) == {b"a": b"4"}
+        assert backend.get(0) == {b"a": b"0"}
+        assert backend.get(1) == {b"a": b"4"}
 
-    def test_write_rows_default(self):
-        """Default write_rows overwrites contiguous range."""
+    def test_set_many_default(self):
+        """Default set_many overwrites contiguous range."""
         backend = MemoryRawWritable([{b"a": b"0"}, {b"a": b"1"}, {b"a": b"2"}])
-        backend.write_rows(1, [{b"a": b"99"}, {b"a": b"98"}])
-        assert backend.read_row(0) == {b"a": b"0"}
-        assert backend.read_row(1) == {b"a": b"99"}
-        assert backend.read_row(2) == {b"a": b"98"}
+        backend.set_many(1, [{b"a": b"99"}, {b"a": b"98"}])
+        assert backend.get(0) == {b"a": b"0"}
+        assert backend.get(1) == {b"a": b"99"}
+        assert backend.get(2) == {b"a": b"98"}
 
     def test_drop_keys_default(self):
         """Default drop_keys removes specific keys from all rows."""
@@ -235,8 +233,8 @@ class TestRawWritable:
             {b"a": b"4", b"b": b"5", b"c": b"6"},
         ])
         backend.drop_keys([b"b", b"c"])
-        assert backend.read_row(0) == {b"a": b"1"}
-        assert backend.read_row(1) == {b"a": b"4"}
+        assert backend.get(0) == {b"a": b"1"}
+        assert backend.get(1) == {b"a": b"4"}
 
     def test_drop_keys_with_indices(self):
         """drop_keys with indices only affects specified rows."""
@@ -246,25 +244,25 @@ class TestRawWritable:
             {b"a": b"5", b"b": b"6"},
         ])
         backend.drop_keys([b"b"], indices=[0, 2])
-        assert backend.read_row(0) == {b"a": b"1"}
-        assert backend.read_row(1) == {b"a": b"3", b"b": b"4"}  # untouched
-        assert backend.read_row(2) == {b"a": b"5"}
+        assert backend.get(0) == {b"a": b"1"}
+        assert backend.get(1) == {b"a": b"3", b"b": b"4"}  # untouched
+        assert backend.get(2) == {b"a": b"5"}
 
     def test_drop_keys_skips_none_placeholders(self):
         backend = MemoryRawWritable([None, {b"a": b"1", b"b": b"2"}])
         backend.drop_keys([b"b"])  # should not crash on None row
-        assert backend.read_row(0) is None
-        assert backend.read_row(1) == {b"a": b"1"}
+        assert backend.get(0) is None
+        assert backend.get(1) == {b"a": b"1"}
 
     def test_reserve_default(self):
         """Default reserve appends None placeholders."""
         backend = MemoryRawWritable([{b"a": b"1"}])
         backend.reserve(3)
         assert len(backend) == 4
-        assert backend.read_row(0) == {b"a": b"1"}
-        assert backend.read_row(1) is None
-        assert backend.read_row(2) is None
-        assert backend.read_row(3) is None
+        assert backend.get(0) == {b"a": b"1"}
+        assert backend.get(1) is None
+        assert backend.get(2) is None
+        assert backend.get(3) is None
 
     def test_clear_default(self):
         """Default clear removes all rows."""

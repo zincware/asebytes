@@ -1,9 +1,8 @@
 import struct
-from collections.abc import Iterator, MutableSequence
+from collections.abc import Iterator
 from typing import Any
 
 import lmdb
-from typing_extensions import deprecated
 
 from .._backends import ReadWriteBackend
 
@@ -207,12 +206,6 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
         with self.env.begin() as txn:
             return self._get_count(txn)
 
-    def schema(self) -> list[bytes]:
-        """Return the global schema (union of all field names)."""
-        with self.env.begin() as txn:
-            self._ensure_cache(txn)
-            return list(self._schema_cache)
-
     def get(
         self, index: int, keys: list[bytes] | None = None
     ) -> dict[bytes, bytes]:
@@ -252,7 +245,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
 
         return result
 
-    def get_available_keys(self, index: int) -> list[bytes]:
+    def keys(self, index: int) -> list[bytes]:
         """Get all available keys for a given index."""
         with self.env.begin() as txn:
             self._ensure_cache(txn)
@@ -558,108 +551,3 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
                 self._save_schema(txn)
 
         self._invalidate_cache()
-
-
-@deprecated(
-    "Use BlobIO(LMDBBlobBackend(...)) instead", category=DeprecationWarning, stacklevel=2
-)
-class BytesIO(MutableSequence):
-    """Deprecated: LMDB blob MutableSequence.
-
-    Replaced by ``BlobIO(LMDBBlobBackend(...))``.
-    """
-
-    def __init__(
-        self,
-        file: str,
-        prefix: bytes = b"",
-        map_size: int = 10737418240,
-        readonly: bool = False,
-        **lmdb_kwargs,
-    ):
-        self._backend = LMDBBlobBackend(file, prefix, map_size, readonly, **lmdb_kwargs)
-
-    # Expose backend internals for tests / migration
-    @property
-    def env(self):
-        return self._backend.env
-
-    @property
-    def _blocks(self):
-        return self._backend._blocks
-
-    @_blocks.setter
-    def _blocks(self, v):
-        self._backend._blocks = v
-
-    @property
-    def _schema(self):
-        return self._backend._schema_cache
-
-    @_schema.setter
-    def _schema(self, v):
-        self._backend._schema_cache = v
-
-    @property
-    def _block_sizes(self):
-        return self._backend._block_sizes
-
-    @_block_sizes.setter
-    def _block_sizes(self, v):
-        self._backend._block_sizes = v
-
-    def _ensure_cache(self, txn):
-        return self._backend._ensure_cache(txn)
-
-    def _get_count(self, txn):
-        return self._backend._get_count(txn)
-
-    def _set_count(self, txn, count):
-        return self._backend._set_count(txn, count)
-
-    def _get_next_sort_key(self, txn):
-        return self._backend._get_next_sort_key(txn)
-
-    def _set_next_sort_key(self, txn, value):
-        return self._backend._set_next_sort_key(txn, value)
-
-    def _allocate_sort_key(self, txn):
-        return self._backend._allocate_sort_key(txn)
-
-    def get(self, index, keys=None):
-        return self._backend.get(index, keys)
-
-    def get_available_keys(self, index):
-        return self._backend.get_available_keys(index)
-
-    def get_schema(self):
-        return self._backend.schema()
-
-    def update(self, index, data):
-        return self._backend.update(index, data)
-
-    def get_with_txn(self, txn, index, keys=None):
-        return self._backend.get_with_txn(txn, index, keys)
-
-    # MutableSequence interface
-    def __getitem__(self, index):
-        return self._backend.get(index)
-
-    def __setitem__(self, index, value):
-        self._backend.set(index, value)
-
-    def __delitem__(self, index):
-        self._backend.delete(index)
-
-    def insert(self, index, value):
-        self._backend.insert(index, value)
-
-    def extend(self, items):
-        self._backend.extend(list(items))
-
-    def __len__(self):
-        return len(self._backend)
-
-    def __iter__(self):
-        for i in range(len(self)):
-            yield self[i]

@@ -247,20 +247,20 @@ def test_info_key_resembling_prefix_roundtrip():
 
 
 # =============================================================================
-# Edge cases for BytesIO
+# Edge cases for BlobIO
 # =============================================================================
 
 
 def test_bytesio_with_empty_prefix(tmp_path):
-    """Test BytesIO with empty prefix (default behavior)."""
-    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"), prefix=b"")
+    """Test BlobIO with empty prefix (default behavior)."""
+    io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb"), prefix=b""))
     io[0] = {b"test": b"data"}
     assert io[0] == {b"test": b"data"}
 
 
 def test_bytesio_with_custom_prefix(tmp_path):
-    """Test BytesIO with custom prefix."""
-    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"), prefix=b"myprefix/")
+    """Test BlobIO with custom prefix."""
+    io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb"), prefix=b"myprefix/"))
     io[0] = {b"test": b"data"}
     assert io[0] == {b"test": b"data"}
     assert len(io) == 1
@@ -269,8 +269,8 @@ def test_bytesio_with_custom_prefix(tmp_path):
 def test_bytesio_multiple_prefixes_isolated(tmp_path):
     """Test that different prefixes create isolated namespaces."""
     db_path = str(tmp_path / "test.lmdb")
-    io1 = asebytes.BytesIO(db_path, prefix=b"prefix1/")
-    io2 = asebytes.BytesIO(db_path, prefix=b"prefix2/")
+    io1 = asebytes.BlobIO(asebytes.LMDBBlobBackend(db_path, prefix=b"prefix1/"))
+    io2 = asebytes.BlobIO(asebytes.LMDBBlobBackend(db_path, prefix=b"prefix2/"))
 
     io1[0] = {b"test": b"data1"}
     io2[0] = {b"test": b"data2"}
@@ -282,23 +282,23 @@ def test_bytesio_multiple_prefixes_isolated(tmp_path):
 
 
 def test_bytesio_empty_data_dict(tmp_path):
-    """Test BytesIO with empty data dictionary."""
-    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
+    """Test BlobIO with empty data dictionary."""
+    io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
     io[0] = {}
     assert io[0] == {}
     assert len(io) == 1
 
 
 def test_bytesio_single_key_value(tmp_path):
-    """Test BytesIO with single key-value pair."""
-    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
+    """Test BlobIO with single key-value pair."""
+    io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
     io[0] = {b"single": b"value"}
     assert io[0] == {b"single": b"value"}
 
 
 def test_bytesio_many_keys(tmp_path):
-    """Test BytesIO with many keys in single entry."""
-    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
+    """Test BlobIO with many keys in single entry."""
+    io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
     data = {f"key{i}".encode(): f"value{i}".encode() for i in range(100)}
     io[0] = data
     recovered = io[0]
@@ -308,24 +308,24 @@ def test_bytesio_many_keys(tmp_path):
 
 
 def test_bytesio_extend_empty_list(tmp_path):
-    """Test extending BytesIO with empty list."""
-    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
+    """Test extending BlobIO with empty list."""
+    io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
     io[0] = {b"test": b"data"}
     io.extend([])
     assert len(io) == 1
 
 
 def test_bytesio_extend_single_item(tmp_path):
-    """Test extending BytesIO with single item."""
-    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
+    """Test extending BlobIO with single item."""
+    io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
     io.extend([{b"test": b"data"}])
     assert len(io) == 1
     assert io[0] == {b"test": b"data"}
 
 
 def test_bytesio_insert_at_zero_empty(tmp_path):
-    """Test inserting at index 0 in empty BytesIO."""
-    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
+    """Test inserting at index 0 in empty BlobIO."""
+    io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
     io.insert(0, {b"test": b"data"})
     assert len(io) == 1
     assert io[0] == {b"test": b"data"}
@@ -333,7 +333,7 @@ def test_bytesio_insert_at_zero_empty(tmp_path):
 
 def test_bytesio_insert_negative_clamped_to_zero(tmp_path):
     """Test that negative insert index is clamped to 0."""
-    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
+    io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
     io[0] = {b"first": b"data"}
     io.insert(-10, {b"inserted": b"data"})
 
@@ -344,7 +344,7 @@ def test_bytesio_insert_negative_clamped_to_zero(tmp_path):
 
 def test_bytesio_insert_beyond_length_appends(tmp_path):
     """Test that insert beyond length appends to end."""
-    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
+    io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
     io[0] = {b"first": b"data"}
     io.insert(100, {b"last": b"data"})
 
@@ -353,8 +353,8 @@ def test_bytesio_insert_beyond_length_appends(tmp_path):
 
 
 def test_bytesio_get_with_empty_keys_list(tmp_path):
-    """Test BytesIO.get() with empty keys list returns empty dict."""
-    io = asebytes.BytesIO(str(tmp_path / "test.lmdb"))
+    """Test BlobIO.get() with empty keys list returns empty dict."""
+    io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
     io[0] = {b"key1": b"value1", b"key2": b"value2"}
     result = io.get(0, keys=[])
 

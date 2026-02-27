@@ -5,7 +5,7 @@ import asebytes
 
 @pytest.fixture
 def io(tmp_path):
-    return asebytes.BytesIO(str(tmp_path / "test.lmdb"))
+    return asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
 
 
 def test_set_get(io, ethanol):
@@ -73,27 +73,27 @@ def test_iter(io, ethanol):
 
 def test_blocked_index_internals(io):
     # Test that blocked index and sort key allocation work correctly
-    with io.env.begin(write=True) as txn:
-        io._set_count(txn, 0)
-        io._set_next_sort_key(txn, 100)
+    with io._backend.env.begin(write=True) as txn:
+        io._backend._set_count(txn, 0)
+        io._backend._set_next_sort_key(txn, 100)
 
-    with io.env.begin() as txn:
-        assert io._get_count(txn) == 0
-        assert io._get_next_sort_key(txn) == 100
+    with io._backend.env.begin() as txn:
+        assert io._backend._get_count(txn) == 0
+        assert io._backend._get_next_sort_key(txn) == 100
 
     # Test sort key allocation
-    with io.env.begin(write=True) as txn:
-        sk = io._allocate_sort_key(txn)
+    with io._backend.env.begin(write=True) as txn:
+        sk = io._backend._allocate_sort_key(txn)
         assert sk == 100
-        assert io._get_next_sort_key(txn) == 101
+        assert io._backend._get_next_sort_key(txn) == 101
 
     # Test that extend populates blocks and schema
     io.extend([{b"field_a": b"v1", b"field_b": b"v2"}])
-    with io.env.begin() as txn:
-        io._ensure_cache(txn)
-        assert len(io._blocks) == 1
-        assert len(io._blocks[0]) == 1
-        assert io._schema == [b"field_a", b"field_b"]
+    with io._backend.env.begin() as txn:
+        io._backend._ensure_cache(txn)
+        assert len(io._backend._blocks) == 1
+        assert len(io._backend._blocks[0]) == 1
+        assert io.keys(0) == [b"field_a", b"field_b"]
 
 
 def test_get_all_keys(io, ethanol):
@@ -137,10 +137,10 @@ def test_get_nonexistent_index(io):
         io.get(0)
 
 
-def test_get_available_keys(io, ethanol):
-    # Test that get_available_keys() returns all keys for an index
+def test_keys(io, ethanol):
+    # Test that keys() returns all keys for an index
     io[0] = asebytes.encode(ethanol[0])
-    keys = io.get_available_keys(0)
+    keys = io.keys(0)
     assert b"cell" in keys
     assert b"pbc" in keys
     assert b"arrays.positions" in keys
@@ -149,15 +149,15 @@ def test_get_available_keys(io, ethanol):
     assert b"info.connectivity" in keys
 
 
-def test_get_available_keys_nonexistent_index(io):
-    # Test that get_available_keys() raises KeyError for non-existent index
+def test_keys_nonexistent_index(io):
+    # Test that keys() raises KeyError for non-existent index
     with pytest.raises(KeyError, match="Index 0 not found"):
-        io.get_available_keys(0)
+        io.keys(0)
 
 
-def test_get_available_keys_empty_data(io):
+def test_keys_empty_data(io):
     # Test with minimal atoms data
     minimal_data = {b"cell": b"test", b"pbc": b"test"}
     io[0] = minimal_data
-    keys = io.get_available_keys(0)
+    keys = io.keys(0)
     assert keys == [b"cell", b"pbc"]

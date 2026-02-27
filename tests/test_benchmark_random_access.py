@@ -2,7 +2,7 @@
 
 Backends: asebytes LMDB, asebytes H5MD, aselmdb, znh5md, sqlite.
 (extxyz skipped — requires full file scan per access.)
-Datsets: ethanol (1000 small molecules), lemat (1000 periodic structures).
+datasets: ethanol (1000 small molecules), lemat (1000 periodic structures).
 """
 
 import random
@@ -13,11 +13,11 @@ from ase.db import connect
 
 from asebytes import ASEIO
 
-DATsetS = ["ethanol", "lemat"]
+datasetS = ["ethanol", "lemat"]
 
 
-@pytest.fixture(params=DATsetS)
-def datset(request):
+@pytest.fixture(params=datasetS)
+def dataset(request):
     return request.param, request.getfixturevalue(request.param)
 
 
@@ -32,8 +32,8 @@ def _random_indices(n: int, seed: int = 42) -> list[int]:
 
 
 @pytest.mark.benchmark(group="random_access")
-def test_random_access_asebytes_lmdb(benchmark, datset, tmp_path):
-    name, frames = datset
+def test_random_access_asebytes_lmdb(benchmark, dataset, tmp_path):
+    name, frames = dataset
     p = tmp_path / f"ra_{name}.lmdb"
     db = ASEIO(str(p))
     db.extend(frames)
@@ -48,8 +48,8 @@ def test_random_access_asebytes_lmdb(benchmark, datset, tmp_path):
 
 
 @pytest.mark.benchmark(group="random_access")
-def test_random_access_asebytes_zarr(benchmark, datset, tmp_path):
-    name, frames = datset
+def test_random_access_asebytes_zarr(benchmark, dataset, tmp_path):
+    name, frames = dataset
     p = tmp_path / f"ra_{name}.zarr"
     db_w = ASEIO(str(p))
     db_w.extend(frames)
@@ -64,8 +64,8 @@ def test_random_access_asebytes_zarr(benchmark, datset, tmp_path):
 
 
 @pytest.mark.benchmark(group="random_access")
-def test_random_access_asebytes_h5md(benchmark, datset, tmp_path):
-    name, frames = datset
+def test_random_access_asebytes_h5md(benchmark, dataset, tmp_path):
+    name, frames = dataset
     p = tmp_path / f"ra_{name}.h5"
     db_w = ASEIO(str(p))
     db_w.extend(frames)
@@ -80,8 +80,8 @@ def test_random_access_asebytes_h5md(benchmark, datset, tmp_path):
 
 
 @pytest.mark.benchmark(group="random_access")
-def test_random_access_aselmdb(benchmark, datset, tmp_path):
-    name, frames = datset
+def test_random_access_aselmdb(benchmark, dataset, tmp_path):
+    name, frames = dataset
     p = tmp_path / f"ra_{name}_aselmdb.lmdb"
     db = connect(str(p), type="aselmdb")
     for mol in frames:
@@ -97,11 +97,11 @@ def test_random_access_aselmdb(benchmark, datset, tmp_path):
 
 
 @pytest.mark.benchmark(group="random_access")
-def test_random_access_znh5md(benchmark, datset, tmp_path):
+def test_random_access_znh5md(benchmark, dataset, tmp_path):
     import h5py
     import znh5md
 
-    name, frames = datset
+    name, frames = dataset
     p = tmp_path / f"ra_{name}_znh5md.h5"
     io_w = znh5md.IO(filename=str(p))
     io_w.extend(frames)
@@ -117,8 +117,8 @@ def test_random_access_znh5md(benchmark, datset, tmp_path):
 
 
 @pytest.mark.benchmark(group="random_access")
-def test_random_access_sqlite(benchmark, datset, tmp_path):
-    name, frames = datset
+def test_random_access_sqlite(benchmark, dataset, tmp_path):
+    name, frames = dataset
     p = tmp_path / f"ra_{name}_sqlite.db"
     db = connect(str(p), type="db")
     for mol in frames:

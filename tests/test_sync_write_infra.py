@@ -24,11 +24,6 @@ class MemoryObjectBackend(ReadWriteBackend):
     def __len__(self):
         return len(self._rows)
 
-    def schema(self):
-        if not self._rows or self._rows[0] is None:
-            return []
-        return sorted(self._rows[0].keys())
-
     def get(self, index, keys=None):
         row = self._rows[index]
         if row is None:
@@ -64,11 +59,6 @@ class MemoryBlobBackend(ReadWriteBackend):
 
     def __len__(self):
         return len(self._rows)
-
-    def schema(self):
-        if not self._rows or self._rows[0] is None:
-            return []
-        return sorted(self._rows[0].keys())
 
     def get(self, index, keys=None):
         row = self._rows[index]

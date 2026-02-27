@@ -95,10 +95,6 @@ class ASEReadOnlyBackend(ReadBackend[str, Any]):
             )
         return self._length
 
-    def schema(self, index: int = 0) -> list[str]:
-        row = self._read_frame(index)
-        return list(row.keys())
-
     def get(
         self, index: int, keys: list[str] | None = None
     ) -> dict[str, Any]:

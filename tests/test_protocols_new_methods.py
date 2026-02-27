@@ -1,6 +1,6 @@
-"""Tests for new methods on existing WritableBackend.
+"""Tests for new methods on existing ReadWriteBackend.
 
-Covers: delete_rows, write_rows, drop_keys, reserve, clear, remove,
+Covers: delete_many, set_many, drop_keys, reserve, clear, remove,
 and None placeholder support in existing methods.
 """
 
@@ -10,23 +10,17 @@ from typing import Any
 
 import pytest
 
-from asebytes._protocols import WritableBackend
+from asebytes._backends import ReadWriteBackend
 
 
-class MemoryWritable(WritableBackend):
-    """In-memory WritableBackend for testing default implementations."""
+class MemoryWritable(ReadWriteBackend):
+    """In-memory ReadWriteBackend for testing default implementations."""
 
     def __init__(self, data: list[dict[str, Any] | None] | None = None):
         self._data: list[dict[str, Any] | None] = data or []
 
     def __len__(self) -> int:
         return len(self._data)
-
-    def schema(self) -> list[str]:
-        if not self._data:
-            return []
-        row = self._data[0]
-        return sorted(row.keys()) if row is not None else []
 
     def get(
         self, index: int, keys: list[str] | None = None
@@ -58,36 +52,36 @@ class MemoryWritable(WritableBackend):
         self._data.extend(data)
 
 
-class TestWritableBackendNewMethods:
-    """Test the new default methods added to WritableBackend."""
+class TestReadWriteBackendNewMethods:
+    """Test the new default methods added to ReadWriteBackend."""
 
-    def test_delete_rows(self):
+    def test_delete_many(self):
         backend = MemoryWritable([
             {"a": 0}, {"a": 1}, {"a": 2}, {"a": 3}, {"a": 4},
         ])
-        backend.delete_rows(1, 4)  # delete indices 1, 2, 3
+        backend.delete_many(1, 4)  # delete indices 1, 2, 3
         assert len(backend) == 2
-        assert backend.read_row(0) == {"a": 0}
-        assert backend.read_row(1) == {"a": 4}
+        assert backend.get(0) == {"a": 0}
+        assert backend.get(1) == {"a": 4}
 
-    def test_delete_rows_empty_range(self):
+    def test_delete_many_empty_range(self):
         backend = MemoryWritable([{"a": 0}, {"a": 1}])
-        backend.delete_rows(1, 1)  # empty range
+        backend.delete_many(1, 1)  # empty range
         assert len(backend) == 2
 
-    def test_write_rows(self):
+    def test_set_many(self):
         backend = MemoryWritable([{"a": 0}, {"a": 1}, {"a": 2}])
-        backend.write_rows(1, [{"a": 99}, {"a": 98}])
-        assert backend.read_row(0) == {"a": 0}
-        assert backend.read_row(1) == {"a": 99}
-        assert backend.read_row(2) == {"a": 98}
+        backend.set_many(1, [{"a": 99}, {"a": 98}])
+        assert backend.get(0) == {"a": 0}
+        assert backend.get(1) == {"a": 99}
+        assert backend.get(2) == {"a": 98}
 
-    def test_write_rows_with_none(self):
+    def test_set_many_with_none(self):
         backend = MemoryWritable([{"a": 0}, {"a": 1}, {"a": 2}])
-        backend.write_rows(0, [None, {"a": 99}])
-        assert backend.read_row(0) is None
-        assert backend.read_row(1) == {"a": 99}
-        assert backend.read_row(2) == {"a": 2}
+        backend.set_many(0, [None, {"a": 99}])
+        assert backend.get(0) is None
+        assert backend.get(1) == {"a": 99}
+        assert backend.get(2) == {"a": 2}
 
     def test_drop_keys_all_rows(self):
         backend = MemoryWritable([
@@ -95,8 +89,8 @@ class TestWritableBackendNewMethods:
             {"a": 4, "b": 5, "c": 6},
         ])
         backend.drop_keys(["b", "c"])
-        assert backend.read_row(0) == {"a": 1}
-        assert backend.read_row(1) == {"a": 4}
+        assert backend.get(0) == {"a": 1}
+        assert backend.get(1) == {"a": 4}
 
     def test_drop_keys_specific_indices(self):
         backend = MemoryWritable([
@@ -105,23 +99,23 @@ class TestWritableBackendNewMethods:
             {"a": 5, "b": 6},
         ])
         backend.drop_keys(["b"], indices=[0, 2])
-        assert backend.read_row(0) == {"a": 1}
-        assert backend.read_row(1) == {"a": 3, "b": 4}
-        assert backend.read_row(2) == {"a": 5}
+        assert backend.get(0) == {"a": 1}
+        assert backend.get(1) == {"a": 3, "b": 4}
+        assert backend.get(2) == {"a": 5}
 
     def test_drop_keys_skips_none(self):
         backend = MemoryWritable([None, {"a": 1, "b": 2}])
         backend.drop_keys(["b"])
-        assert backend.read_row(0) is None
-        assert backend.read_row(1) == {"a": 1}
+        assert backend.get(0) is None
+        assert backend.get(1) == {"a": 1}
 
     def test_reserve(self):
         backend = MemoryWritable([{"a": 1}])
         backend.reserve(3)
         assert len(backend) == 4
-        assert backend.read_row(0) == {"a": 1}
+        assert backend.get(0) == {"a": 1}
         for i in range(1, 4):
-            assert backend.read_row(i) is None
+            assert backend.get(i) is None
 
     def test_clear(self):
         backend = MemoryWritable([{"a": 1}, {"a": 2}, {"a": 3}])
@@ -138,36 +132,36 @@ class TestWritableBackendNewMethods:
         with pytest.raises(NotImplementedError):
             backend.remove()
 
-    def test_update_row_on_none_placeholder(self):
+    def test_update_on_none_placeholder(self):
         backend = MemoryWritable([None])
-        backend.update_row(0, {"a": 1})
-        assert backend.read_row(0) == {"a": 1}
+        backend.update(0, {"a": 1})
+        assert backend.get(0) == {"a": 1}
 
 
 class TestNonePlaceholderSupport:
     """Test that None placeholders work throughout."""
 
-    def test_append_rows_with_none(self):
+    def test_extend_with_none(self):
         backend = MemoryWritable([])
-        backend.append_rows([{"a": 1}, None, {"a": 3}])
+        backend.extend([{"a": 1}, None, {"a": 3}])
         assert len(backend) == 3
-        assert backend.read_row(1) is None
+        assert backend.get(1) is None
 
     def test_insert_none(self):
         backend = MemoryWritable([{"a": 1}])
-        backend.insert_row(0, None)
+        backend.insert(0, None)
         assert len(backend) == 2
-        assert backend.read_row(0) is None
-        assert backend.read_row(1) == {"a": 1}
+        assert backend.get(0) is None
+        assert backend.get(1) == {"a": 1}
 
-    def test_write_none(self):
+    def test_set_none(self):
         backend = MemoryWritable([{"a": 1}])
-        backend.write_row(0, None)
-        assert backend.read_row(0) is None
+        backend.set(0, None)
+        assert backend.get(0) is None
 
-    def test_read_rows_with_none(self):
+    def test_get_many_with_none(self):
         backend = MemoryWritable([{"a": 1}, None, {"a": 3}])
-        rows = backend.read_rows([0, 1, 2])
+        rows = backend.get_many([0, 1, 2])
         assert rows[0] == {"a": 1}
         assert rows[1] is None
         assert rows[2] == {"a": 3}
@@ -178,6 +172,6 @@ class TestNonePlaceholderSupport:
         assert rows[0] is None
         assert rows[1] == {"a": 1}
 
-    def test_columns_on_none_row(self):
+    def test_keys_on_none_row(self):
         backend = MemoryWritable([None])
-        assert backend.columns(0) == []
+        assert backend.keys(0) == []

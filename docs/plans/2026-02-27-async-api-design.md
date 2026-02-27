@@ -15,7 +15,7 @@ which get auto-wrapped via `asyncio.to_thread`.
 4. **Naming**: async method = sync method + `a` prefix (`extend` → `extend`).
 5. **`drop()`** for column/key removal (pandas-style), scoped via views.
 6. **None placeholders** for reserving slots without data.
-7. **Non-contiguous delete is TypeError**: `delete`/`insert` require contiguous slices or single int. Non-shifting ops (`set`, `update`, `adrop`) work on arbitrary index lists.
+7. **Non-contiguous delete is TypeError**: `delete`/`insert` require contiguous slices or single int. Non-shifting ops (`set`, `update`, `drop`) work on arbitrary index lists.
 8. **Bytes-level protocol**: new `RawReadableBackend` / `RawWritableBackend` ABCs (BytesIO currently has no ABC).
 9. **Serialization adapter**: generalizes the LMDBBackend pattern of "raw bytes + msgpack" so any `RawBackend` can be lifted to str-level.
 
@@ -64,7 +64,7 @@ class RawReadableBackend(ABC):
     def get_schema(self) -> list[bytes]: ...
     @abstractmethod
     def read_row(self, index: int, keys: list[bytes] | None = None) -> dict[bytes, bytes] | None: ...
-    def get_available_keys(self, index: int) -> list[bytes]: ...   # default
+    def keys(self, index: int) -> list[bytes]: ...   # default
     def read_rows(self, indices, keys=None) -> list[...]: ...      # default: loop
     def iter_rows(self, indices, keys=None) -> Iterator[...]: ...  # default: loop
 ```
@@ -99,7 +99,7 @@ Mirror the sync protocols with all methods async. `__len__` becomes `async def l
 ```
 AsyncASEIO.__getitem__
   int        → AsyncSingleRowView   (__await__ → Atoms | None)
-  slice      → AsyncRowView         (__await__ → list, __aiter__, achunked)
+  slice      → AsyncRowView         (__await__ → list, __aiter__, chunked)
   list[int]  → AsyncRowView
   str        → AsyncColumnView      (__await__ → list[values])
   list[str]  → AsyncColumnView
@@ -111,7 +111,7 @@ AsyncBytesIO.__getitem__
   list[bytes]  → AsyncColumnFilterView (further [int]/[slice])
 ```
 
-View methods: `set`, `delete` (contiguous only), `update`, `adrop`, `akeys`.
+View methods: `set`, `delete` (contiguous only), `update`, `drop`, `keys`.
 Sync views get matching methods: `set`, `delete`, `update`, `drop`, `keys`.
 
 ## SyncToAsyncAdapter

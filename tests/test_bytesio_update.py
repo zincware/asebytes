@@ -1,4 +1,4 @@
-"""Tests for BytesIO.update() method."""
+"""Tests for BlobIO.update() method."""
 
 import msgpack
 import msgpack_numpy as m
@@ -9,8 +9,8 @@ import asebytes
 
 @pytest.fixture
 def io(tmp_path):
-    """Create a BytesIO instance for testing."""
-    return asebytes.BytesIO(str(tmp_path / "test.lmdb"))
+    """Create a BlobIO instance for testing."""
+    return asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
 
 
 def test_update_add_new_keys(io, ethanol):
@@ -114,7 +114,7 @@ def test_update_preserves_available_keys_metadata(io, ethanol):
     """Test that update() properly updates the available keys metadata."""
     # Arrange: Store initial data
     io[0] = asebytes.encode(ethanol[0])
-    initial_keys = set(io.get_available_keys(0))
+    initial_keys = set(io.keys(0))
 
     # Act: Add new keys
     new_data = {
@@ -124,7 +124,7 @@ def test_update_preserves_available_keys_metadata(io, ethanol):
     io.update(0, new_data)
 
     # Assert: Available keys should include new keys
-    updated_keys = set(io.get_available_keys(0))
+    updated_keys = set(io.keys(0))
     assert b"info.new_key1" in updated_keys
     assert b"info.new_key2" in updated_keys
 

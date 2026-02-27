@@ -17,7 +17,7 @@ _BACKEND_REGISTRY: dict[str, tuple[str, str | None, str]] = {
 }
 
 # Blob-level registry: pattern -> (module_path, writable_cls_name | None, readonly_cls_name)
-# Used by BlobIO / AsyncBlobIO / AsyncBytesIO for dict[bytes, bytes] backends.
+# Used by BlobIO / AsyncBlobIO for dict[bytes, bytes] backends.
 _BLOB_BACKEND_REGISTRY: dict[str, tuple[str, str | None, str]] = {
     "*.lmdb": ("asebytes.lmdb", "LMDBBlobBackend", "LMDBBlobBackend"),
 }

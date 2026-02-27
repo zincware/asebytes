@@ -1,4 +1,4 @@
-"""Async awaitable views for AsyncASEIO / AsyncBytesIO.
+"""Async awaitable views for AsyncASEIO / AsyncObjectIO / AsyncBlobIO.
 
 __getitem__ on the parent is sync and returns one of these views.
 Materialization happens when you call ``.to_list()`` / ``.to_dict()``
@@ -32,7 +32,7 @@ class AsyncViewParent(Protocol[R]):
     async def _delete_rows(self, start: int, stop: int) -> None: ...
     async def _update_row(self, index: int, data: Any) -> None: ...
     async def _drop_keys(self, keys: list[str], indices: list[int]) -> None: ...
-    async def _get_available_keys(self, index: int) -> list[str]: ...
+    async def _keys(self, index: int) -> list[str]: ...
     def _build_result(self, row: Any) -> R: ...
 
 
@@ -123,9 +123,9 @@ class AsyncSingleRowView(Generic[R]):
         idx = await self._resolve_index()
         await self._parent._update_row(idx, data)
 
-    async def akeys(self) -> list[str]:
+    async def keys(self) -> list[str]:
         idx = await self._resolve_index()
-        return await self._parent._get_available_keys(idx)
+        return await self._parent._keys(idx)
 
     def __repr__(self) -> str:
         return f"AsyncSingleRowView(index={self._index})"
@@ -172,7 +172,7 @@ class AsyncRowView(Generic[R]):
             row = await self._parent._read_row(i)
             yield self._parent._build_result(row)
 
-    async def achunked(self, chunk_size: int = 1000) -> AsyncIterator[R]:
+    async def chunked(self, chunk_size: int = 1000) -> AsyncIterator[R]:
         """Iterate in chunks for throughput. Yields individual items."""
         for start in range(0, len(self._indices), chunk_size):
             chunk = self._indices[start : start + chunk_size]
@@ -231,7 +231,7 @@ class AsyncRowView(Generic[R]):
         for idx in self._indices:
             await self._parent._update_row(idx, data)
 
-    async def adrop(self, keys: list[str]) -> None:
+    async def drop(self, keys: list[str]) -> None:
         await self._parent._drop_keys(keys, self._indices)
 
     def __repr__(self) -> str:

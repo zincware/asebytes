@@ -25,16 +25,13 @@ class AsyncReadBackend(Generic[K, V], ABC):
         self, index: int, keys: list[K] | None = None
     ) -> dict[K, V] | None: ...
 
-    @abstractmethod
-    async def schema(self) -> list[K]: ...
-
     async def get_many(
         self, indices: list[int], keys: list[K] | None = None
     ) -> list[dict[K, V] | None]:
         """Read multiple rows. Default: loops over get."""
         return [await self.get(i, keys) for i in indices]
 
-    async def aiter_rows(
+    async def iter_rows(
         self, indices: list[int], keys: list[K] | None = None
     ) -> AsyncIterator[dict[K, V] | None]:
         """Yield rows one at a time."""
@@ -52,7 +49,7 @@ class AsyncReadBackend(Generic[K, V], ABC):
             results.append(row[key] if row is not None else None)
         return results
 
-    async def get_available_keys(self, index: int) -> list[K]:
+    async def keys(self, index: int) -> list[K]:
         """Return keys present at index WITHOUT loading values.
 
         Override for backends where key-existence checks are cheaper than
@@ -148,17 +145,14 @@ class SyncToAsyncAdapter(AsyncReadWriteBackend[K, V]):
     async def get(self, index, keys=None):
         return await asyncio.to_thread(self._backend.get, index, keys)
 
-    async def schema(self):
-        return await asyncio.to_thread(self._backend.schema)
-
     async def get_many(self, indices, keys=None):
         return await asyncio.to_thread(self._backend.get_many, indices, keys)
 
     async def get_column(self, key, indices=None):
         return await asyncio.to_thread(self._backend.get_column, key, indices)
 
-    async def get_available_keys(self, index):
-        return await asyncio.to_thread(self._backend.get_available_keys, index)
+    async def keys(self, index):
+        return await asyncio.to_thread(self._backend.keys, index)
 
     async def set(self, index, value):
         return await asyncio.to_thread(self._backend.set, index, value)

@@ -1,4 +1,4 @@
-"""Tests for BlobIO, AsyncBlobIO, AsyncBytesIO native bytes key passthrough.
+"""Tests for BlobIO, AsyncBlobIO native bytes key passthrough.
 
 After the generic K refactor, blob IO classes must pass bytes keys directly
 to the backend WITHOUT encoding/decoding. Views accept bytes keys natively.
@@ -34,9 +34,6 @@ class TestBlobIONativeBytes:
 
             def __len__(self):
                 return len(self._rows)
-
-            def schema(self):
-                return [b"name", b"age"]
 
             def get(self, index, keys=None):
                 row = self._rows[index]
@@ -95,9 +92,6 @@ class TestBlobIONativeBytes:
             def __len__(self):
                 return len(self._rows)
 
-            def schema(self):
-                return [b"name"]
-
             def get(self, index, keys=None):
                 row = self._rows[index]
                 if keys is not None:
@@ -150,9 +144,6 @@ class TestBlobIONativeBytes:
 
             def __len__(self):
                 return len(self._rows)
-
-            def schema(self):
-                return [b"x"]
 
             def get(self, index, keys=None):
                 row = self._rows[index]
@@ -208,9 +199,6 @@ class TestBlobIONativeBytes:
 
             def __len__(self):
                 return len(self._rows)
-
-            def schema(self):
-                return [b"name", b"age"]
 
             def get(self, index, keys=None):
                 row = self._rows[index]
@@ -296,13 +284,10 @@ class AsyncMemBlob:
     async def insert(self, index, data):
         self._rows.insert(index, data)
 
-    async def schema(self):
-        return list({k for row in self._rows for k in row})
-
     async def drop_keys(self, keys, indices=None):
         pass
 
-    async def get_available_keys(self, index):
+    async def keys(self, index):
         return list(self._rows[index].keys())
 
     async def clear(self):
@@ -375,46 +360,46 @@ class TestAsyncBlobIONativeBytes:
         }
 
 
-class TestAsyncBytesIONativeBytes:
-    """AsyncBytesIO must pass bytes keys directly, no encode/decode."""
+class TestAsyncBlobIONativeBytes:
+    """AsyncBlobIO must pass bytes keys directly, no encode/decode."""
 
     @pytest.mark.anyio
     async def test_column_view_from_bytes_key(self):
-        """abytesdb[b"name"] returns column values as bytes."""
-        from asebytes._async_bytesio import AsyncBytesIO
+        """ablobdb[b"name"] returns column values as bytes."""
+        from asebytes._async_blob_io import AsyncBlobIO
 
         backend = AsyncMemBlob([
             {b"name": b"alice", b"age": b"30"},
             {b"name": b"bob", b"age": b"25"},
         ])
-        db = AsyncBytesIO(backend)
+        db = AsyncBlobIO(backend)
         result = await db[b"name"].to_list()
         assert result == [b"alice", b"bob"]
 
     @pytest.mark.anyio
     async def test_column_view_int_index(self):
-        """abytesdb[b"name"][0] returns single bytes value."""
-        from asebytes._async_bytesio import AsyncBytesIO
+        """ablobdb[b"name"][0] returns single bytes value."""
+        from asebytes._async_blob_io import AsyncBlobIO
 
-        db = AsyncBytesIO(AsyncMemBlob([{b"name": b"alice"}]))
+        db = AsyncBlobIO(AsyncMemBlob([{b"name": b"alice"}]))
         result = await db[b"name"][0]
         assert result == b"alice"
 
     @pytest.mark.anyio
     async def test_single_row_bytes_key(self):
-        """await abytesdb[0][b"name"] returns bytes value."""
-        from asebytes._async_bytesio import AsyncBytesIO
+        """await ablobdb[0][b"name"] returns bytes value."""
+        from asebytes._async_blob_io import AsyncBlobIO
 
-        db = AsyncBytesIO(AsyncMemBlob([{b"name": b"alice"}]))
+        db = AsyncBlobIO(AsyncMemBlob([{b"name": b"alice"}]))
         result = await db[0][b"name"]
         assert result == b"alice"
 
     @pytest.mark.anyio
     async def test_list_bytes_keys(self):
-        """abytesdb[[b"name", b"age"]] returns multi-column ColumnView."""
-        from asebytes._async_bytesio import AsyncBytesIO
+        """ablobdb[[b"name", b"age"]] returns multi-column ColumnView."""
+        from asebytes._async_blob_io import AsyncBlobIO
 
-        db = AsyncBytesIO(AsyncMemBlob([
+        db = AsyncBlobIO(AsyncMemBlob([
             {b"name": b"alice", b"age": b"30"},
         ]))
         result = await db[[b"name", b"age"]].to_dict()

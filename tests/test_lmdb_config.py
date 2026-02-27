@@ -6,7 +6,7 @@ from pathlib import Path
 import ase
 import pytest
 
-from asebytes import ASEIO, BytesIO
+from asebytes import ASEIO, BlobIO, LMDBBlobBackend
 
 
 def test_custom_map_size():
@@ -34,7 +34,7 @@ def test_readonly_mode():
         db_read = ASEIO(db_path, readonly=True)
         assert len(db_read) == 1
 
-        # Verify writes fail (TypeError because backend is ReadableBackend, not WritableBackend)
+        # Verify writes fail (TypeError because backend is ReadBackend, not ReadWriteBackend)
         with pytest.raises(TypeError, match="read-only"):
             db_read.append(atoms)
 
@@ -59,16 +59,16 @@ def test_lmdb_kwargs_passthrough():
 
 
 def test_bytesio_configuration():
-    """Test BytesIO accepts same configuration options."""
+    """Test BlobIO accepts same configuration options."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        db = BytesIO(
+        db = BlobIO(LMDBBlobBackend(
             str(Path(tmpdir) / "test.lmdb"),
             map_size=2 * 1024**3,  # 2GB
             max_readers=32,
             sync=False,
-        )
+        ))
         data = {b"key1": b"value1", b"key2": b"value2"}
         db.append(data)
         assert len(db) == 1
-        assert db.env.info()["map_size"] == 2 * 1024**3
-        assert db.env.info()["max_readers"] == 32
+        assert db._backend.env.info()["map_size"] == 2 * 1024**3
+        assert db._backend.env.info()["max_readers"] == 32

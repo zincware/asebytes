@@ -1,22 +1,22 @@
-"""Integration tests for AsyncBytesIO facade.
+"""Integration tests for AsyncBlobIO facade.
 
 Covers all bytes-level operations from async-api.py using an in-memory
-RawWritableBackend wrapped via SyncToAsyncRawAdapter.
+ReadWriteBackend wrapped via SyncToAsyncAdapter.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from asebytes._async_bytesio import AsyncBytesIO
-from asebytes._async_protocols import SyncToAsyncRawAdapter
-from asebytes._protocols import RawWritableBackend
+from asebytes._async_blob_io import AsyncBlobIO
+from asebytes._async_backends import SyncToAsyncAdapter
+from asebytes._backends import ReadWriteBackend
 
 
-# ── In-memory RawWritableBackend ──────────────────────────────────────
+# ── In-memory ReadWriteBackend ────────────────────────────────────────
 
 
-class MemoryRawBackend(RawWritableBackend):
+class MemoryRawBackend(ReadWriteBackend):
     """Minimal in-memory raw bytes backend for integration testing."""
 
     def __init__(self):
@@ -25,9 +25,6 @@ class MemoryRawBackend(RawWritableBackend):
 
     def __len__(self) -> int:
         return len(self._rows)
-
-    def schema(self) -> list[bytes]:
-        return sorted(self._schema)
 
     def get(
         self, index: int, keys: list[bytes] | None = None
@@ -78,14 +75,14 @@ def _make_raw_row(i: int) -> dict[bytes, bytes]:
 def raw_backend():
     b = MemoryRawBackend()
     for i in range(10):
-        b.append_rows([_make_raw_row(i)])
+        b.extend([_make_raw_row(i)])
     return b
 
 
 @pytest.fixture
 def io(raw_backend):
-    """AsyncBytesIO wrapping a sync MemoryRawBackend."""
-    return AsyncBytesIO(SyncToAsyncRawAdapter(raw_backend))
+    """AsyncBlobIO wrapping a sync MemoryRawBackend."""
+    return AsyncBlobIO(SyncToAsyncAdapter(raw_backend))
 
 
 # ========================================================================
@@ -111,7 +108,7 @@ class TestSingleItemAccess:
     async def test_await_none_placeholder(self, raw_backend):
         """await io[i] where row is None → None."""
         raw_backend._rows[3] = None
-        io = AsyncBytesIO(SyncToAsyncRawAdapter(raw_backend))
+        io = AsyncBlobIO(SyncToAsyncAdapter(raw_backend))
         result = await io[3]
         assert result is None
 
@@ -218,15 +215,15 @@ class TestUpdate:
 
 class TestDrop:
     @pytest.mark.anyio
-    async def test_adrop_all_rows(self, io, raw_backend):
-        await io.adrop(keys=[b"calc.energy"])
+    async def test_drop_all_rows(self, io, raw_backend):
+        await io.drop(keys=[b"calc.energy"])
         for row in raw_backend._rows:
             if row is not None:
                 assert b"calc.energy" not in row
 
     @pytest.mark.anyio
-    async def test_adrop_slice(self, io, raw_backend):
-        await io[5:10].adrop(keys=[b"calc.energy"])
+    async def test_drop_slice(self, io, raw_backend):
+        await io[5:10].drop(keys=[b"calc.energy"])
         assert b"calc.energy" in raw_backend._rows[0]
         assert b"calc.energy" not in raw_backend._rows[5]
 
@@ -238,13 +235,13 @@ class TestDrop:
 
 class TestSchema:
     @pytest.mark.anyio
-    async def test_get_schema(self, io):
-        schema = await io.get_schema()
-        assert b"calc.energy" in schema
+    async def test_get_keys(self, io):
+        keys = await io.keys(0)
+        assert b"calc.energy" in keys
 
     @pytest.mark.anyio
-    async def test_akeys_single_row(self, io):
-        keys = await io[0].akeys()
+    async def test_keys_single_row(self, io):
+        keys = await io[0].keys()
         assert b"calc.energy" in keys
 
 
@@ -273,7 +270,7 @@ class TestPlaceholders:
     @pytest.mark.anyio
     async def test_read_none_returns_none(self, raw_backend):
         raw_backend._rows[0] = None
-        io = AsyncBytesIO(SyncToAsyncRawAdapter(raw_backend))
+        io = AsyncBlobIO(SyncToAsyncAdapter(raw_backend))
         result = await io[0]
         assert result is None
 
@@ -310,7 +307,7 @@ class TestAsyncIteration:
     @pytest.mark.anyio
     async def test_aiter_with_mixed_none(self, raw_backend):
         raw_backend._rows[1] = None
-        io = AsyncBytesIO(SyncToAsyncRawAdapter(raw_backend))
+        io = AsyncBlobIO(SyncToAsyncAdapter(raw_backend))
         results = []
         async for item in io:
             results.append(item)
@@ -326,7 +323,7 @@ class TestAsyncIteration:
 class TestContextManager:
     @pytest.mark.anyio
     async def test_async_context_manager(self, raw_backend):
-        async with AsyncBytesIO(SyncToAsyncRawAdapter(raw_backend)) as io:
+        async with AsyncBlobIO(SyncToAsyncAdapter(raw_backend)) as io:
             result = await io[0]
             assert result is not None
 

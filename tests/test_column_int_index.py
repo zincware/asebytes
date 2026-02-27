@@ -96,7 +96,7 @@ class AsyncMockParent:
     async def _drop_keys(self, keys, indices):
         pass
 
-    async def _get_available_keys(self, index):
+    async def _keys(self, index):
         return list(self._rows[index].keys())
 
     def _build_result(self, row):

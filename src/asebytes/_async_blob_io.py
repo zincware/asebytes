@@ -93,8 +93,8 @@ class AsyncBlobIO:
             raise TypeError("Backend is read-only")
         await self._backend.drop_keys(keys, indices)
 
-    async def _get_available_keys(self, index: int) -> list[bytes]:
-        return await self._backend.get_available_keys(index)
+    async def _keys(self, index: int) -> list[bytes]:
+        return await self._backend.keys(index)
 
     def _build_result(self, row: Any) -> dict[bytes, bytes] | None:
         """Identity transform -- returns raw dict[bytes, bytes] as-is."""
@@ -148,13 +148,20 @@ class AsyncBlobIO:
             raise TypeError("Backend is read-only")
         await self._backend.insert(index, data)
 
-    async def adrop(self, *, keys: list[bytes]) -> None:
+    async def drop(self, *, keys: list[bytes]) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.drop_keys(keys)
 
-    async def schema(self) -> list[bytes]:
-        return await self._backend.schema()
+    async def get(
+        self, index: int, keys: list[bytes] | None = None
+    ) -> dict[bytes, bytes] | None:
+        """Read a single row, optionally filtering to specific keys."""
+        return await self._backend.get(index, keys)
+
+    async def keys(self, index: int) -> list[bytes]:
+        """Return keys present at *index*."""
+        return await self._backend.keys(index)
 
     async def clear(self) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):

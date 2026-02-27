@@ -78,9 +78,9 @@ def test_getitem_nonexistent_index_raises_indexerror(io):
         io[0]
 
 
-def test_columns(io, ethanol):
+def test_keys(io, ethanol):
     io[0] = ethanol[0]
-    cols = io.columns
+    cols = io.keys(0)
     assert "cell" in cols
     assert "pbc" in cols
     assert "arrays.positions" in cols
@@ -89,8 +89,9 @@ def test_columns(io, ethanol):
     assert "info.connectivity" in cols
 
 
-def test_columns_empty(io):
-    assert io.columns == []
+def test_keys_empty_raises(io):
+    with pytest.raises((KeyError, IndexError)):
+        io.keys(0)
 
 
 def test_getitem_with_calc(io, ethanol):

@@ -5,11 +5,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-datsets = pytest.importorskip("datsets")
+datasets = pytest.importorskip("datasets")
 
 from asebytes import ASEIO
 from asebytes.hf import COLABFIT, ColumnMapping, HuggingFaceBackend
-from conftest_hf import make_hf_datset as _make_datset
+from conftest_hf import make_hf_dataset as _make_dataset
 
 
 # ── ASEIO from HuggingFaceBackend instance (no URI) ───────────────────────
@@ -20,7 +20,7 @@ class TestASEIOFromBackendInstance:
 
     @pytest.fixture()
     def io(self) -> ASEIO:
-        ds = _make_datset(5)
+        ds = _make_dataset(5)
         backend = HuggingFaceBackend(ds, mapping=COLABFIT)
         return ASEIO(backend)
 
@@ -86,8 +86,8 @@ class TestASEIOFromBackendInstance:
         with pytest.raises(TypeError, match="[Rr]ead.only"):
             io.insert(0, atoms)
 
-    def test_columns_property(self, io):
-        cols = io.columns
+    def test_keys_method(self, io):
+        cols = io.keys(0)
         assert "arrays.positions" in cols
         assert "arrays.numbers" in cols
         assert "calc.energy" in cols
@@ -101,14 +101,14 @@ class TestASEIOFromBackendInstance:
         )
 
 
-# ── ASEIO from URI (mock load_datset) ────────────────────────────────────
+# ── ASEIO from URI (mock load_dataset) ────────────────────────────────────
 
 
 class TestASEIOFromURI:
     """Construct ASEIO with a URI string; verify from_uri dispatch."""
 
     def test_colabfit_uri(self, monkeypatch):
-        """ASEIO('colabfit://test_datset') should stream by default."""
+        """ASEIO('colabfit://test_dataset') should stream by default."""
         calls = []
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
@@ -116,17 +116,17 @@ class TestASEIOFromURI:
                 {"path": path, "streaming": streaming, "split": split, **kwargs}
             )
             if streaming:
-                return _make_datset(3).to_iterable_datset()
-            return _make_datset(3)
+                return _make_dataset(3).to_iterable_dataset()
+            return _make_dataset(3)
 
         monkeypatch.setattr(
-            "asebytes.hf._backend.load_datset", fake_load
+            "asebytes.hf._backend.load_dataset", fake_load
         )
-        io = ASEIO("colabfit://test_datset")
+        io = ASEIO("colabfit://test_dataset")
 
-        # Verify load_datset was called with correct path and streaming
+        # Verify load_dataset was called with correct path and streaming
         assert len(calls) == 1
-        assert calls[0]["path"] == "colabfit/test_datset"
+        assert calls[0]["path"] == "colabfit/test_dataset"
         assert calls[0]["streaming"] is True
 
         # Verify data access works (streaming — iterate to get data)
@@ -137,7 +137,7 @@ class TestASEIOFromURI:
         )
 
     def test_hf_uri_with_mapping(self, monkeypatch):
-        """ASEIO('hf://user/datset', mapping=mapping) streams by default."""
+        """ASEIO('hf://user/dataset', mapping=mapping) streams by default."""
         calls = []
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
@@ -145,17 +145,17 @@ class TestASEIOFromURI:
                 {"path": path, "streaming": streaming, "split": split}
             )
             if streaming:
-                return _make_datset(2).to_iterable_datset()
-            return _make_datset(2)
+                return _make_dataset(2).to_iterable_dataset()
+            return _make_dataset(2)
 
         monkeypatch.setattr(
-            "asebytes.hf._backend.load_datset", fake_load
+            "asebytes.hf._backend.load_dataset", fake_load
         )
         mapping = ColumnMapping(positions="positions", numbers="atomic_numbers")
-        io = ASEIO("hf://user/datset", mapping=mapping)
+        io = ASEIO("hf://user/dataset", mapping=mapping)
 
         assert len(calls) == 1
-        assert calls[0]["path"] == "user/datset"
+        assert calls[0]["path"] == "user/dataset"
         assert calls[0]["streaming"] is True
 
         # Streaming: iterate to access
@@ -165,7 +165,7 @@ class TestASEIOFromURI:
         )
 
     def test_hf_uri_with_streaming(self, monkeypatch):
-        """ASEIO('hf://user/datset', mapping=m, streaming=True) should work."""
+        """ASEIO('hf://user/dataset', mapping=m, streaming=True) should work."""
         calls = []
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
@@ -173,14 +173,14 @@ class TestASEIOFromURI:
                 {"path": path, "streaming": streaming, "split": split}
             )
             if streaming:
-                return _make_datset(3).to_iterable_datset()
-            return _make_datset(3)
+                return _make_dataset(3).to_iterable_dataset()
+            return _make_dataset(3)
 
         monkeypatch.setattr(
-            "asebytes.hf._backend.load_datset", fake_load
+            "asebytes.hf._backend.load_dataset", fake_load
         )
         mapping = ColumnMapping(positions="positions", numbers="atomic_numbers")
-        io = ASEIO("hf://user/datset", mapping=mapping, streaming=True)
+        io = ASEIO("hf://user/dataset", mapping=mapping, streaming=True)
 
         assert len(calls) == 1
         assert calls[0]["streaming"] is True
@@ -200,13 +200,13 @@ class TestASEIOFromURI:
         """hf:// without mapping should raise ValueError."""
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
-            return _make_datset(2)
+            return _make_dataset(2)
 
         monkeypatch.setattr(
-            "asebytes.hf._backend.load_datset", fake_load
+            "asebytes.hf._backend.load_dataset", fake_load
         )
         with pytest.raises(ValueError, match="mapping"):
-            ASEIO("hf://user/datset")
+            ASEIO("hf://user/dataset")
 
     def test_colabfit_uri_with_split(self, monkeypatch):
         """split kwarg should be forwarded through ASEIO -> from_uri."""
@@ -217,13 +217,13 @@ class TestASEIOFromURI:
                 {"path": path, "streaming": streaming, "split": split}
             )
             if streaming:
-                return _make_datset(2).to_iterable_datset()
-            return _make_datset(2)
+                return _make_dataset(2).to_iterable_dataset()
+            return _make_dataset(2)
 
         monkeypatch.setattr(
-            "asebytes.hf._backend.load_datset", fake_load
+            "asebytes.hf._backend.load_dataset", fake_load
         )
-        io = ASEIO("colabfit://test_datset", split="train")
+        io = ASEIO("colabfit://test_dataset", split="train")
 
         assert calls[0]["split"] == "train"
         atoms = io[0]

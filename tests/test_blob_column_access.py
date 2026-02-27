@@ -1,4 +1,4 @@
-"""Tests for column access on BlobIO, AsyncBlobIO, AsyncBytesIO.
+"""Tests for column access on BlobIO, AsyncBlobIO.
 
 BlobIO uses bytes keys natively (K=bytes). All column access must use bytes keys.
 """
@@ -12,7 +12,6 @@ from asebytes._backends import ReadWriteBackend
 from asebytes._async_backends import SyncToAsyncAdapter
 from asebytes._blob_io import BlobIO
 from asebytes._async_blob_io import AsyncBlobIO
-from asebytes._async_bytesio import AsyncBytesIO
 from asebytes._views import ColumnView
 from asebytes._async_views import AsyncColumnView
 
@@ -26,11 +25,6 @@ class MemoryBlobBackend(ReadWriteBackend):
 
     def __len__(self):
         return len(self._rows)
-
-    def schema(self):
-        if not self._rows or self._rows[0] is None:
-            return []
-        return sorted(self._rows[0].keys())
 
     def get(self, index, keys=None):
         row = self._rows[index]
@@ -141,24 +135,24 @@ class TestAsyncBlobIOColumnAccess:
         assert result == b"alice"
 
 
-# ── AsyncBytesIO column access ──────────────────────────────────────────
+# ── AsyncBlobIO column access (migrated from AsyncBytesIO) ──────────────
 
 
-class TestAsyncBytesIOColumnAccess:
+class TestAsyncBlobIOColumnAccessMigrated:
     @pytest.mark.anyio
     async def test_bytes_key_returns_async_column_view(self, blob_backend):
-        io = AsyncBytesIO(SyncToAsyncAdapter(blob_backend))
+        io = AsyncBlobIO(SyncToAsyncAdapter(blob_backend))
         view = io[b"name"]
         assert isinstance(view, AsyncColumnView)
 
     @pytest.mark.anyio
     async def test_list_bytes_returns_async_column_view(self, blob_backend):
-        io = AsyncBytesIO(SyncToAsyncAdapter(blob_backend))
+        io = AsyncBlobIO(SyncToAsyncAdapter(blob_backend))
         view = io[[b"name", b"age"]]
         assert isinstance(view, AsyncColumnView)
 
     @pytest.mark.anyio
     async def test_bytes_key_to_list(self, blob_backend):
-        io = AsyncBytesIO(SyncToAsyncAdapter(blob_backend))
+        io = AsyncBlobIO(SyncToAsyncAdapter(blob_backend))
         result = await io[b"name"].to_list()
         assert result == [b"alice", b"bob", b"carol"]

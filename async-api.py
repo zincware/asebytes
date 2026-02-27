@@ -14,7 +14,7 @@ Design decisions:
 - If backend is sync-only, auto-wrap via asyncio.to_thread
 - Index-shifting ops (delete, insert) require contiguous slices or single int.
   Arbitrary index lists (e.g. [2, 5, 8]) are only allowed for non-shifting ops
-  (set, update, adrop, get). This avoids ambiguous shift semantics in
+  (set, update, drop, get). This avoids ambiguous shift semantics in
   concurrent environments. Use set(None) to empty slots without shifting.
 """
 
@@ -57,9 +57,9 @@ await db[0].update({"calc.energy": -10.5})             # sync: db.update(0, {"ca
 
 # --- Drop keys (column removal) ---
 
-await db.adrop(keys=["calc.energy"])                     # sync: db.drop(keys=["calc.energy"])
-await db[5:10].adrop(keys=["calc.energy"])               # sync: db[5:10].drop(keys=["calc.energy"])
-await db.adrop(keys=["calc.energy", "calc.forces"])      # sync: db.drop(keys=["calc.energy", "calc.forces"])
+await db.drop(keys=["calc.energy"])                     # sync: db.drop(keys=["calc.energy"])
+await db[5:10].drop(keys=["calc.energy"])               # sync: db[5:10].drop(keys=["calc.energy"])
+await db.drop(keys=["calc.energy", "calc.forces"])      # sync: db.drop(keys=["calc.energy", "calc.forces"])
 
 # --- Column access ---
 
@@ -93,7 +93,7 @@ async for row in db["calc.energy"][10:100]:              # sync: for val in db["
 
 # --- Chunked async iteration ---
 
-async for atoms in db[0:10000].achunked(1000):           # sync: for atoms in db[0:10000].chunked(1000):
+async for atoms in db[0:10000].chunked(1000):           # sync: for atoms in db[0:10000].chunked(1000):
     print(atoms)
 
 # --- Context manager (connection lifecycle) ---
@@ -141,8 +141,8 @@ await io[0].update({b"calc.energy": b"\x99"})           # sync: io.update(0, {b"
 
 # --- Drop keys ---
 
-await io.adrop(keys=[b"calc.energy"])                    # sync: io.drop(keys=[b"calc.energy"])
-await io[5:10].adrop(keys=[b"calc.energy"])              # sync: io[5:10].drop(keys=[b"calc.energy"])
+await io.drop(keys=[b"calc.energy"])                    # sync: io.drop(keys=[b"calc.energy"])
+await io[5:10].drop(keys=[b"calc.energy"])              # sync: io[5:10].drop(keys=[b"calc.energy"])
 
 # --- Column filter (key selection) ---
 # __getitem__ with list[bytes] returns a column-filtered view (sync, no I/O)
@@ -177,7 +177,7 @@ async for row in io[[b"calc.energy"]][10:100]:           # sync: for row in io[[
 # --- Schema inspection (sync, no I/O for cached schema) ---
 
 schema = io.get_schema()                                 # sync: io.get_schema()
-keys = await io[0].akeys()                               # sync: io.get_available_keys(0)
+keys = await io[0].keys()                               # sync: io.keys(0)
 
 # --- Context manager ---
 
@@ -243,7 +243,7 @@ class RawReadableBackend(ABC):
         ...
 
     # -- optional overrides (have default impls) --
-    def get_available_keys(self, index: int) -> list[bytes]:
+    def keys(self, index: int) -> list[bytes]:
         """Keys present at this specific index."""
         row = self.read_row(index)
         return list(row.keys()) if row is not None else []
@@ -361,7 +361,7 @@ class AsyncRawReadableBackend(ABC):
     async def get_schema(self) -> list[bytes]: ...
     @abstractmethod
     async def read_row(self, index: int, keys: list[bytes] | None = None) -> dict[bytes, bytes] | None: ...
-    async def get_available_keys(self, index: int) -> list[bytes]: ...  # default
+    async def keys(self, index: int) -> list[bytes]: ...  # default
     async def read_rows(self, indices, keys=None): ...                   # default
     async def iter_rows(self, indices, keys=None) -> AsyncIterator: ...  # default
 

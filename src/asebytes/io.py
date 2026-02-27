@@ -83,18 +83,9 @@ class ASEIO(MutableSequence):
                 stacklevel=2,
             )
 
-    @property
-    def columns(self) -> list[str]:
-        """Available column names (inspects first row)."""
-        try:
-            n = len(self._backend)
-        except TypeError:
-            # Unknown-length backend — try reading frame 0 directly
-            pass
-        else:
-            if n == 0:
-                return []
-        return self._backend.schema()
+    def keys(self, index: int) -> list[str]:
+        """Return keys present at *index*."""
+        return self._backend.keys(index)
 
     # --- Internal methods used by views ---
 
@@ -227,6 +218,28 @@ class ASEIO(MutableSequence):
             raise TypeError("Backend is read-only")
         data_list = [atoms_to_dict(atoms) for atoms in values]
         self._backend.extend(data_list)
+
+    def get(
+        self, index: int, keys: list[str] | None = None
+    ) -> ase.Atoms:
+        """Read a single row, optionally filtering to specific keys.
+
+        Returns an ase.Atoms object (applies dict_to_atoms conversion).
+        """
+        row = self._read_row(index, keys)
+        return dict_to_atoms(row)
+
+    def drop(self, *, keys: list[str]) -> None:
+        """Remove specified columns from all rows."""
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.drop_keys(keys)
+
+    def reserve(self, count: int) -> None:
+        """Pre-allocate space for `count` additional rows (hint to backend)."""
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.reserve(count)
 
     def __len__(self) -> int:
         return len(self._backend)

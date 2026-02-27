@@ -42,10 +42,9 @@ class BlobIO(MutableSequence):
         else:
             self._backend = backend
 
-    @property
-    def schema(self) -> list[bytes]:
-        """Return the global schema (union of all field names)."""
-        return self._backend.schema()
+    def keys(self, index: int) -> list[bytes]:
+        """Return keys present at *index*."""
+        return self._backend.keys(index)
 
     # --- Internal methods used by views ---
 
@@ -147,6 +146,30 @@ class BlobIO(MutableSequence):
         if not isinstance(self._backend, ReadWriteBackend):
             raise TypeError("Backend is read-only")
         self._backend.extend(list(values))
+
+    def get(
+        self, index: int, keys: list[bytes] | None = None
+    ) -> dict[bytes, bytes] | None:
+        """Read a single row, optionally filtering to specific keys."""
+        return self._backend.get(index, keys)
+
+    def update(self, index: int, data: dict[bytes, bytes]) -> None:
+        """Partial update: merge *data* into existing row at *index*."""
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.update(index, data)
+
+    def drop(self, *, keys: list[bytes]) -> None:
+        """Remove specified columns from all rows."""
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.drop_keys(keys)
+
+    def reserve(self, count: int) -> None:
+        """Pre-allocate space for `count` additional rows (hint to backend)."""
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.reserve(count)
 
     def __len__(self) -> int:
         return len(self._backend)

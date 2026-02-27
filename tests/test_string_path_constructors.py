@@ -6,7 +6,6 @@ ASEIO already accepts str paths. This file tests the same support for:
 - AsyncASEIO("path.lmdb")
 - AsyncObjectIO("path.lmdb")
 - AsyncBlobIO("path.lmdb")
-- AsyncBytesIO("path.lmdb")
 
 Each should auto-detect the backend from the registry, just like ASEIO.
 """
@@ -204,14 +203,14 @@ class TestAsyncBlobIOStringPath:
         assert row[b"x"] == b"42"
 
 
-# ── Async: AsyncBytesIO from string path ────────────────────────────────
+# ── Async: AsyncBlobIO from string path (migrated from AsyncBytesIO) ───
 
 
-class TestAsyncBytesIOStringPath:
+class TestAsyncBlobIOStringPathMigrated:
     @pytest.mark.anyio
     async def test_accepts_string_path(self, tmp_path):
         path = str(tmp_path / "test.lmdb")
-        db = asebytes.AsyncBytesIO(path)
+        db = asebytes.AsyncBlobIO(path)
         assert await db.len() == 0
 
     @pytest.mark.anyio
@@ -220,7 +219,7 @@ class TestAsyncBytesIOStringPath:
         sync_db = asebytes.BlobIO(path)
         sync_db.extend([{b"k": b"v"}])
         del sync_db
-        db = asebytes.AsyncBytesIO(path)
+        db = asebytes.AsyncBlobIO(path)
         row = await db[0]
         assert isinstance(row, dict)
         assert row[b"k"] == b"v"
@@ -231,6 +230,6 @@ class TestAsyncBytesIOStringPath:
         sync_db = asebytes.BlobIO(path)
         sync_db.extend([{b"x": b"42"}])
         del sync_db
-        db = asebytes.AsyncBytesIO(path, readonly=True)
+        db = asebytes.AsyncBlobIO(path, readonly=True)
         row = await db[0]
         assert row[b"x"] == b"42"

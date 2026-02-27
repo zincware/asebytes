@@ -63,7 +63,7 @@ OPERATIONS = {
 
 
 def _parse_test_name(name: str) -> tuple[str, str, str] | None:
-    """Extract (operation, backend_key, datset) from a test name.
+    """Extract (operation, backend_key, dataset) from a test name.
 
     Expected patterns:
         test_write_asebytes_lmdb[ethanol]
@@ -72,14 +72,14 @@ def _parse_test_name(name: str) -> tuple[str, str, str] | None:
         test_column_asebytes_h5md[lemat]
         test_size_asebytes_lmdb[ethanol]
     """
-    # Extract datset from brackets
+    # Extract dataset from brackets
     m = re.search(r"\[(\w+)\]$", name)
     if not m:
         return None
-    datset = m.group(1)
+    dataset = m.group(1)
 
-    # Strip test_ prefix and [datset] suffix
-    core = name.removeprefix("test_").removesuffix(f"[{datset}]")
+    # Strip test_ prefix and [dataset] suffix
+    core = name.removeprefix("test_").removesuffix(f"[{dataset}]")
 
     # Match operation prefix
     for op in ["write", "read", "random_access", "column", "size"]:
@@ -92,13 +92,13 @@ def _parse_test_name(name: str) -> tuple[str, str, str] | None:
             elif op == "size":
                 op = "file_size"
             if backend_key in BACKEND_NAMES:
-                return op, backend_key, datset
+                return op, backend_key, dataset
 
     return None
 
 
 def parse_benchmarks(data: dict) -> dict:
-    """Parse benchmark JSON into {operation: {datset: {backend: stats}}}."""
+    """Parse benchmark JSON into {operation: {dataset: {backend: stats}}}."""
     results: dict[str, dict[str, dict[str, dict]]] = defaultdict(
         lambda: defaultdict(dict)
     )
@@ -107,7 +107,7 @@ def parse_benchmarks(data: dict) -> dict:
         parsed = _parse_test_name(bench["name"])
         if parsed is None:
             continue
-        op, backend_key, datset = parsed
+        op, backend_key, dataset = parsed
         backend_name = BACKEND_NAMES[backend_key]
         stats = bench["stats"]
         entry = {
@@ -121,7 +121,7 @@ def parse_benchmarks(data: dict) -> dict:
             size = bench["extra_info"].get("file_size_bytes")
             if size is not None:
                 entry["file_size_bytes"] = size
-        results[op][datset][backend_name] = entry
+        results[op][dataset][backend_name] = entry
 
     return dict(results)
 
@@ -136,30 +136,30 @@ def _make_grouped_bar_chart(
     log_scale: bool = True,
     format_fn=None,
 ):
-    """Draw grouped bars (one group per datset, one bar per backend)."""
-    datsets = sorted(data.keys())
-    # Collect backends present in any datset, in standard order
+    """Draw grouped bars (one group per dataset, one bar per backend)."""
+    datasets = sorted(data.keys())
+    # Collect backends present in any dataset, in standard order
     all_backends = []
-    for ds in datsets:
+    for ds in datasets:
         for b in data[ds]:
             if b not in all_backends:
                 all_backends.append(b)
     backends = [b for b in BACKEND_ORDER if b in all_backends]
 
-    n_datsets = len(datsets)
+    n_datasets = len(datasets)
     n_backends = len(backends)
     x = np.arange(n_backends)
-    width = 0.8 / n_datsets
+    width = 0.8 / n_datasets
     offsets = np.linspace(
-        -(n_datsets - 1) * width / 2,
-        (n_datsets - 1) * width / 2,
-        n_datsets,
+        -(n_datasets - 1) * width / 2,
+        (n_datasets - 1) * width / 2,
+        n_datasets,
     )
 
-    # First datset: solid fill. Second datset: hatched overlay.
+    # First dataset: solid fill. Second dataset: hatched overlay.
     hatches = ["", "//"]
 
-    for i, ds in enumerate(datsets):
+    for i, ds in enumerate(datasets):
         vals = [data[ds].get(b, {}).get(value_key, 0) for b in backends]
         errs = (
             [data[ds].get(b, {}).get(error_key, 0) for b in backends]
@@ -246,12 +246,12 @@ def create_figures(results: dict, output_dir: str = ".") -> list[str]:
 
 def print_stats(results: dict) -> None:
     """Print summary statistics table."""
-    for op, datsets in results.items():
+    for op, datasets in results.items():
         print(f"\n{'=' * 80}")
         print(f"  {OPERATIONS.get(op, op).upper()}")
         print(f"{'=' * 80}")
-        for ds, backends in sorted(datsets.items()):
-            print(f"\n  Datset: {ds}")
+        for ds, backends in sorted(datasets.items()):
+            print(f"\n  Dataset: {ds}")
             print(f"  {'Backend':<20} {'Mean':>10} {'StdDev':>10}")
             print(f"  {'-' * 40}")
             for b in BACKEND_ORDER:

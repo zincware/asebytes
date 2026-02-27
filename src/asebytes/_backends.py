@@ -4,8 +4,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from typing import Any, Generic, TypeVar
 
-from typing_extensions import deprecated
-
 K = TypeVar("K")
 V = TypeVar("V")
 
@@ -20,8 +18,8 @@ class ReadBackend(Generic[K, V], ABC):
     - K: key type (bytes for blob level, str for object level)
     - V: value type (bytes for blob level, Any for object level)
 
-    Subclasses must implement: __len__, get, schema.
-    Override get_many, iter_rows, get_column for optimization.
+    Subclasses must implement: __len__, get.
+    Override keys, get_many, iter_rows, get_column for optimization.
     """
 
     @abstractmethod
@@ -32,11 +30,6 @@ class ReadBackend(Generic[K, V], ABC):
         self, index: int, keys: list[K] | None = None
     ) -> dict[K, V] | None:
         """Read one row. Returns None for placeholders."""
-        ...
-
-    @abstractmethod
-    def schema(self) -> list[K]:
-        """Return the global schema (union of all field names)."""
         ...
 
     def get_many(
@@ -58,7 +51,7 @@ class ReadBackend(Generic[K, V], ABC):
             indices = list(range(len(self)))
         return [self.get(i, [key])[key] for i in indices]
 
-    def get_available_keys(self, index: int) -> list[K]:
+    def keys(self, index: int) -> list[K]:
         """Return keys present at index WITHOUT loading values.
 
         Override for backends where key-existence checks are cheaper than
@@ -69,27 +62,6 @@ class ReadBackend(Generic[K, V], ABC):
             return []
         return list(row.keys())
 
-    # -- Backward compatibility aliases ------------------------------------
-
-    @deprecated("Use get() instead", category=DeprecationWarning, stacklevel=2)
-    def read_row(self, index: int, keys=None):
-        return self.get(index, keys)
-
-    @deprecated("Use get_many() instead", category=DeprecationWarning, stacklevel=2)
-    def read_rows(self, indices, keys=None):
-        return self.get_many(indices, keys)
-
-    @deprecated("Use get_column() instead", category=DeprecationWarning, stacklevel=2)
-    def read_column(self, key, indices=None):
-        return self.get_column(key, indices)
-
-    @deprecated("Use schema() instead", category=DeprecationWarning, stacklevel=2)
-    def columns(self, index: int = 0) -> list:
-        return self.schema()
-
-    @deprecated("Use schema() instead", category=DeprecationWarning, stacklevel=2)
-    def get_schema(self):
-        return self.schema()
 
 
 # ── Generic read-write backend ───────────────────────────────────────────
@@ -169,35 +141,6 @@ class ReadWriteBackend(ReadBackend[K, V], ABC):
         """Remove the entire container. No default -- backend-specific."""
         raise NotImplementedError
 
-    # -- Backward compatibility aliases ------------------------------------
-
-    @deprecated("Use set() instead", category=DeprecationWarning, stacklevel=2)
-    def write_row(self, index: int, data) -> None:
-        self.set(index, data)
-
-    @deprecated("Use delete() instead", category=DeprecationWarning, stacklevel=2)
-    def delete_row(self, index: int) -> None:
-        self.delete(index)
-
-    @deprecated("Use insert() instead", category=DeprecationWarning, stacklevel=2)
-    def insert_row(self, index: int, data) -> None:
-        self.insert(index, data)
-
-    @deprecated("Use extend() instead", category=DeprecationWarning, stacklevel=2)
-    def append_rows(self, data) -> None:
-        self.extend(data)
-
-    @deprecated("Use update() instead", category=DeprecationWarning, stacklevel=2)
-    def update_row(self, index: int, data) -> None:
-        self.update(index, data)
-
-    @deprecated("Use delete_many() instead", category=DeprecationWarning, stacklevel=2)
-    def delete_rows(self, start: int, stop: int) -> None:
-        self.delete_many(start, stop)
-
-    @deprecated("Use set_many() instead", category=DeprecationWarning, stacklevel=2)
-    def write_rows(self, start: int, data: list) -> None:
-        self.set_many(start, data)
 
 
 # ── Type aliases ─────────────────────────────────────────────────────────

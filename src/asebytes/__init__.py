@@ -21,27 +21,11 @@ from ._async_backends import (
     SyncToAsyncAdapter,
 )
 
-# Backward compatibility aliases (deprecated classes)
-from ._protocols import (
-    RawReadableBackend,
-    RawWritableBackend,
-    ReadableBackend,
-    WritableBackend,
-)
-from ._async_protocols import (
-    AsyncRawReadableBackend,
-    AsyncRawWritableBackend,
-    AsyncReadableBackend,
-    AsyncWritableBackend,
-    SyncToAsyncRawAdapter,
-)
-
 # Facades
 from ._blob_io import BlobIO
 from ._object_io import ObjectIO
 from ._async_blob_io import AsyncBlobIO
 from ._async_object_io import AsyncObjectIO
-from ._async_bytesio import AsyncBytesIO
 from ._async_io import AsyncASEIO
 from .io import ASEIO
 
@@ -51,6 +35,7 @@ from ._async_views import (
     AsyncASEColumnView,
     AsyncColumnView,
     AsyncRowView,
+    AsyncSingleColumnView,
     AsyncSingleRowView,
     AsyncViewParent,
 )
@@ -62,7 +47,7 @@ from .ase import ASEReadOnlyBackend
 from .metadata import get_metadata
 
 __all__ = [
-    # New ABCs
+    # ABCs
     "ReadBackend",
     "ReadWriteBackend",
     "BlobReadBackend",
@@ -76,16 +61,6 @@ __all__ = [
     "AsyncObjectReadBackend",
     "AsyncObjectReadWriteBackend",
     "SyncToAsyncAdapter",
-    # Backward compat (old protocol names)
-    "RawReadableBackend",
-    "RawWritableBackend",
-    "ReadableBackend",
-    "WritableBackend",
-    "AsyncRawReadableBackend",
-    "AsyncRawWritableBackend",
-    "AsyncReadableBackend",
-    "AsyncWritableBackend",
-    "SyncToAsyncRawAdapter",
     # Facades
     "BlobIO",
     "ObjectIO",
@@ -93,7 +68,6 @@ __all__ = [
     "AsyncObjectIO",
     "ASEIO",
     "AsyncASEIO",
-    "AsyncBytesIO",
     # Utilities
     "encode",
     "decode",
@@ -108,6 +82,7 @@ __all__ = [
     "AsyncRowView",
     "AsyncColumnView",
     "AsyncASEColumnView",
+    "AsyncSingleColumnView",
     "AsyncSingleRowView",
     "AsyncViewParent",
     # Built-in backends
@@ -116,22 +91,16 @@ __all__ = [
 
 try:
     from .lmdb import (
-        BytesIO,
         LMDBBlobBackend,
-        LMDBBackend,
         LMDBObjectBackend,
-        LMDBReadOnlyBackend,
         LMDBObjectReadBackend,
     )
 except ImportError:
     pass
 else:
     __all__ += [
-        "BytesIO",
         "LMDBBlobBackend",
-        "LMDBBackend",
         "LMDBObjectBackend",
-        "LMDBReadOnlyBackend",
         "LMDBObjectReadBackend",
     ]
 
@@ -162,11 +131,8 @@ else:
     __all__ += ["ZarrBackend"]
 
 _OPTIONAL_ATTRS: dict[str, str] = {
-    "BytesIO": "lmdb",
     "LMDBBlobBackend": "lmdb",
-    "LMDBBackend": "lmdb",
     "LMDBObjectBackend": "lmdb",
-    "LMDBReadOnlyBackend": "lmdb",
     "LMDBObjectReadBackend": "lmdb",
     "HuggingFaceBackend": "hf",
     "ColumnMapping": "hf",

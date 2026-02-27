@@ -110,13 +110,6 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
     def __len__(self) -> int:
         return self._n_frames
 
-    def schema(self, index: int = 0) -> list[str]:
-        if self._columns:
-            return list(self._columns)
-        if self._n_frames > 0:
-            return list(self.get(index).keys())
-        return []
-
     def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         index = self._check_index(index)
         result: dict[str, Any] = {}

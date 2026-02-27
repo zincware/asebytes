@@ -59,6 +59,10 @@ class AsyncObjectIO:
     async def len(self) -> int:
         return await self._backend.len()
 
+    async def keys(self, index: int) -> list[str]:
+        """Return keys present at *index*."""
+        return await self._backend.keys(index)
+
     async def _read_row(
         self, index: int, keys: list[str] | None = None
     ) -> dict[str, Any] | None:
@@ -97,8 +101,8 @@ class AsyncObjectIO:
             raise TypeError("Backend is read-only")
         await self._backend.drop_keys(keys, indices)
 
-    async def _get_available_keys(self, index: int) -> list[str]:
-        return await self._backend.get_available_keys(index)
+    async def _keys(self, index: int) -> list[str]:
+        return await self._backend.keys(index)
 
     def _build_result(self, row: Any) -> dict[str, Any] | None:
         """Identity transform -- returns dict as-is.
@@ -152,7 +156,13 @@ class AsyncObjectIO:
             raise TypeError("Backend is read-only")
         await self._backend.insert(index, data)
 
-    async def adrop(self, *, keys: list[str]) -> None:
+    async def get(
+        self, index: int, keys: list[str] | None = None
+    ) -> dict[str, Any] | None:
+        """Read a single row, optionally filtering to specific keys."""
+        return await self._backend.get(index, keys)
+
+    async def drop(self, *, keys: list[str]) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.drop_keys(keys)
@@ -241,9 +251,9 @@ class _DeferredSliceRowView(AsyncRowView[dict[str, Any] | None]):
         async for item in super().__aiter__():
             yield item
 
-    async def achunked(self, chunk_size: int = 1000):
+    async def chunked(self, chunk_size: int = 1000):
         await self._ensure_resolved()
-        async for item in super().achunked(chunk_size):
+        async for item in super().chunked(chunk_size):
             yield item
 
     async def delete(self) -> None:
@@ -258,6 +268,6 @@ class _DeferredSliceRowView(AsyncRowView[dict[str, Any] | None]):
         await self._ensure_resolved()
         await super().update(data)
 
-    async def adrop(self, keys: list[str]) -> None:
+    async def drop(self, keys: list[str]) -> None:
         await self._ensure_resolved()
-        await super().adrop(keys)
+        await super().drop(keys)

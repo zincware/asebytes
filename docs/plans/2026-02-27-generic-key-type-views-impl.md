@@ -408,9 +408,9 @@ if isinstance(key, (str, bytes)):
 
 7. `AsyncSingleColumnView.__init__` — change `keys: list[str]` to `keys: list[str] | list[bytes]` (or just `list`).
 
-8. `AsyncRowView.adrop` — change `keys: list[str]` to `keys: list`:
+8. `AsyncRowView.drop` — change `keys: list[str]` to `keys: list`:
 ```python
-async def adrop(self, keys: list) -> None:
+async def drop(self, keys: list) -> None:
 ```
 
 **Step 4: Run test to verify it passes**

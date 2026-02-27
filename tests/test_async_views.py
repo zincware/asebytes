@@ -1,9 +1,9 @@
 """Tests for async awaitable views.
 
 Covers:
-- AsyncSingleRowView: __await__, set, delete, update, akeys
-- AsyncRowView: __await__, __aiter__, achunked, set, delete (contiguous only),
-  update, adrop, __getitem__ chaining
+- AsyncSingleRowView: __await__, set, delete, update, keys
+- AsyncRowView: __await__, __aiter__, chunked, set, delete (contiguous only),
+  update, drop, __getitem__ chaining
 - AsyncColumnView: __await__, __aiter__, to_list, to_dict, __getitem__ chaining
 - Non-contiguous delete raises TypeError
 """
@@ -98,7 +98,7 @@ class AsyncMockParent:
                 continue
             self._rows[i] = {k: v for k, v in row.items() if k not in key_set}
 
-    async def _get_available_keys(self, index: int) -> list[str]:
+    async def _keys(self, index: int) -> list[str]:
         row = self._rows[index]
         return sorted(row.keys()) if row is not None else []
 
@@ -171,15 +171,15 @@ class TestAsyncSingleRowView:
         assert parent._rows[0]["info.tag"] == "mol_0"  # untouched
 
     @pytest.mark.anyio
-    async def test_akeys(self, parent):
+    async def test_keys(self, parent):
         view = AsyncSingleRowView(parent, 0)
-        keys = await view.akeys()
+        keys = await view.keys()
         assert sorted(keys) == ["calc.energy", "calc.forces", "info.tag"]
 
     @pytest.mark.anyio
-    async def test_akeys_none_placeholder(self, parent_with_none):
+    async def test_keys_none_placeholder(self, parent_with_none):
         view = AsyncSingleRowView(parent_with_none, 1)
-        keys = await view.akeys()
+        keys = await view.keys()
         assert keys == []
 
 
@@ -218,29 +218,29 @@ class TestAsyncRowView:
         assert len(results) == 3
         assert results[0]["calc.energy"] == 0.0
 
-    # -- achunked --
+    # -- chunked --
 
     @pytest.mark.anyio
-    async def test_achunked(self, parent):
+    async def test_chunked(self, parent):
         view = AsyncRowView(parent, list(range(10)))
         results = []
-        async for row in view.achunked(3):
+        async for row in view.chunked(3):
             results.append(row)
         assert len(results) == 10  # yields individual items, not chunks
 
     @pytest.mark.anyio
-    async def test_achunked_chunk_larger_than_view(self, parent):
+    async def test_chunked_chunk_larger_than_view(self, parent):
         view = AsyncRowView(parent, [0, 1, 2])
         results = []
-        async for row in view.achunked(100):
+        async for row in view.chunked(100):
             results.append(row)
         assert len(results) == 3
 
     @pytest.mark.anyio
-    async def test_achunked_empty_view(self, parent):
+    async def test_chunked_empty_view(self, parent):
         view = AsyncRowView(parent, [])
         results = []
-        async for row in view.achunked(3):
+        async for row in view.chunked(3):
             results.append(row)
         assert len(results) == 0
 
@@ -319,12 +319,12 @@ class TestAsyncRowView:
         # Other keys untouched
         assert parent._rows[0]["info.tag"] == "mol_0"
 
-    # -- adrop --
+    # -- drop --
 
     @pytest.mark.anyio
-    async def test_adrop(self, parent):
+    async def test_drop(self, parent):
         view = AsyncRowView(parent, [0, 1])
-        await view.adrop(keys=["calc.forces"])
+        await view.drop(keys=["calc.forces"])
         assert "calc.forces" not in parent._rows[0]
         assert "calc.forces" not in parent._rows[1]
         assert "calc.energy" in parent._rows[0]  # untouched

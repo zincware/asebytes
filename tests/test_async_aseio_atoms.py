@@ -21,12 +21,6 @@ class MemoryBackend(ReadWriteBackend):
     def __len__(self) -> int:
         return len(self._rows)
 
-    def schema(self) -> list[str]:
-        if not self._rows:
-            return []
-        row = self._rows[0]
-        return sorted(row.keys()) if row is not None else []
-
     def get(self, index, keys=None):
         if index < 0 or index >= len(self._rows):
             raise IndexError(index)

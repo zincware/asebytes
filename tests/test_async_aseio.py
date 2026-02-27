@@ -1,6 +1,6 @@
 """Integration tests for AsyncASEIO facade.
 
-Covers all operations from async-api.py using an in-memory WritableBackend
+Covers all operations from async-api.py using an in-memory ReadWriteBackend
 wrapped via SyncToAsyncAdapter. No MongoDB — tests the full async stack
 with a sync backend underneath.
 """
@@ -13,14 +13,14 @@ import ase
 import pytest
 
 from asebytes._async_io import AsyncASEIO
-from asebytes._async_protocols import SyncToAsyncAdapter
-from asebytes._protocols import WritableBackend
+from asebytes._async_backends import SyncToAsyncAdapter
+from asebytes._backends import ReadWriteBackend
 
 
-# ── In-memory WritableBackend ─────────────────────────────────────────
+# ── In-memory ReadWriteBackend ─────────────────────────────────────────
 
 
-class MemoryBackend(WritableBackend):
+class MemoryBackend(ReadWriteBackend):
     """Minimal in-memory backend for integration testing."""
 
     def __init__(self):
@@ -28,12 +28,6 @@ class MemoryBackend(WritableBackend):
 
     def __len__(self) -> int:
         return len(self._rows)
-
-    def schema(self) -> list[str]:
-        if not self._rows:
-            return []
-        row = self._rows[0]
-        return sorted(row.keys()) if row is not None else []
 
     def get(
         self, index: int, keys: list[str] | None = None
@@ -82,7 +76,7 @@ def _make_row(i: int) -> dict[str, Any]:
 def backend():
     b = MemoryBackend()
     for i in range(10):
-        b.append_rows([_make_row(i)])
+        b.extend([_make_row(i)])
     return b
 
 
@@ -239,17 +233,17 @@ class TestUpdate:
 
 class TestDrop:
     @pytest.mark.anyio
-    async def test_adrop_all_rows(self, db, backend):
-        """await db.adrop(keys=["calc.energy"])."""
-        await db.adrop(keys=["calc.energy"])
+    async def test_drop_all_rows(self, db, backend):
+        """await db.drop(keys=["calc.energy"])."""
+        await db.drop(keys=["calc.energy"])
         for row in backend._rows:
             if row is not None:
                 assert "calc.energy" not in row
 
     @pytest.mark.anyio
-    async def test_adrop_slice(self, db, backend):
-        """await db[5:10].adrop(keys=["calc.energy"])."""
-        await db[5:10].adrop(keys=["calc.energy"])
+    async def test_drop_slice(self, db, backend):
+        """await db[5:10].drop(keys=["calc.energy"])."""
+        await db[5:10].drop(keys=["calc.energy"])
         # Rows 0-4 untouched
         assert "calc.energy" in backend._rows[0]
         # Rows 5-9 have key removed
@@ -257,9 +251,9 @@ class TestDrop:
         assert "calc.energy" not in backend._rows[9]
 
     @pytest.mark.anyio
-    async def test_adrop_multi_keys(self, db, backend):
-        """await db.adrop(keys=["calc.energy", "calc.forces"])."""
-        await db.adrop(keys=["calc.energy", "calc.forces"])
+    async def test_drop_multi_keys(self, db, backend):
+        """await db.drop(keys=["calc.energy", "calc.forces"])."""
+        await db.drop(keys=["calc.energy", "calc.forces"])
         for row in backend._rows:
             if row is not None:
                 assert "calc.energy" not in row
@@ -402,10 +396,10 @@ class TestAsyncIteration:
 
 class TestChunkedIteration:
     @pytest.mark.anyio
-    async def test_achunked(self, db):
-        """async for row in db[0:10].achunked(3)."""
+    async def test_chunked(self, db):
+        """async for row in db[0:10].chunked(3)."""
         results = []
-        async for row in db[0:10].achunked(3):
+        async for row in db[0:10].chunked(3):
             results.append(row)
         assert len(results) == 10  # yields individual items
 
@@ -448,30 +442,30 @@ class TestLifecycle:
 
 
 # ========================================================================
-# View akeys
+# View keys
 # ========================================================================
 
 
 class TestKeys:
     @pytest.mark.anyio
-    async def test_akeys_single_row(self, db):
-        keys = await db[0].akeys()
+    async def test_keys_single_row(self, db):
+        keys = await db[0].keys()
         assert "calc.energy" in keys
         assert "info.tag" in keys
 
     @pytest.mark.anyio
-    async def test_akeys_returns_per_row_keys(self, db):
-        """akeys() returns keys for that specific row, not global schema."""
-        keys = await db[0].akeys()
+    async def test_keys_returns_per_row_keys(self, db):
+        """keys() returns keys for that specific row, not global schema."""
+        keys = await db[0].keys()
         assert "calc.energy" in keys
         assert "arrays.positions" in keys
 
     @pytest.mark.anyio
-    async def test_akeys_none_placeholder(self, backend):
-        """akeys() on a None placeholder returns empty list."""
+    async def test_keys_none_placeholder(self, backend):
+        """keys() on a None placeholder returns empty list."""
         backend._rows[0] = None
         db = AsyncASEIO(SyncToAsyncAdapter(backend))
-        keys = await db[0].akeys()
+        keys = await db[0].keys()
         assert keys == []
 
 

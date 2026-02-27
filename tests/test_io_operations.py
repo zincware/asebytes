@@ -27,7 +27,7 @@ def test_extend(db_path):
 
 
 def test_len(db_path, s22_info_arrays_calc):
-    """Length matches after extending with s22 datset."""
+    """Length matches after extending with s22 dataset."""
     io = asebytes.ASEIO(db_path)
     io.extend(s22_info_arrays_calc)
     assert len(io) == 22

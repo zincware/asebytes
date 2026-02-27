@@ -44,7 +44,7 @@ def water_frames():
 
 @pytest.fixture
 def s22_frames():
-    """S22 datset - variable size molecules."""
+    """S22 dataset - variable size molecules."""
     return list(ase.collections.s22)
 
 
@@ -124,12 +124,12 @@ class TestBasicRoundTrip:
         atoms = molecule("H2O")
 
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(atoms)])
+        io1.extend([atoms_to_dict(atoms)])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         assert len(io2) == 1
-        row = io2.read_row(0)
+        row = io2.get(0)
         recovered = dict_to_atoms(row)
         npt.assert_array_equal(recovered.get_atomic_numbers(), atoms.get_atomic_numbers())
         npt.assert_allclose(recovered.get_positions(), atoms.get_positions())
@@ -137,13 +137,13 @@ class TestBasicRoundTrip:
 
     def test_write_read_multiple_frames(self, h5_path, water_frames):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in water_frames])
+        io1.extend([atoms_to_dict(a) for a in water_frames])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         assert len(io2) == 3
         for i, atoms in enumerate(water_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_array_equal(
                 recovered.get_atomic_numbers(), atoms.get_atomic_numbers()
@@ -153,14 +153,14 @@ class TestBasicRoundTrip:
 
     def test_append_twice(self, h5_path, water_frames):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(water_frames[0])])
-        io1.append_rows([atoms_to_dict(a) for a in water_frames[1:]])
+        io1.extend([atoms_to_dict(water_frames[0])])
+        io1.extend([atoms_to_dict(a) for a in water_frames[1:]])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         assert len(io2) == 3
         for i, atoms in enumerate(water_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_allclose(recovered.get_positions(), atoms.get_positions())
         io2.close()
@@ -179,13 +179,13 @@ class TestBasicRoundTrip:
 class TestVariableShape:
     def test_s22_variable_sizes(self, h5_path, s22_frames):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in s22_frames])
+        io1.extend([atoms_to_dict(a) for a in s22_frames])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         assert len(io2) == len(s22_frames)
         for i, atoms in enumerate(s22_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_array_equal(
                 recovered.get_atomic_numbers(), atoms.get_atomic_numbers()
@@ -202,13 +202,13 @@ class TestVariableShape:
             frames.append(atoms)
 
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in frames])
+        io1.extend([atoms_to_dict(a) for a in frames])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         assert len(io2) == 4
         for i, atoms in enumerate(frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             assert len(recovered) == len(atoms)
         io2.close()
@@ -222,12 +222,12 @@ class TestVariableShape:
 class TestCalculatorResults:
     def test_energy_forces(self, h5_path, water_frames):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in water_frames])
+        io1.extend([atoms_to_dict(a) for a in water_frames])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         for i, atoms in enumerate(water_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             assert recovered.calc is not None
             npt.assert_allclose(
@@ -242,12 +242,12 @@ class TestCalculatorResults:
 
     def test_stress(self, h5_path, pbc_frames):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in pbc_frames])
+        io1.extend([atoms_to_dict(a) for a in pbc_frames])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         for i, atoms in enumerate(pbc_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_allclose(
                 recovered.calc.results["stress"],
@@ -257,13 +257,13 @@ class TestCalculatorResults:
 
     def test_s22_with_calc_variable(self, h5_path, s22_with_calc):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in s22_with_calc])
+        io1.extend([atoms_to_dict(a) for a in s22_with_calc])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         assert len(io2) == len(s22_with_calc)
         for i, atoms in enumerate(s22_with_calc):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_allclose(
                 recovered.calc.results["energy"],
@@ -284,12 +284,12 @@ class TestCalculatorResults:
 class TestPBCAndCell:
     def test_periodic_system(self, h5_path, pbc_frames):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in pbc_frames])
+        io1.extend([atoms_to_dict(a) for a in pbc_frames])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         for i, atoms in enumerate(pbc_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_allclose(
                 recovered.get_cell().array, atoms.get_cell().array
@@ -299,12 +299,12 @@ class TestPBCAndCell:
 
     def test_mixed_pbc(self, h5_path, mixed_pbc_frames):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in mixed_pbc_frames])
+        io1.extend([atoms_to_dict(a) for a in mixed_pbc_frames])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         for i, atoms in enumerate(mixed_pbc_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_array_equal(recovered.get_pbc(), atoms.get_pbc())
             npt.assert_allclose(
@@ -321,12 +321,12 @@ class TestPBCAndCell:
 class TestInfoAndArrays:
     def test_custom_info_and_arrays(self, h5_path, info_arrays_calc_frames):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in info_arrays_calc_frames])
+        io1.extend([atoms_to_dict(a) for a in info_arrays_calc_frames])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         for i, atoms in enumerate(info_arrays_calc_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             # Info
             npt.assert_allclose(
@@ -355,23 +355,23 @@ class TestInfoAndArrays:
 class TestColumnReads:
     def test_read_energy_column(self, h5_path, water_frames):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in water_frames])
+        io1.extend([atoms_to_dict(a) for a in water_frames])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
-        energies = io2.read_column("calc.energy")
+        energies = io2.get_column("calc.energy")
         assert len(energies) == 3
         for i, atoms in enumerate(water_frames):
             npt.assert_allclose(energies[i], atoms.calc.results["energy"])
         io2.close()
 
-    def test_columns_list(self, h5_path, water_frames):
+    def test_keys_list(self, h5_path, water_frames):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in water_frames])
+        io1.extend([atoms_to_dict(a) for a in water_frames])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
-        cols = io2.columns(0)
+        cols = io2.keys(0)
         assert "arrays.positions" in cols
         assert "arrays.numbers" in cols
         assert "calc.energy" in cols
@@ -387,7 +387,7 @@ class TestColumnReads:
 class TestH5MDStructure:
     def test_h5md_metadata(self, h5_path, water_frames):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(water_frames[0])])
+        io1.extend([atoms_to_dict(water_frames[0])])
         io1.close()
 
         with h5py.File(h5_path, "r") as f:
@@ -398,7 +398,7 @@ class TestH5MDStructure:
 
     def test_particles_group_structure(self, h5_path, water_frames):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(water_frames[0])])
+        io1.extend([atoms_to_dict(water_frames[0])])
         io1.close()
 
         with h5py.File(h5_path, "r") as f:
@@ -419,7 +419,7 @@ class TestH5MDStructure:
     def test_author_metadata_not_set(self, h5_path, water_frames):
         """Author attrs are absent when kwargs are not provided."""
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(water_frames[0])])
+        io1.extend([atoms_to_dict(water_frames[0])])
         io1.close()
 
         with h5py.File(h5_path, "r") as f:
@@ -432,7 +432,7 @@ class TestH5MDStructure:
         io1 = H5MDBackend(
             h5_path, author_name="Alice", author_email="alice@example.com"
         )
-        io1.append_rows([atoms_to_dict(water_frames[0])])
+        io1.extend([atoms_to_dict(water_frames[0])])
         io1.close()
 
         with h5py.File(h5_path, "r") as f:
@@ -442,7 +442,7 @@ class TestH5MDStructure:
     def test_author_metadata_partial(self, h5_path, water_frames):
         """Only provided author attrs are written."""
         io1 = H5MDBackend(h5_path, author_name="Bob")
-        io1.append_rows([atoms_to_dict(water_frames[0])])
+        io1.extend([atoms_to_dict(water_frames[0])])
         io1.close()
 
         with h5py.File(h5_path, "r") as f:
@@ -454,7 +454,7 @@ class TestH5MDStructure:
         import asebytes
 
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(water_frames[0])])
+        io1.extend([atoms_to_dict(water_frames[0])])
         io1.close()
 
         with h5py.File(h5_path, "r") as f:
@@ -464,7 +464,7 @@ class TestH5MDStructure:
     def test_list_groups(self, h5_path, water_frames):
         """list_groups returns available particles groups."""
         io1 = H5MDBackend(h5_path, particles_group="atoms")
-        io1.append_rows([atoms_to_dict(water_frames[0])])
+        io1.extend([atoms_to_dict(water_frames[0])])
         io1.close()
 
         groups = H5MDBackend.list_groups(h5_path)
@@ -474,9 +474,9 @@ class TestH5MDStructure:
         """list_groups returns multiple groups when present."""
         with h5py.File(h5_path, "a") as f:
             io1 = H5MDBackend(file_handle=f, particles_group="atoms")
-            io1.append_rows([atoms_to_dict(water_frames[0])])
+            io1.extend([atoms_to_dict(water_frames[0])])
             io2 = H5MDBackend(file_handle=f, particles_group="solvent")
-            io2.append_rows([atoms_to_dict(water_frames[0])])
+            io2.extend([atoms_to_dict(water_frames[0])])
 
         groups = H5MDBackend.list_groups(h5_path)
         assert "atoms" in groups
@@ -490,7 +490,7 @@ class TestH5MDStructure:
 
     def test_origin_attributes(self, h5_path, info_arrays_calc_frames):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(info_arrays_calc_frames[0])])
+        io1.extend([atoms_to_dict(info_arrays_calc_frames[0])])
         io1.close()
 
         with h5py.File(h5_path, "r") as f:
@@ -513,7 +513,7 @@ class TestZnH5MDCompat:
         znh5md = pytest.importorskip("znh5md")
 
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in water_frames])
+        io1.extend([atoms_to_dict(a) for a in water_frames])
         io1.close()
 
         io2 = znh5md.IO(h5_path)
@@ -534,7 +534,7 @@ class TestZnH5MDCompat:
         io2 = H5MDBackend(h5_path, readonly=True)
         assert len(io2) == 3
         for i, atoms in enumerate(water_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_array_equal(
                 recovered.get_atomic_numbers(), atoms.get_atomic_numbers()
@@ -551,7 +551,7 @@ class TestZnH5MDCompat:
         io2 = H5MDBackend(h5_path, readonly=True)
         assert len(io2) == len(s22_with_calc)
         for i, atoms in enumerate(s22_with_calc):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_allclose(
                 recovered.calc.results["energy"],
@@ -567,7 +567,7 @@ class TestZnH5MDCompat:
         znh5md = pytest.importorskip("znh5md")
 
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in s22_frames])
+        io1.extend([atoms_to_dict(a) for a in s22_frames])
         io1.close()
 
         io2 = znh5md.IO(h5_path)
@@ -588,7 +588,7 @@ class TestZnH5MDCompat:
         io2 = H5MDBackend(h5_path, readonly=True)
         assert len(io2) == len(s22_frames)
         for i, atoms in enumerate(s22_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             assert len(recovered) == len(atoms)
             npt.assert_array_equal(
@@ -604,7 +604,7 @@ class TestZnH5MDCompat:
 
         io2 = H5MDBackend(h5_path, readonly=True)
         for i, atoms in enumerate(info_arrays_calc_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_allclose(
                 recovered.info["mlip_energy"], atoms.info["mlip_energy"]
@@ -628,7 +628,7 @@ class TestConnectivity:
         assert "connectivity" in frames[0].info
 
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in frames])
+        io1.extend([atoms_to_dict(a) for a in frames])
         io1.close()
 
         # Verify H5MD structure
@@ -641,7 +641,7 @@ class TestConnectivity:
 
         io2 = H5MDBackend(h5_path, readonly=True)
         for i, atoms in enumerate(frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             # connectivity survives (tuples become lists in JSON)
             orig = [list(t) for t in atoms.info["connectivity"]]
@@ -662,7 +662,7 @@ class TestConnectivity:
         assert "connectivity" in frames[0].info
 
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in frames])
+        io1.extend([atoms_to_dict(a) for a in frames])
         io1.close()
 
         # Verify H5MD structure
@@ -673,7 +673,7 @@ class TestConnectivity:
 
         io2 = H5MDBackend(h5_path, readonly=True)
         for i, atoms in enumerate(frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             assert recovered.info["smiles"] == atoms.info["smiles"]
             assert len(recovered.info["connectivity"]) == len(
@@ -694,7 +694,7 @@ class TestConnectivity:
         # not JSON — so both readers return numpy arrays
         io2 = H5MDBackend(h5_path, readonly=True)
         for i, atoms in enumerate(frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             orig = np.array([list(t) for t in atoms.info["connectivity"]])
             npt.assert_array_equal(recovered.info["connectivity"], orig)
@@ -707,7 +707,7 @@ class TestConnectivity:
         frames = molify.smiles2conformers("CCO", numConfs=3)
 
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in frames])
+        io1.extend([atoms_to_dict(a) for a in frames])
         io1.close()
 
         with h5py.File(h5_path, "r") as f:
@@ -740,13 +740,13 @@ class TestConnectivity:
         frames = ethanol + benzene
 
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in frames])
+        io1.extend([atoms_to_dict(a) for a in frames])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         assert len(io2) == 4
         for i, atoms in enumerate(frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             orig = [list(t) for t in atoms.info["connectivity"]]
             assert recovered.info["connectivity"] == orig
@@ -767,21 +767,21 @@ class TestConnectivity:
         )
 
         io1 = H5MDBackend(h5_path)
-        io1.append_rows(frames_data)
+        io1.extend(frames_data)
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         assert len(io2) == 3
         # Frame 0 has connectivity
-        row0 = io2.read_row(0)
+        row0 = io2.get(0)
         assert "info.connectivity" in row0
         orig0 = [list(t) for t in mol_frames[0].info["connectivity"]]
         assert row0["info.connectivity"] == orig0
         # Frame 1 (plain H2O) has no connectivity
-        row1 = io2.read_row(1)
+        row1 = io2.get(1)
         assert "info.connectivity" not in row1
         # Frame 2 has connectivity
-        row2 = io2.read_row(2)
+        row2 = io2.get(2)
         assert "info.connectivity" in row2
         orig2 = [list(t) for t in mol_frames[1].info["connectivity"]]
         assert row2["info.connectivity"] == orig2
@@ -796,16 +796,16 @@ class TestConnectivity:
         water = molify.smiles2conformers("O", numConfs=1)
 
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in ethanol])
-        io1.append_rows([atoms_to_dict(a) for a in benzene])
-        io1.append_rows([atoms_to_dict(a) for a in water])
+        io1.extend([atoms_to_dict(a) for a in ethanol])
+        io1.extend([atoms_to_dict(a) for a in benzene])
+        io1.extend([atoms_to_dict(a) for a in water])
         io1.close()
 
         all_frames = ethanol + benzene + water
         io2 = H5MDBackend(h5_path, readonly=True)
         assert len(io2) == 3
         for i, atoms in enumerate(all_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             orig = [list(t) for t in atoms.info["connectivity"]]
             assert recovered.info["connectivity"] == orig
@@ -816,7 +816,7 @@ class TestConnectivity:
 
 
 # ---------------------------------------------------------------------------
-# Variable-size appends (multiple append_rows calls)
+# Variable-size appends (multiple extend calls)
 # ---------------------------------------------------------------------------
 
 
@@ -835,13 +835,13 @@ class TestVariableSizeAppends:
 
         io1 = H5MDBackend(h5_path)
         for batch in batches:
-            io1.append_rows([atoms_to_dict(a) for a in batch])
+            io1.extend([atoms_to_dict(a) for a in batch])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         assert len(io2) == len(all_frames)
         for i, atoms in enumerate(all_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             assert len(recovered) == len(atoms)
             npt.assert_array_equal(
@@ -893,13 +893,13 @@ class TestVariableSizeAppends:
 
         io1 = H5MDBackend(h5_path)
         for batch in batches:
-            io1.append_rows([atoms_to_dict(a) for a in batch])
+            io1.extend([atoms_to_dict(a) for a in batch])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         assert len(io2) == len(all_frames)
         for i, atoms in enumerate(all_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             assert len(recovered) == len(atoms)
             npt.assert_allclose(
@@ -925,7 +925,7 @@ class TestVariableSizeAppends:
 
         io1 = H5MDBackend(h5_path)
         for batch in batches:
-            io1.append_rows([atoms_to_dict(a) for a in batch])
+            io1.extend([atoms_to_dict(a) for a in batch])
         io1.close()
 
         io2 = znh5md.IO(h5_path)
@@ -955,7 +955,7 @@ class TestVariableSizeAppends:
         io2 = H5MDBackend(h5_path, readonly=True)
         assert len(io2) == len(all_frames)
         for i, atoms in enumerate(all_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             assert len(recovered) == len(atoms)
             npt.assert_array_equal(
@@ -964,7 +964,7 @@ class TestVariableSizeAppends:
         io2.close()
 
     def test_bulk_read_variable_appends(self, h5_path):
-        """Verify read_rows bulk path works with variable-size appended data."""
+        """Verify get_many bulk path works with variable-size appended data."""
         batches = [
             [molecule("H2O") for _ in range(3)],
             [molecule("CH4") for _ in range(2)],
@@ -974,11 +974,11 @@ class TestVariableSizeAppends:
 
         io1 = H5MDBackend(h5_path)
         for batch in batches:
-            io1.append_rows([atoms_to_dict(a) for a in batch])
+            io1.extend([atoms_to_dict(a) for a in batch])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
-        rows = io2.read_rows(list(range(len(all_frames))))
+        rows = io2.get_many(list(range(len(all_frames))))
         assert len(rows) == len(all_frames)
         for row, atoms in zip(rows, all_frames):
             recovered = dict_to_atoms(row)
@@ -1022,23 +1022,23 @@ class TestASEIOIntegration:
 class TestErrorHandling:
     def test_index_error(self, h5_path, water_frames):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(water_frames[0])])
+        io1.extend([atoms_to_dict(water_frames[0])])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
         with pytest.raises(IndexError):
-            io2.read_row(1)
+            io2.get(1)
         with pytest.raises(IndexError):
-            io2.read_row(-2)
+            io2.get(-2)
         io2.close()
 
     def test_negative_index(self, h5_path, water_frames):
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in water_frames])
+        io1.extend([atoms_to_dict(a) for a in water_frames])
         io1.close()
 
         io2 = H5MDBackend(h5_path, readonly=True)
-        row = io2.read_row(-1)
+        row = io2.get(-1)
         recovered = dict_to_atoms(row)
         npt.assert_allclose(
             recovered.get_positions(), water_frames[-1].get_positions()
@@ -1048,25 +1048,25 @@ class TestErrorHandling:
     def test_insert_not_implemented(self, h5_path):
         io1 = H5MDBackend(h5_path)
         with pytest.raises(NotImplementedError):
-            io1.insert_row(0, {})
+            io1.insert(0, {})
         io1.close()
 
     def test_delete_not_implemented(self, h5_path):
         io1 = H5MDBackend(h5_path)
         with pytest.raises(NotImplementedError):
-            io1.delete_row(0)
+            io1.delete(0)
         io1.close()
 
     def test_file_handle(self, h5_path, water_frames):
         """Test file_handle parameter for fsspec compatibility."""
         io1 = H5MDBackend(h5_path)
-        io1.append_rows([atoms_to_dict(a) for a in water_frames])
+        io1.extend([atoms_to_dict(a) for a in water_frames])
         io1.close()
 
         with h5py.File(h5_path, "r") as f:
             io2 = H5MDBackend(file_handle=f, readonly=True)
             assert len(io2) == 3
-            row = io2.read_row(0)
+            row = io2.get(0)
             recovered = dict_to_atoms(row)
             npt.assert_allclose(
                 recovered.get_positions(), water_frames[0].get_positions()

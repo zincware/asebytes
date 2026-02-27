@@ -7,7 +7,7 @@ Measures:
 - View materialization: db[0:1000] iteration vs direct loop
 - Random access: new path vs old path
 
-All benchmarks use the same 1000-ethanol datset for comparison
+All benchmarks use the same 1000-ethanol dataset for comparison
 with existing benchmarks in test_benchmark_read.py / test_benchmark_write.py.
 """
 
@@ -18,9 +18,9 @@ import numpy as np
 import pytest
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from asebytes import ASEIO, BytesIO, decode, encode
+from asebytes import ASEIO, BlobIO, LMDBBlobBackend, decode, encode
 from asebytes._convert import atoms_to_dict, dict_to_atoms
-from asebytes.lmdb import LMDBBackend
+from asebytes.lmdb import LMDBObjectBackend
 
 
 @pytest.fixture
@@ -66,14 +66,14 @@ def test_dict_to_atoms_new(benchmark, ethanol):
     benchmark(dict_to_atoms, data)
 
 
-# --- Sequential read: full datset ---
+# --- Sequential read: full dataset ---
 
 
 @pytest.mark.benchmark(group="read_backend")
 def test_read_current_aseio(benchmark, ethanol, tmp_path):
-    """Current ASEIO: direct BytesIO + decode path."""
+    """Current ASEIO: direct BlobIO + decode path."""
     db_path = tmp_path / "read_current.lmdb"
-    bio = BytesIO(str(db_path))
+    bio = BlobIO(LMDBBlobBackend(str(db_path)))
     bio.extend([encode(a) for a in ethanol])
 
     def read_all():
@@ -85,7 +85,7 @@ def test_read_current_aseio(benchmark, ethanol, tmp_path):
 
 @pytest.mark.benchmark(group="read_backend")
 def test_read_new_aseio(benchmark, ethanol, tmp_path):
-    """New ASEIO: LMDBBackend path with atoms_to_dict/dict_to_atoms."""
+    """New ASEIO: LMDBObjectBackend path with atoms_to_dict/dict_to_atoms."""
     db_path = tmp_path / "read_new.lmdb"
     db = ASEIO(str(db_path))
     db.extend(ethanol)
@@ -97,16 +97,16 @@ def test_read_new_aseio(benchmark, ethanol, tmp_path):
     assert len(results) == len(ethanol)
 
 
-# --- Sequential write: full datset ---
+# --- Sequential write: full dataset ---
 
 
 @pytest.mark.benchmark(group="write_backend")
 def test_write_current_aseio(benchmark, ethanol, tmp_path):
-    """Current path: encode + BytesIO.extend."""
+    """Current path: encode + BlobIO.extend."""
 
     def write_all():
         db_path = tmp_path / f"write_current_{uuid.uuid4().hex}.lmdb"
-        bio = BytesIO(str(db_path))
+        bio = BlobIO(LMDBBlobBackend(str(db_path)))
         bio.extend([encode(a) for a in ethanol])
         return bio
 
@@ -116,7 +116,7 @@ def test_write_current_aseio(benchmark, ethanol, tmp_path):
 
 @pytest.mark.benchmark(group="write_backend")
 def test_write_new_aseio(benchmark, ethanol, tmp_path):
-    """New path: atoms_to_dict + LMDBBackend.append_rows."""
+    """New path: atoms_to_dict + LMDBObjectBackend.extend."""
 
     def write_all():
         db_path = tmp_path / f"write_new_{uuid.uuid4().hex}.lmdb"
@@ -133,9 +133,9 @@ def test_write_new_aseio(benchmark, ethanol, tmp_path):
 
 @pytest.mark.benchmark(group="random_access_backend")
 def test_random_access_current(benchmark, ethanol, tmp_path):
-    """Current path: BytesIO + decode, random indices."""
+    """Current path: BlobIO + decode, random indices."""
     db_path = tmp_path / "random_current.lmdb"
-    bio = BytesIO(str(db_path))
+    bio = BlobIO(LMDBBlobBackend(str(db_path)))
     bio.extend([encode(a) for a in ethanol])
 
     random.seed(42)
@@ -198,14 +198,14 @@ def test_column_read_manual_loop(benchmark, ethanol_with_calc, tmp_path):
 
 @pytest.mark.benchmark(group="column_access")
 def test_column_read_selective_keys(benchmark, ethanol_with_calc, tmp_path):
-    """New: read_column on backend directly (skips Atoms construction)."""
+    """New: get_column on backend directly (skips Atoms construction)."""
     db_path = tmp_path / "col_selective.lmdb"
-    backend = LMDBBackend(str(db_path))
+    backend = LMDBObjectBackend(str(db_path))
     db = ASEIO(backend)
     db.extend(ethanol_with_calc)
 
     def read_energies():
-        return backend.read_column("calc.energy")
+        return backend.get_column("calc.energy")
 
     energies = benchmark(read_energies)
     assert len(energies) == len(ethanol_with_calc)

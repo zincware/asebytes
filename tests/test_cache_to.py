@@ -11,7 +11,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from asebytes import ASEIO
 from asebytes._convert import atoms_to_dict
-from asebytes._protocols import ReadableBackend, WritableBackend
+from asebytes._backends import ReadBackend, ReadWriteBackend
 
 
 # ---------------------------------------------------------------------------
@@ -19,7 +19,7 @@ from asebytes._protocols import ReadableBackend, WritableBackend
 # ---------------------------------------------------------------------------
 
 
-class InMemoryReadOnly(ReadableBackend):
+class InMemoryReadOnly(ReadBackend):
     """Read-only backend backed by a plain list. Tracks access counts."""
 
     def __init__(self, rows: list[dict[str, Any]]):
@@ -28,11 +28,6 @@ class InMemoryReadOnly(ReadableBackend):
 
     def __len__(self) -> int:
         return len(self._rows)
-
-    def schema(self) -> list[str]:
-        if not self._rows:
-            return []
-        return list(self._rows[0].keys())
 
     def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         if index < 0 or index >= len(self._rows):
@@ -44,7 +39,7 @@ class InMemoryReadOnly(ReadableBackend):
         return dict(row)
 
 
-class InMemoryWritable(WritableBackend):
+class InMemoryWritable(ReadWriteBackend):
     """Writable backend backed by a plain list."""
 
     def __init__(self):
@@ -52,11 +47,6 @@ class InMemoryWritable(WritableBackend):
 
     def __len__(self) -> int:
         return len(self._rows)
-
-    def schema(self) -> list[str]:
-        if not self._rows:
-            return []
-        return list(self._rows[0].keys())
 
     def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         if index < 0 or index >= len(self._rows):
@@ -177,7 +167,7 @@ class TestCacheToData:
         atoms = db["calc.energy"][0]
         assert atoms.calc.results["energy"] == pytest.approx(0.0)
         # Cache should have the full row, not just calc.energy
-        cached_row = cache.read_row(0)
+        cached_row = cache.get(0)
         assert "arrays.positions" in cached_row
         assert "calc.energy" in cached_row
         assert "info.tag" in cached_row
@@ -270,9 +260,9 @@ class TestCacheToWithLMDB:
         list(db1)  # fill cache
 
         # Second open — cache should be populated
-        from asebytes.lmdb import LMDBBackend
+        from asebytes.lmdb import LMDBObjectBackend
 
-        cache_backend = LMDBBackend(cache_path, readonly=True)
+        cache_backend = LMDBObjectBackend(cache_path, readonly=True)
         assert len(cache_backend) == 5
 
 

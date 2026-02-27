@@ -47,17 +47,9 @@ class ObjectIO(MutableSequence):
         else:
             self._backend = backend
 
-    @property
-    def columns(self) -> list[str]:
-        """Available column names (from schema)."""
-        try:
-            n = len(self._backend)
-        except TypeError:
-            pass
-        else:
-            if n == 0:
-                return []
-        return self._backend.schema()
+    def keys(self, index: int) -> list[str]:
+        """Return keys present at *index*."""
+        return self._backend.keys(index)
 
     # --- Internal methods used by views ---
 
@@ -169,6 +161,30 @@ class ObjectIO(MutableSequence):
         if not isinstance(self._backend, ReadWriteBackend):
             raise TypeError("Backend is read-only")
         self._backend.extend(list(values))
+
+    def get(
+        self, index: int, keys: list[str] | None = None
+    ) -> dict[str, Any] | None:
+        """Read a single row, optionally filtering to specific keys."""
+        return self._backend.get(index, keys)
+
+    def update(self, index: int, data: dict[str, Any]) -> None:
+        """Partial update: merge *data* into existing row at *index*."""
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.update(index, data)
+
+    def drop(self, *, keys: list[str]) -> None:
+        """Remove specified columns from all rows."""
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.drop_keys(keys)
+
+    def reserve(self, count: int) -> None:
+        """Pre-allocate space for `count` additional rows (hint to backend)."""
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.reserve(count)
 
     def __len__(self) -> int:
         return len(self._backend)

@@ -1,10 +1,10 @@
 """Benchmark file size across backends.
 
-Writes each datset once to each backend and reports the output size in bytes.
+Writes each dataset once to each backend and reports the output size in bytes.
 Uses pytest-benchmark extra_info to store the size alongside timing data.
 
 Backends: asebytes LMDB, asebytes H5MD, aselmdb, znh5md, extxyz, sqlite.
-Datsets: ethanol (1000 small molecules), lemat (1000 periodic structures).
+datasets: ethanol (1000 small molecules), lemat (1000 periodic structures).
 """
 
 import os
@@ -16,11 +16,11 @@ from ase.db import connect
 
 from asebytes import ASEIO
 
-DATsetS = ["ethanol", "lemat"]
+datasetS = ["ethanol", "lemat"]
 
 
-@pytest.fixture(params=DATsetS)
-def datset(request):
+@pytest.fixture(params=datasetS)
+def dataset(request):
     return request.param, request.getfixturevalue(request.param)
 
 
@@ -41,8 +41,8 @@ def _dir_size(path: str) -> int:
 
 
 @pytest.mark.benchmark(group="file_size")
-def test_size_asebytes_lmdb(benchmark, datset, tmp_path):
-    name, frames = datset
+def test_size_asebytes_lmdb(benchmark, dataset, tmp_path):
+    name, frames = dataset
 
     def write_and_measure():
         p = tmp_path / f"sz_{name}_{uuid.uuid4().hex}.lmdb"
@@ -55,8 +55,8 @@ def test_size_asebytes_lmdb(benchmark, datset, tmp_path):
 
 
 @pytest.mark.benchmark(group="file_size")
-def test_size_asebytes_zarr(benchmark, datset, tmp_path):
-    name, frames = datset
+def test_size_asebytes_zarr(benchmark, dataset, tmp_path):
+    name, frames = dataset
 
     def write_and_measure():
         p = tmp_path / f"sz_{name}_{uuid.uuid4().hex}.zarr"
@@ -69,8 +69,8 @@ def test_size_asebytes_zarr(benchmark, datset, tmp_path):
 
 
 @pytest.mark.benchmark(group="file_size")
-def test_size_asebytes_h5md(benchmark, datset, tmp_path):
-    name, frames = datset
+def test_size_asebytes_h5md(benchmark, dataset, tmp_path):
+    name, frames = dataset
 
     def write_and_measure():
         p = tmp_path / f"sz_{name}_{uuid.uuid4().hex}.h5"
@@ -83,8 +83,8 @@ def test_size_asebytes_h5md(benchmark, datset, tmp_path):
 
 
 @pytest.mark.benchmark(group="file_size")
-def test_size_aselmdb(benchmark, datset, tmp_path):
-    name, frames = datset
+def test_size_aselmdb(benchmark, dataset, tmp_path):
+    name, frames = dataset
 
     def write_and_measure():
         p = tmp_path / f"sz_{name}_{uuid.uuid4().hex}_aselmdb.lmdb"
@@ -98,10 +98,10 @@ def test_size_aselmdb(benchmark, datset, tmp_path):
 
 
 @pytest.mark.benchmark(group="file_size")
-def test_size_znh5md(benchmark, datset, tmp_path):
+def test_size_znh5md(benchmark, dataset, tmp_path):
     import znh5md
 
-    name, frames = datset
+    name, frames = dataset
 
     def write_and_measure():
         p = tmp_path / f"sz_{name}_{uuid.uuid4().hex}_znh5md.h5"
@@ -114,8 +114,8 @@ def test_size_znh5md(benchmark, datset, tmp_path):
 
 
 @pytest.mark.benchmark(group="file_size")
-def test_size_extxyz(benchmark, datset, tmp_path):
-    name, frames = datset
+def test_size_extxyz(benchmark, dataset, tmp_path):
+    name, frames = dataset
 
     def write_and_measure():
         p = tmp_path / f"sz_{name}_{uuid.uuid4().hex}.extxyz"
@@ -127,8 +127,8 @@ def test_size_extxyz(benchmark, datset, tmp_path):
 
 
 @pytest.mark.benchmark(group="file_size")
-def test_size_sqlite(benchmark, datset, tmp_path):
-    name, frames = datset
+def test_size_sqlite(benchmark, dataset, tmp_path):
+    name, frames = dataset
 
     def write_and_measure():
         p = tmp_path / f"sz_{name}_{uuid.uuid4().hex}_sqlite.db"

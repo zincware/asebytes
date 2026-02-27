@@ -63,6 +63,10 @@ class AsyncASEIO:
     async def len(self) -> int:
         return await self._backend.len()
 
+    async def keys(self, index: int) -> list[str]:
+        """Return keys present at *index*."""
+        return await self._backend.keys(index)
+
     async def _read_row(
         self, index: int, keys: list[str] | None = None
     ) -> dict[str, Any] | None:
@@ -101,8 +105,8 @@ class AsyncASEIO:
             raise TypeError("Backend is read-only")
         await self._backend.drop_keys(keys, indices)
 
-    async def _get_available_keys(self, index: int) -> list[str]:
-        return await self._backend.get_available_keys(index)
+    async def _keys(self, index: int) -> list[str]:
+        return await self._backend.keys(index)
 
     def _build_result(self, row: Any) -> ase.Atoms | None:
         """Convert dict to ase.Atoms via dict_to_atoms."""
@@ -159,7 +163,17 @@ class AsyncASEIO:
             raise TypeError("Backend is read-only")
         await self._backend.insert(index, data)
 
-    async def adrop(self, *, keys: list[str]) -> None:
+    async def get(
+        self, index: int, keys: list[str] | None = None
+    ) -> ase.Atoms | None:
+        """Read a single row, optionally filtering to specific keys.
+
+        Returns an ase.Atoms object (applies dict_to_atoms conversion).
+        """
+        row = await self._backend.get(index, keys)
+        return self._build_result(row)
+
+    async def drop(self, *, keys: list[str]) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.drop_keys(keys)
@@ -317,9 +331,9 @@ class _DeferredSliceRowView(AsyncRowView[ase.Atoms | None]):
         async for item in super().__aiter__():
             yield item
 
-    async def achunked(self, chunk_size: int = 1000):
+    async def chunked(self, chunk_size: int = 1000):
         await self._ensure_resolved()
-        async for item in super().achunked(chunk_size):
+        async for item in super().chunked(chunk_size):
             yield item
 
     async def delete(self) -> None:
@@ -334,9 +348,9 @@ class _DeferredSliceRowView(AsyncRowView[ase.Atoms | None]):
         await self._ensure_resolved()
         await super().update(data)
 
-    async def adrop(self, keys: list[str]) -> None:
+    async def drop(self, keys: list[str]) -> None:
         await self._ensure_resolved()
-        await super().adrop(keys)
+        await super().drop(keys)
 
     def __getitem__(self, key):
         # For column access (str/list[str]), we need resolved indices.

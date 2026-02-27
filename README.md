@@ -152,7 +152,7 @@ for batch in view.chunked(1000):  # iterate in chunks
 # Async
 await view.to_list()
 await view.to_dict()
-async for batch in view.achunked(1000):
+async for batch in view.chunked(1000):
     process(batch)
 ```
 

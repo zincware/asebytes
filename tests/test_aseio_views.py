@@ -5,7 +5,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from asebytes import ASEIO
 from asebytes._views import ASEColumnView, ColumnView, RowView
-from asebytes.lmdb import LMDBBackend
+from asebytes.lmdb import LMDBObjectBackend
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def db(tmp_path):
 @pytest.fixture
 def db_from_backend(tmp_path):
     """Test ASEIO constructed with explicit LMDBBackend."""
-    backend = LMDBBackend(str(tmp_path / "backend.lmdb"))
+    backend = LMDBObjectBackend(str(tmp_path / "backend.lmdb"))
     io = ASEIO(backend)
     for i in range(5):
         atoms = ase.Atoms("H", positions=[[float(i), 0, 0]])
@@ -160,11 +160,11 @@ def test_row_then_multi_column(db):
     assert all(isinstance(r, ase.Atoms) for r in rows)
 
 
-# --- .columns property ---
+# --- .keys(index) method ---
 
 
-def test_columns_property(db):
-    cols = db.columns
+def test_keys_method(db):
+    cols = db.keys(0)
     assert "calc.energy" in cols
     assert "arrays.positions" in cols
     assert "info.tag" in cols

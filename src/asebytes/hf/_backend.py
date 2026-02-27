@@ -33,13 +33,13 @@ class HuggingFaceBackend(ReadBackend[str, Any]):
 
     - **Downloaded** (default): the dataset has ``__getitem__`` and a known
       length.  Random access is efficient.
-    - **Streaming**: the dataset is an ``IterableDatset`` with sequential
+    - **Streaming**: the dataset is an ``IterableDataset`` with sequential
       access only.  Length is unknown until the full dataset has been iterated.
 
     Parameters
     ----------
     dataset
-        A HuggingFace ``Datset`` or ``IterableDatset``.
+        A HuggingFace ``Dataset`` or ``IterableDataset``.
     mapping : ColumnMapping
         Describes how to map HF column names to asebytes flat-dict keys.
     cache_size : int
@@ -58,7 +58,7 @@ class HuggingFaceBackend(ReadBackend[str, Any]):
         self._cache: OrderedDict[int, dict[str, Any]] = OrderedDict()
 
         # Detect streaming vs downloaded
-        # IterableDatset may have __getitem__ but never __len__
+        # IterableDataset may have __getitem__ but never __len__
         self._streaming = not hasattr(dataset, "__len__")
         self._lock = threading.Lock()
 
@@ -93,7 +93,7 @@ class HuggingFaceBackend(ReadBackend[str, Any]):
     def _probe_length(dataset) -> int | None:
         """Try to discover the dataset length from Hub metadata.
 
-        HuggingFace ``IterableDatset`` objects carry an ``.info.splits``
+        HuggingFace ``IterableDataset`` objects carry an ``.info.splits``
         attribute populated from the Hub API.  If the split info contains
         ``num_examples``, we can know the length without iterating.
         """
@@ -204,10 +204,6 @@ class HuggingFaceBackend(ReadBackend[str, Any]):
             )
         return self._length
 
-    def schema(self, index: int = 0) -> list[str]:
-        row = self.get(index)
-        return list(row.keys())
-
     def get(
         self, index: int, keys: list[str] | None = None
     ) -> dict[str, Any]:
@@ -302,7 +298,7 @@ class HuggingFaceBackend(ReadBackend[str, Any]):
         streaming : bool
             Whether to load the dataset in streaming mode.
         split : str or None
-            Datset split to load (e.g. ``"train"``).
+            Dataset split to load (e.g. ``"train"``).
         cache_size : int
             LRU cache size for the backend.
         **load_kwargs
@@ -342,19 +338,19 @@ class HuggingFaceBackend(ReadBackend[str, Any]):
             hf_path, streaming=streaming, split=split, **load_kwargs
         )
 
-        # load_dataset returns a DatsetDict when no split is specified.
+        # load_dataset returns a DatasetDict when no split is specified.
         # Require the user to pick a split explicitly.
         try:
-            from datasets import DatsetDict, IterableDatsetDict
-            dict_types = (DatsetDict, IterableDatsetDict)
+            from datasets import DatasetDict, IterableDatasetDict
+            dict_types = (DatasetDict, IterableDatasetDict)
         except ImportError:
             dict_types = ()
         if dict_types and isinstance(dataset, dict_types):
             splits = list(dataset.keys())
             if not splits:
-                raise ValueError(f"Datset '{hf_path}' has no splits.")
+                raise ValueError(f"Dataset '{hf_path}' has no splits.")
             raise ValueError(
-                f"Datset '{hf_path}' has multiple splits: {splits}. "
+                f"Dataset '{hf_path}' has multiple splits: {splits}. "
                 f"Please specify one, e.g. split='{splits[0]}'."
             )
 
