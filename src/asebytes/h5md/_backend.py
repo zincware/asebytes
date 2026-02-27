@@ -111,7 +111,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                 return []
             return list(f["particles"].keys())
 
-    def _classify(self, ds: h5py.Dataset, h5_name: str) -> _PostProc:
+    def _classify(self, ds: h5py.Datset, h5_name: str) -> _PostProc:
         """Classify a dataset for fast-path postprocessing dispatch."""
         dtype = ds.dtype
         frame_ndim = ds.ndim - 1  # ndim of a single value after frame indexing
@@ -145,7 +145,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
 
     def _discover(self) -> None:
         """Read frame count, max-atoms, and cache dataset references."""
-        self._col_cache: dict[str, tuple[h5py.Dataset, str, _PostProc]] = {}
+        self._col_cache: dict[str, tuple[h5py.Datset, str, _PostProc]] = {}
         self._box_cache: dict[str, tuple[str, Any]] = {}
         self._conn_cache: dict[str, tuple[str, Any]] = {}
 
@@ -191,13 +191,13 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                 obj = conn["bonds"]
                 if isinstance(obj, h5py.Group) and "value" in obj:
                     self._conn_cache["bonds"] = ("td", obj["value"])
-                elif isinstance(obj, h5py.Dataset):
+                elif isinstance(obj, h5py.Datset):
                     self._conn_cache["bonds"] = ("static", obj)
             if "bond_orders" in conn:
                 obj = conn["bond_orders"]
                 if isinstance(obj, h5py.Group) and "value" in obj:
                     self._conn_cache["bond_orders"] = ("td", obj["value"])
-                elif isinstance(obj, h5py.Dataset):
+                elif isinstance(obj, h5py.Datset):
                     self._conn_cache["bond_orders"] = ("static", obj)
 
     def _cache_box(self, box_grp: h5py.Group) -> None:
@@ -206,14 +206,14 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
             edges = box_grp["edges"]
             if isinstance(edges, h5py.Group) and "value" in edges:
                 self._box_cache["cell"] = ("td", edges["value"])
-            elif isinstance(edges, h5py.Dataset):
+            elif isinstance(edges, h5py.Datset):
                 self._box_cache["cell"] = ("static", edges)
 
         if "pbc" in box_grp:
             pbc_obj = box_grp["pbc"]
             if isinstance(pbc_obj, h5py.Group) and "value" in pbc_obj:
                 self._box_cache["pbc"] = ("td", pbc_obj["value"])
-            elif isinstance(pbc_obj, h5py.Dataset):
+            elif isinstance(pbc_obj, h5py.Datset):
                 self._box_cache["pbc"] = ("static", pbc_obj)
         elif "boundary" in box_grp.attrs:
             self._box_cache["pbc"] = ("boundary", box_grp.attrs["boundary"])

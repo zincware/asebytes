@@ -124,13 +124,13 @@ class TestSingleItemAccess:
 class TestBulkRead:
     @pytest.mark.anyio
     async def test_await_slice(self, io):
-        result = await io[0:3]
+        result = await io[0:3].to_list()
         assert isinstance(result, list)
         assert len(result) == 3
 
     @pytest.mark.anyio
     async def test_await_list_indices(self, io):
-        result = await io[[0, 5, 9]]
+        result = await io[[0, 5, 9]].to_list()
         assert len(result) == 3
 
 
@@ -141,8 +141,8 @@ class TestBulkRead:
 
 class TestLength:
     @pytest.mark.anyio
-    async def test_alen(self, io):
-        n = await io.alen()
+    async def test_len(self, io):
+        n = await io.len()
         assert n == 10
 
 
@@ -153,45 +153,45 @@ class TestLength:
 
 class TestWriteOps:
     @pytest.mark.anyio
-    async def test_aextend(self, io, raw_backend):
-        await io.aextend([_make_raw_row(100), _make_raw_row(101)])
+    async def test_extend(self, io, raw_backend):
+        await io.extend([_make_raw_row(100), _make_raw_row(101)])
         assert len(raw_backend._rows) == 12
 
     @pytest.mark.anyio
-    async def test_aset_single(self, io, raw_backend):
+    async def test_set_single(self, io, raw_backend):
         new = _make_raw_row(99)
-        await io[0].aset(new)
+        await io[0].set(new)
         assert raw_backend._rows[0][b"calc.energy"] == bytes([99])
 
     @pytest.mark.anyio
-    async def test_aset_slice(self, io, raw_backend):
+    async def test_set_slice(self, io, raw_backend):
         new_rows = [_make_raw_row(90 + i) for i in range(3)]
-        await io[0:3].aset(new_rows)
+        await io[0:3].set(new_rows)
         assert raw_backend._rows[0][b"calc.energy"] == bytes([90])
 
     @pytest.mark.anyio
-    async def test_ainsert(self, io, raw_backend):
-        await io.ainsert(0, _make_raw_row(55))
+    async def test_insert(self, io, raw_backend):
+        await io.insert(0, _make_raw_row(55))
         assert len(raw_backend._rows) == 11
 
     @pytest.mark.anyio
-    async def test_adelete_single(self, io, raw_backend):
-        await io[0].adelete()
+    async def test_delete_single(self, io, raw_backend):
+        await io[0].delete()
         assert len(raw_backend._rows) == 9
 
     @pytest.mark.anyio
-    async def test_adelete_contiguous(self, io, raw_backend):
-        await io[0:3].adelete()
+    async def test_delete_contiguous(self, io, raw_backend):
+        await io[0:3].delete()
         assert len(raw_backend._rows) == 7
 
     @pytest.mark.anyio
-    async def test_adelete_non_contiguous_raises(self, io):
+    async def test_delete_non_contiguous_raises(self, io):
         with pytest.raises(TypeError, match="contiguous"):
-            await io[[2, 5, 8]].adelete()
+            await io[[2, 5, 8]].delete()
 
     @pytest.mark.anyio
-    async def test_aset_none_empties_slots(self, io, raw_backend):
-        await io[[2, 5, 8]].aset([None] * 3)
+    async def test_set_none_empties_slots(self, io, raw_backend):
+        await io[[2, 5, 8]].set([None] * 3)
         assert raw_backend._rows[2] is None
         assert raw_backend._rows[5] is None
         assert raw_backend._rows[8] is None
@@ -205,8 +205,8 @@ class TestWriteOps:
 
 class TestUpdate:
     @pytest.mark.anyio
-    async def test_aupdate_single(self, io, raw_backend):
-        await io[0].aupdate({b"calc.energy": b"\x99"})
+    async def test_update_single(self, io, raw_backend):
+        await io[0].update({b"calc.energy": b"\x99"})
         assert raw_backend._rows[0][b"calc.energy"] == b"\x99"
         assert raw_backend._rows[0][b"info.tag"] == b"mol_0"  # untouched
 
@@ -239,7 +239,7 @@ class TestDrop:
 class TestSchema:
     @pytest.mark.anyio
     async def test_get_schema(self, io):
-        schema = await io.aget_schema()
+        schema = await io.get_schema()
         assert b"calc.energy" in schema
 
     @pytest.mark.anyio
@@ -256,18 +256,18 @@ class TestSchema:
 class TestPlaceholders:
     @pytest.mark.anyio
     async def test_extend_none(self, io, raw_backend):
-        await io.aextend([None, None, None])
+        await io.extend([None, None, None])
         assert len(raw_backend._rows) == 13
         assert raw_backend._rows[10] is None
 
     @pytest.mark.anyio
     async def test_insert_none(self, io, raw_backend):
-        await io.ainsert(0, None)
+        await io.insert(0, None)
         assert raw_backend._rows[0] is None
 
     @pytest.mark.anyio
     async def test_set_none(self, io, raw_backend):
-        await io[0].aset(None)
+        await io[0].set(None)
         assert raw_backend._rows[0] is None
 
     @pytest.mark.anyio
@@ -287,9 +287,8 @@ class TestColumnAccessViaRowView:
     @pytest.mark.anyio
     async def test_column_access_via_row_view(self, io):
         view = io[[0, 1, 2]]  # concrete indices (slices defer resolution)
-        col_key = b"calc.energy".decode()  # views use str keys
-        col_view = view[col_key]
-        values = await col_view
+        col_view = view[b"calc.energy"]
+        values = await col_view.to_list()
         assert len(values) == 3
 
 
@@ -339,16 +338,16 @@ class TestContextManager:
 
 class TestLifecycle:
     @pytest.mark.anyio
-    async def test_aclear(self, io, raw_backend):
-        await io.aclear()
+    async def test_clear(self, io, raw_backend):
+        await io.clear()
         assert len(raw_backend._rows) == 0
 
     @pytest.mark.anyio
-    async def test_areserve(self, io, raw_backend):
-        await io.areserve(5)
+    async def test_reserve(self, io, raw_backend):
+        await io.reserve(5)
         assert len(raw_backend._rows) == 15
 
     @pytest.mark.anyio
-    async def test_aremove(self, io):
+    async def test_remove(self, io):
         with pytest.raises(NotImplementedError):
-            await io.aremove()
+            await io.remove()

@@ -247,7 +247,7 @@ class AsyncBytesMockParent:
     def __len__(self):
         return len(self._rows)
 
-    async def alen(self):
+    async def len(self):
         return len(self._rows)
 
     async def _read_row(self, index, keys=None):
@@ -370,7 +370,7 @@ class AsyncViewParent(Protocol[R, K]):
 
 3. `AsyncSingleRowView(Generic[R])` — keep as `Generic[R]` (it doesn't constrain key type in its own type signature). But update `__getitem__` to accept `bytes` directly without decoding:
 ```python
-def __getitem__(self, key: str | bytes | list[str] | list[bytes]) -> _AsyncColumnValueView:
+def __getitem__(self, key: str | bytes | list[str] | list[bytes]) -> AsyncSingleColumnView:
     if isinstance(key, (str, bytes)):
         keys = [key]
         single = True
@@ -379,7 +379,7 @@ def __getitem__(self, key: str | bytes | list[str] | list[bytes]) -> _AsyncColum
         single = False
     else:
         raise TypeError(f"Unsupported key type: {type(key)}")
-    return _AsyncColumnValueView(self._parent, keys, single, self._index)
+    return AsyncSingleColumnView(self._parent, keys, single, self._index)
 ```
 
 Key change: **stop decoding** bytes→str. Pass bytes through as-is.
@@ -406,7 +406,7 @@ if isinstance(key, (str, bytes)):
     return AsyncColumnView(self._parent, key)
 ```
 
-7. `_AsyncColumnValueView.__init__` — change `keys: list[str]` to `keys: list[str] | list[bytes]` (or just `list`).
+7. `AsyncSingleColumnView.__init__` — change `keys: list[str]` to `keys: list[str] | list[bytes]` (or just `list`).
 
 8. `AsyncRowView.adrop` — change `keys: list[str]` to `keys: list`:
 ```python
@@ -610,18 +610,18 @@ Same pattern as BlobIO — remove all `.encode()` / `.decode()` calls:
 # _async_blob_io.py and _async_bytesio.py — replace methods with:
 
 async def _read_row(self, index: int, keys: list[bytes] | None = None) -> Any:
-    return await self._backend.aget(index, keys)
+    return await self._backend.get(index, keys)
 
 async def _read_rows(self, indices: list[int], keys: list[bytes] | None = None) -> list[Any]:
-    return await self._backend.aget_many(indices, keys)
+    return await self._backend.get_many(indices, keys)
 
 async def _read_column(self, key: bytes, indices: list[int]) -> list[Any]:
-    return await self._backend.aget_column(key, indices)
+    return await self._backend.get_column(key, indices)
 
 async def _drop_keys(self, keys: list[bytes], indices: list[int]) -> None:
     if not isinstance(self._backend, AsyncReadWriteBackend):
         raise TypeError("Backend is read-only")
-    await self._backend.adrop_keys(keys, indices)
+    await self._backend.drop_keys(keys, indices)
 ```
 
 Update `__getitem__` in both: remove `str` key support, only accept `bytes`:

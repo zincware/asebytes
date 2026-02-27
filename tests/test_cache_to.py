@@ -173,9 +173,9 @@ class TestCacheToData:
     def test_partial_key_read_caches_full_row(self, source, cache):
         """Reading with keys filter should still cache the full row."""
         db = ASEIO(source, cache_to=cache)
-        # Access via column view (reads specific keys)
-        energy = db["calc.energy"][0]
-        assert energy == pytest.approx(0.0)
+        # Access via column view (reads specific keys) — returns Atoms
+        atoms = db["calc.energy"][0]
+        assert atoms.calc.results["energy"] == pytest.approx(0.0)
         # Cache should have the full row, not just calc.energy
         cached_row = cache.read_row(0)
         assert "arrays.positions" in cached_row

@@ -5,22 +5,22 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-datasets = pytest.importorskip("datasets")
+datsets = pytest.importorskip("datsets")
 
 from asebytes.hf import COLABFIT, OPTIMADE, ColumnMapping
 from asebytes.hf._backend import HuggingFaceBackend
-from conftest_hf import make_hf_dataset as _make_dataset
+from conftest_hf import make_hf_datset as _make_datset
 
 
 # ── Downloaded-mode tests ─────────────────────────────────────────────────
 
 
 class TestDownloadedBackend:
-    """Tests for HuggingFaceBackend with a fully downloaded Dataset."""
+    """Tests for HuggingFaceBackend with a fully downloaded Datset."""
 
     @pytest.fixture()
     def backend(self) -> HuggingFaceBackend:
-        ds = _make_dataset(5)
+        ds = _make_datset(5)
         return HuggingFaceBackend(ds, mapping=COLABFIT)
 
     def test_len(self, backend):
@@ -91,11 +91,11 @@ class TestDownloadedBackend:
 
 
 class TestStreamingBackend:
-    """Tests for HuggingFaceBackend with an IterableDataset (streaming)."""
+    """Tests for HuggingFaceBackend with an IterableDatset (streaming)."""
 
     @pytest.fixture()
     def backend(self) -> HuggingFaceBackend:
-        ds = _make_dataset(5).to_iterable_dataset()
+        ds = _make_datset(5).to_iterable_datset()
         return HuggingFaceBackend(ds, mapping=COLABFIT)
 
     def test_len_raises_type_error(self, backend):
@@ -145,7 +145,7 @@ class TestStreamingBackend:
 
     def test_context_manager(self):
         """Backend should work as a context manager."""
-        ds = _make_dataset(3).to_iterable_dataset()
+        ds = _make_datset(3).to_iterable_datset()
         with HuggingFaceBackend(ds, mapping=COLABFIT) as b:
             row = b.read_row(0)
             assert row["calc.energy"] == 0.0
@@ -153,7 +153,7 @@ class TestStreamingBackend:
 
     def test_read_after_close_restarts(self):
         """Reading after close() should restart the stream."""
-        ds = _make_dataset(3).to_iterable_dataset()
+        ds = _make_datset(3).to_iterable_datset()
         b = HuggingFaceBackend(ds, mapping=COLABFIT)
         b.read_row(0)
         b.close()
@@ -169,56 +169,56 @@ class TestFromUri:
     """Tests for the HuggingFaceBackend.from_uri class method."""
 
     def test_hf_passes_path_directly(self, monkeypatch):
-        """hf://user/dataset should pass 'user/dataset' to load_dataset."""
+        """hf://user/datset should pass 'user/datset' to load_datset."""
         calls = []
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
             calls.append({"path": path, "streaming": streaming, "split": split, **kwargs})
             if streaming:
-                return _make_dataset(2).to_iterable_dataset()
-            return _make_dataset(2)
+                return _make_datset(2).to_iterable_datset()
+            return _make_datset(2)
 
         monkeypatch.setattr(
-            "asebytes.hf._backend.load_dataset", fake_load
+            "asebytes.hf._backend.load_datset", fake_load
         )
         mapping = ColumnMapping(positions="positions", numbers="atomic_numbers")
         backend = HuggingFaceBackend.from_uri(
-            "hf://user/dataset", mapping=mapping
+            "hf://user/datset", mapping=mapping
         )
-        assert calls[0]["path"] == "user/dataset"
+        assert calls[0]["path"] == "user/datset"
         assert calls[0]["streaming"] is True
 
     def test_colabfit_auto_prepends_org(self, monkeypatch):
-        """colabfit://dataset_name auto-prepends 'colabfit/' org."""
+        """colabfit://datset_name auto-prepends 'colabfit/' org."""
         calls = []
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
             calls.append({"path": path, "streaming": streaming, "split": split})
             if streaming:
-                return _make_dataset(2).to_iterable_dataset()
-            return _make_dataset(2)
+                return _make_datset(2).to_iterable_datset()
+            return _make_datset(2)
 
         monkeypatch.setattr(
-            "asebytes.hf._backend.load_dataset", fake_load
+            "asebytes.hf._backend.load_datset", fake_load
         )
-        backend = HuggingFaceBackend.from_uri("colabfit://my_dataset")
-        assert calls[0]["path"] == "colabfit/my_dataset"
+        backend = HuggingFaceBackend.from_uri("colabfit://my_datset")
+        assert calls[0]["path"] == "colabfit/my_datset"
 
     def test_colabfit_with_org_no_double_prepend(self, monkeypatch):
-        """colabfit://org/dataset should NOT double-prepend."""
+        """colabfit://org/datset should NOT double-prepend."""
         calls = []
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
             calls.append({"path": path, "streaming": streaming, "split": split})
             if streaming:
-                return _make_dataset(2).to_iterable_dataset()
-            return _make_dataset(2)
+                return _make_datset(2).to_iterable_datset()
+            return _make_datset(2)
 
         monkeypatch.setattr(
-            "asebytes.hf._backend.load_dataset", fake_load
+            "asebytes.hf._backend.load_datset", fake_load
         )
-        backend = HuggingFaceBackend.from_uri("colabfit://myorg/my_dataset")
-        assert calls[0]["path"] == "myorg/my_dataset"
+        backend = HuggingFaceBackend.from_uri("colabfit://myorg/my_datset")
+        assert calls[0]["path"] == "myorg/my_datset"
 
     def test_optimade_auto_selects_mapping(self, monkeypatch):
         """optimade:// should auto-select OPTIMADE mapping."""
@@ -226,8 +226,8 @@ class TestFromUri:
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
             calls.append({"path": path, "streaming": streaming, "split": split})
-            # Return dataset with OPTIMADE-style columns
-            ds = datasets.Dataset.from_dict(
+            # Return datset with OPTIMADE-style columns
+            ds = datsets.Datset.from_dict(
                 {
                     "cartesian_site_positions": [[[0.0, 0.0, 0.0]]],
                     "species_at_sites": [["H"]],
@@ -236,11 +236,11 @@ class TestFromUri:
                 }
             )
             if streaming:
-                return ds.to_iterable_dataset()
+                return ds.to_iterable_datset()
             return ds
 
         monkeypatch.setattr(
-            "asebytes.hf._backend.load_dataset", fake_load
+            "asebytes.hf._backend.load_datset", fake_load
         )
         backend = HuggingFaceBackend.from_uri("optimade://provider/structures")
         assert calls[0]["path"] == "provider/structures"
@@ -252,83 +252,83 @@ class TestFromUri:
         )
 
     def test_streaming_false_forwarded(self, monkeypatch):
-        """streaming=False (non-default) should be forwarded to load_dataset."""
+        """streaming=False (non-default) should be forwarded to load_datset."""
         calls = []
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
             calls.append({"path": path, "streaming": streaming, "split": split})
             if streaming:
-                return _make_dataset(2).to_iterable_dataset()
-            return _make_dataset(2)
+                return _make_datset(2).to_iterable_datset()
+            return _make_datset(2)
 
         monkeypatch.setattr(
-            "asebytes.hf._backend.load_dataset", fake_load
+            "asebytes.hf._backend.load_datset", fake_load
         )
         mapping = ColumnMapping(positions="positions", numbers="atomic_numbers")
         backend = HuggingFaceBackend.from_uri(
-            "hf://user/dataset", mapping=mapping, streaming=False
+            "hf://user/datset", mapping=mapping, streaming=False
         )
         assert calls[0]["streaming"] is False
         assert len(backend) == 2  # downloaded mode has known length
 
     def test_split_forwarded(self, monkeypatch):
-        """split kwarg should be forwarded to load_dataset."""
+        """split kwarg should be forwarded to load_datset."""
         calls = []
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
             calls.append({"path": path, "streaming": streaming, "split": split})
             if streaming:
-                return _make_dataset(2).to_iterable_dataset()
-            return _make_dataset(2)
+                return _make_datset(2).to_iterable_datset()
+            return _make_datset(2)
 
         monkeypatch.setattr(
-            "asebytes.hf._backend.load_dataset", fake_load
+            "asebytes.hf._backend.load_datset", fake_load
         )
         mapping = ColumnMapping(positions="positions", numbers="atomic_numbers")
         backend = HuggingFaceBackend.from_uri(
-            "hf://user/dataset", mapping=mapping, split="train"
+            "hf://user/datset", mapping=mapping, split="train"
         )
         assert calls[0]["split"] == "train"
 
     def test_hf_requires_mapping(self, monkeypatch):
         """hf:// without mapping should raise ValueError."""
         def fake_load(path, *, streaming=False, split=None, **kwargs):
-            return _make_dataset(2)
+            return _make_datset(2)
 
         monkeypatch.setattr(
-            "asebytes.hf._backend.load_dataset", fake_load
+            "asebytes.hf._backend.load_datset", fake_load
         )
         with pytest.raises(ValueError, match="mapping"):
-            HuggingFaceBackend.from_uri("hf://user/dataset")
+            HuggingFaceBackend.from_uri("hf://user/datset")
 
-    def test_dataset_dict_requires_explicit_split(self, monkeypatch):
-        """When load_dataset returns DatasetDict, require explicit split."""
+    def test_datset_dict_requires_explicit_split(self, monkeypatch):
+        """When load_datset returns DatsetDict, require explicit split."""
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
-            ds = _make_dataset(3)
+            ds = _make_datset(3)
             if split is None:
-                return datasets.DatasetDict({"train": ds, "test": ds})
+                return datsets.DatsetDict({"train": ds, "test": ds})
             return ds
 
         monkeypatch.setattr(
-            "asebytes.hf._backend.load_dataset", fake_load
+            "asebytes.hf._backend.load_datset", fake_load
         )
         with pytest.raises(ValueError, match="multiple splits.*split='train'"):
             HuggingFaceBackend.from_uri("colabfit://test_ds")
 
-    def test_dataset_dict_with_explicit_split(self, monkeypatch):
-        """When split is specified, DatasetDict is not returned."""
+    def test_datset_dict_with_explicit_split(self, monkeypatch):
+        """When split is specified, DatsetDict is not returned."""
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
-            ds = _make_dataset(3)
+            ds = _make_datset(3)
             if split is None:
-                return datasets.DatasetDict({"train": ds})
+                return datsets.DatsetDict({"train": ds})
             if streaming:
-                return ds.to_iterable_dataset()
+                return ds.to_iterable_datset()
             return ds
 
         monkeypatch.setattr(
-            "asebytes.hf._backend.load_dataset", fake_load
+            "asebytes.hf._backend.load_datset", fake_load
         )
         backend = HuggingFaceBackend.from_uri(
             "colabfit://test_ds", split="train"

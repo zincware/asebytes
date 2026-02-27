@@ -1,11 +1,11 @@
 """Tests for async awaitable views.
 
 Covers:
-- AsyncSingleRowView: __await__, aset, adelete, aupdate, akeys
-- AsyncRowView: __await__, __aiter__, achunked, aset, adelete (contiguous only),
-  aupdate, adrop, __getitem__ chaining
+- AsyncSingleRowView: __await__, set, delete, update, akeys
+- AsyncRowView: __await__, __aiter__, achunked, set, delete (contiguous only),
+  update, adrop, __getitem__ chaining
 - AsyncColumnView: __await__, __aiter__, to_list, to_dict, __getitem__ chaining
-- Non-contiguous adelete raises TypeError
+- Non-contiguous delete raises TypeError
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ class AsyncMockParent:
     def __len__(self) -> int:
         return len(self._rows)
 
-    async def _alen(self) -> int:
+    async def _len(self) -> int:
         return len(self._rows)
 
     async def _read_row(
@@ -145,28 +145,28 @@ class TestAsyncSingleRowView:
         assert result is None
 
     @pytest.mark.anyio
-    async def test_aset(self, parent):
+    async def test_set(self, parent):
         view = AsyncSingleRowView(parent, 0)
-        await view.aset({"calc.energy": -99.0})
+        await view.set({"calc.energy": -99.0})
         assert parent._rows[0] == {"calc.energy": -99.0}
 
     @pytest.mark.anyio
-    async def test_aset_none(self, parent):
+    async def test_set_none(self, parent):
         view = AsyncSingleRowView(parent, 0)
-        await view.aset(None)
+        await view.set(None)
         assert parent._rows[0] is None
 
     @pytest.mark.anyio
-    async def test_adelete(self, parent):
+    async def test_delete(self, parent):
         original_len = len(parent._rows)
         view = AsyncSingleRowView(parent, 0)
-        await view.adelete()
+        await view.delete()
         assert len(parent._rows) == original_len - 1
 
     @pytest.mark.anyio
-    async def test_aupdate(self, parent):
+    async def test_update(self, parent):
         view = AsyncSingleRowView(parent, 0)
-        await view.aupdate({"calc.energy": -99.0})
+        await view.update({"calc.energy": -99.0})
         assert parent._rows[0]["calc.energy"] == -99.0
         assert parent._rows[0]["info.tag"] == "mol_0"  # untouched
 
@@ -189,20 +189,20 @@ class TestAsyncSingleRowView:
 
 
 class TestAsyncRowView:
-    # -- __await__ --
+    # -- to_list --
 
     @pytest.mark.anyio
-    async def test_await_materializes_list(self, parent):
+    async def test_to_list_materializes(self, parent):
         view = AsyncRowView(parent, list(range(3)))
-        result = await view
+        result = await view.to_list()
         assert isinstance(result, list)
         assert len(result) == 3
         assert result[0]["calc.energy"] == 0.0
 
     @pytest.mark.anyio
-    async def test_await_with_none(self, parent_with_none):
+    async def test_to_list_with_none(self, parent_with_none):
         view = AsyncRowView(parent_with_none, [0, 1, 2])
-        result = await view
+        result = await view.to_list()
         assert result[0] == {"calc.energy": -1.0}
         assert result[1] is None
         assert result[2] == {"calc.energy": -3.0}
@@ -279,41 +279,41 @@ class TestAsyncRowView:
         col = view[["calc.energy", "info.tag"]]
         assert isinstance(col, AsyncColumnView)
 
-    # -- aset --
+    # -- set --
 
     @pytest.mark.anyio
-    async def test_aset_bulk(self, parent):
+    async def test_set_bulk(self, parent):
         view = AsyncRowView(parent, [0, 1, 2])
         new_data = [{"calc.energy": -99.0}] * 3
-        await view.aset(new_data)
+        await view.set(new_data)
         assert parent._rows[0] == {"calc.energy": -99.0}
         assert parent._rows[1] == {"calc.energy": -99.0}
         assert parent._rows[2] == {"calc.energy": -99.0}
 
-    # -- adelete --
+    # -- delete --
 
     @pytest.mark.anyio
-    async def test_adelete_contiguous(self, parent):
+    async def test_delete_contiguous(self, parent):
         """Contiguous slice delete should work."""
         view = AsyncRowView(parent, [2, 3, 4])  # contiguous
         view._contiguous = True
-        await view.adelete()
+        await view.delete()
         assert len(parent._rows) == 7
 
     @pytest.mark.anyio
-    async def test_adelete_non_contiguous_raises(self, parent):
+    async def test_delete_non_contiguous_raises(self, parent):
         """Non-contiguous index list should raise TypeError."""
         view = AsyncRowView(parent, [2, 5, 8])  # non-contiguous
         view._contiguous = False
         with pytest.raises(TypeError, match="contiguous"):
-            await view.adelete()
+            await view.delete()
 
-    # -- aupdate --
+    # -- update --
 
     @pytest.mark.anyio
-    async def test_aupdate_bulk(self, parent):
+    async def test_update_bulk(self, parent):
         view = AsyncRowView(parent, [0, 1])
-        await view.aupdate({"calc.energy": -99.0})
+        await view.update({"calc.energy": -99.0})
         assert parent._rows[0]["calc.energy"] == -99.0
         assert parent._rows[1]["calc.energy"] == -99.0
         # Other keys untouched
@@ -336,23 +336,23 @@ class TestAsyncRowView:
 
 
 class TestAsyncColumnView:
-    # -- __await__ (single key) --
+    # -- to_list (single key) --
 
     @pytest.mark.anyio
-    async def test_await_single_key(self, parent):
+    async def test_to_list_single_key(self, parent):
         view = AsyncColumnView(parent, "calc.energy", list(range(3)))
-        result = await view
+        result = await view.to_list()
         assert result == [0.0, -1.0, -2.0]
 
-    # -- __await__ (multi key) --
+    # -- to_list (multi key) --
 
     @pytest.mark.anyio
-    async def test_await_multi_key(self, parent):
+    async def test_to_list_multi_key(self, parent):
         view = AsyncColumnView(parent, ["calc.energy", "info.tag"], list(range(3)))
-        result = await view
+        result = await view.to_list()
         assert isinstance(result, list)
         assert len(result) == 3
-        assert result[0] == {"calc.energy": 0.0, "info.tag": "mol_0"}
+        assert result[0] == [0.0, "mol_0"]
 
     # -- __aiter__ --
 
@@ -371,7 +371,7 @@ class TestAsyncColumnView:
         async for row in view:
             result.append(row)
         assert len(result) == 3
-        assert result[0]["info.tag"] == "mol_0"
+        assert result[0] == [0.0, "mol_0"]
 
     # -- to_list --
 
@@ -386,7 +386,7 @@ class TestAsyncColumnView:
         view = AsyncColumnView(parent, ["calc.energy", "info.tag"], list(range(3)))
         result = await view.to_list()
         assert len(result) == 3
-        assert result[0] == {"calc.energy": 0.0, "info.tag": "mol_0"}
+        assert result[0] == [0.0, "mol_0"]
 
     # -- to_dict --
 
@@ -421,10 +421,11 @@ class TestAsyncColumnView:
         assert isinstance(sub, AsyncColumnView)
         assert len(sub) == 3
 
-    def test_getitem_int_returns_single_view(self, parent):
+    def test_getitem_int_returns_column_value_view(self, parent):
+        from asebytes._async_views import AsyncSingleColumnView
         view = AsyncColumnView(parent, "calc.energy", list(range(10)))
         single = view[0]
-        assert isinstance(single, AsyncSingleRowView)
+        assert isinstance(single, AsyncSingleColumnView)
 
     def test_getitem_str_narrows_multi_to_single(self, parent):
         view = AsyncColumnView(parent, ["calc.energy", "info.tag"], list(range(5)))
@@ -439,7 +440,7 @@ class TestAsyncColumnView:
         """db[5:8]["calc.energy"] pattern."""
         row_view = AsyncRowView(parent, list(range(5, 8)))
         col_view = row_view["calc.energy"]
-        result = await col_view
+        result = await col_view.to_list()
         assert result == [-5.0, -6.0, -7.0]
 
     @pytest.mark.anyio
@@ -447,12 +448,12 @@ class TestAsyncColumnView:
         """db["calc.energy"][5:8] pattern."""
         col_view = AsyncColumnView(parent, "calc.energy")
         sub = col_view[5:8]
-        result = await sub
+        result = await sub.to_list()
         assert result == [-5.0, -6.0, -7.0]
 
     @pytest.mark.anyio
     async def test_both_orderings_same_result(self, parent):
         """db[5:8]["calc.energy"] == db["calc.energy"][5:8]"""
-        via_row = await AsyncRowView(parent, list(range(5, 8)))["calc.energy"]
-        via_col = await AsyncColumnView(parent, "calc.energy")[5:8]
+        via_row = await AsyncRowView(parent, list(range(5, 8)))["calc.energy"].to_list()
+        via_col = await AsyncColumnView(parent, "calc.energy")[5:8].to_list()
         assert via_row == via_col

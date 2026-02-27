@@ -16,6 +16,12 @@ _BACKEND_REGISTRY: dict[str, tuple[str, str | None, str]] = {
     "*.extxyz": ("asebytes.ase", None, "ASEReadOnlyBackend"),
 }
 
+# Blob-level registry: pattern -> (module_path, writable_cls_name | None, readonly_cls_name)
+# Used by BlobIO / AsyncBlobIO / AsyncBytesIO for dict[bytes, bytes] backends.
+_BLOB_BACKEND_REGISTRY: dict[str, tuple[str, str | None, str]] = {
+    "*.lmdb": ("asebytes.lmdb", "LMDBBlobBackend", "LMDBBlobBackend"),
+}
+
 # URI scheme -> (module_path, readonly_cls_name)
 # URI-based backends are always read-only.
 _URI_REGISTRY: dict[str, tuple[str, str]] = {
@@ -132,3 +138,42 @@ def get_backend_cls(path: str, *, readonly: bool | None = None):
                 return getattr(mod, writable)
             return getattr(mod, read_only)
     raise KeyError(f"No backend registered for '{path}'")
+
+
+def get_blob_backend_cls(path: str, *, readonly: bool | None = None):
+    """Resolve a file path to a blob-level backend class.
+
+    Like :func:`get_backend_cls` but uses the blob-level registry
+    (``ReadBackend[bytes, bytes]``).  URI schemes are not supported for
+    blob-level backends.
+
+    Parameters
+    ----------
+    path : str
+        File path to match against registered blob backends.
+    readonly : bool | None
+        Same semantics as :func:`get_backend_cls`.
+    """
+    for pattern, (module_path, writable, read_only) in _BLOB_BACKEND_REGISTRY.items():
+        if fnmatch.fnmatch(path, pattern):
+            try:
+                mod = importlib.import_module(module_path)
+            except ImportError:
+                hint = _EXTRAS_HINT.get(module_path, module_path)
+                raise ImportError(
+                    f"Backend '{module_path}' requires additional dependencies. "
+                    f"Install them with: pip install asebytes[{hint}]"
+                ) from None
+            if readonly is True:
+                return getattr(mod, read_only)
+            if readonly is False:
+                if writable is None:
+                    raise TypeError(
+                        f"Backend for '{path}' is read-only, "
+                        "no writable variant available"
+                    )
+                return getattr(mod, writable)
+            if writable is not None:
+                return getattr(mod, writable)
+            return getattr(mod, read_only)
+    raise KeyError(f"No blob backend registered for '{path}'")

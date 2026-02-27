@@ -8,14 +8,14 @@ Design decisions:
     - multi row view   → list[Atoms] (or list[dict[bytes, bytes]])
     - column view      → list[values]
 - Views implement __aiter__ for async iteration
-- Async method = sync method + "a" prefix (extend → aextend, etc.)
+- Async method = sync method + "a" prefix (extend → extend, etc.)
 - drop() for column/key removal (pandas-style)
 - None placeholders for reserving slots without data
 - If backend is sync-only, auto-wrap via asyncio.to_thread
-- Index-shifting ops (adelete, ainsert) require contiguous slices or single int.
+- Index-shifting ops (delete, insert) require contiguous slices or single int.
   Arbitrary index lists (e.g. [2, 5, 8]) are only allowed for non-shifting ops
-  (aset, aupdate, adrop, aget). This avoids ambiguous shift semantics in
-  concurrent environments. Use aset(None) to empty slots without shifting.
+  (set, update, adrop, get). This avoids ambiguous shift semantics in
+  concurrent environments. Use set(None) to empty slots without shifting.
 """
 
 import asebytes
@@ -38,22 +38,22 @@ atoms_list = await db[[0, 5, 42]]       # sync: db[[0, 5, 42]].to_list()
 
 # --- Length ---
 
-n = await db.alen()                     # sync: len(db)
+n = await db.len()                     # sync: len(db)
 
 # --- Write operations ---
 
-await db.aextend([atoms, atoms])        # sync: db.extend([atoms, atoms])
-await db[0].aset(atoms)                 # sync: db[0] = atoms
-await db[0:10].aset([atoms] * 10)       # sync: db[0:10] = [atoms] * 10
-await db.ainsert(0, atoms)              # sync: db.insert(0, atoms)
-await db[0].adelete()                   # sync: del db[0]
-await db[0:10].adelete()                # sync: del db[0:10]
-# await db[[2, 5, 8]].adelete()         # TypeError — non-contiguous delete is ambiguous
-await db[[2, 5, 8]].aset([None] * 3)   # OK — empties slots without shifting
+await db.extend([atoms, atoms])        # sync: db.extend([atoms, atoms])
+await db[0].set(atoms)                 # sync: db[0] = atoms
+await db[0:10].set([atoms] * 10)       # sync: db[0:10] = [atoms] * 10
+await db.insert(0, atoms)              # sync: db.insert(0, atoms)
+await db[0].delete()                   # sync: del db[0]
+await db[0:10].delete()                # sync: del db[0:10]
+# await db[[2, 5, 8]].delete()         # TypeError — non-contiguous delete is ambiguous
+await db[[2, 5, 8]].set([None] * 3)   # OK — empties slots without shifting
 
 # --- Partial update ---
 
-await db[0].aupdate({"calc.energy": -10.5})             # sync: db.update(0, {"calc.energy": -10.5})
+await db[0].update({"calc.energy": -10.5})             # sync: db.update(0, {"calc.energy": -10.5})
 
 # --- Drop keys (column removal) ---
 
@@ -70,10 +70,10 @@ cols_dict = await db["calc.energy"].to_dict()             # sync: db["calc.energ
 
 # --- None / placeholder entries ---
 
-await db.aextend([None, None, None])                     # sync: db.extend([None, None, None])
-await db.ainsert(0, None)                                # sync: db.insert(0, None)
-await db[0].aset(None)                                   # sync: db[0] = None
-await db[0:3].aset([None, None, None])                   # sync: db[0:3] = [None, None, None]
+await db.extend([None, None, None])                     # sync: db.extend([None, None, None])
+await db.insert(0, None)                                # sync: db.insert(0, None)
+await db[0].set(None)                                   # sync: db[0] = None
+await db[0:3].set([None, None, None])                   # sync: db[0:3] = [None, None, None]
 result = await db[0]                                     # sync: db[0]  → None
 results = await db[0:3]                                  # sync: db[0:3].to_list() → [None, None, None]
 
@@ -122,22 +122,22 @@ rows = await io[[0, 5, 42]]                              # sync: io[[0, 5, 42]].
 
 # --- Length ---
 
-n = await io.alen()                                      # sync: len(io)
+n = await io.len()                                      # sync: len(io)
 
 # --- Write operations ---
 
-await io.aextend([data, data])                           # sync: io.extend([data, data])
-await io[0].aset(data)                                   # sync: io[0] = data
-await io[0:10].aset([data] * 10)                         # sync: io[0:10] = [data] * 10
-await io.ainsert(0, data)                                # sync: io.insert(0, data)
-await io[0].adelete()                                    # sync: del io[0]
-await io[0:10].adelete()                                 # sync: del io[0:10]
-# await io[[2, 5, 8]].adelete()                           # TypeError — non-contiguous delete
-await io[[2, 5, 8]].aset([None] * 3)                    # OK — empties slots without shifting
+await io.extend([data, data])                           # sync: io.extend([data, data])
+await io[0].set(data)                                   # sync: io[0] = data
+await io[0:10].set([data] * 10)                         # sync: io[0:10] = [data] * 10
+await io.insert(0, data)                                # sync: io.insert(0, data)
+await io[0].delete()                                    # sync: del io[0]
+await io[0:10].delete()                                 # sync: del io[0:10]
+# await io[[2, 5, 8]].delete()                           # TypeError — non-contiguous delete
+await io[[2, 5, 8]].set([None] * 3)                    # OK — empties slots without shifting
 
 # --- Partial update ---
 
-await io[0].aupdate({b"calc.energy": b"\x99"})           # sync: io.update(0, {b"calc.energy": b"\x99"})
+await io[0].update({b"calc.energy": b"\x99"})           # sync: io.update(0, {b"calc.energy": b"\x99"})
 
 # --- Drop keys ---
 
@@ -152,18 +152,18 @@ rows = await io[[b"calc.energy", b"calc.forces"]][0:10]  # sync: io[[b"calc.ener
 
 # --- Column-filtered update ---
 
-await io[[b"calc.energy"]][0].aset(                      # sync: io.update(0, {b"calc.energy": ...})
+await io[[b"calc.energy"]][0].set(                      # sync: io.update(0, {b"calc.energy": ...})
     {b"calc.energy": b"\x99"}
 )
-await io[[b"calc.energy"]][0:10].aset(                   # sync: io[[b"calc.energy"]][0:10] = ...
+await io[[b"calc.energy"]][0:10].set(                   # sync: io[[b"calc.energy"]][0:10] = ...
     [{b"calc.energy": b"\x99"}] * 10
 )
 
 # --- None / placeholder entries ---
 
-await io.aextend([None, None, None])                     # sync: io.extend([None, None, None])
-await io.ainsert(0, None)                                # sync: io.insert(0, None)
-await io[0].aset(None)                                   # sync: io[0] = None
+await io.extend([None, None, None])                     # sync: io.extend([None, None, None])
+await io.insert(0, None)                                # sync: io.insert(0, None)
+await io[0].set(None)                                   # sync: io[0] = None
 result = await io[0]                                     # sync: io[0]  → None
 
 # --- Async iteration ---
@@ -185,14 +185,14 @@ async with asebytes.AsyncBytesIO("mongodb://...") as io: # sync: N/A (BytesIO au
     row = await io[0]
 
 # --- Clear all data (sync) ---
-await io.aclear()          # sync: db.clear()
+await io.clear()          # sync: db.clear()
 
 # --- remove the entire collection (group=...) ---
-await io.aremove()         # sync: db.remove()
+await io.remove()         # sync: db.remove()
 
 # --- more efficient extend with empty rows (sync) ---
 # no need to check if every entry is None
-await io.areserve(1000)    # sync: io.reserve(1000) # faster than io.extend([None] * 1000)
+await io.reserve(1000)    # sync: io.reserve(1000) # faster than io.extend([None] * 1000)
 
 
 # ============================================================
@@ -356,7 +356,7 @@ class WritableBackend(ReadableBackend):  # EXISTS TODAY — extended
 class AsyncRawReadableBackend(ABC):
     """Async read-only backend at the raw bytes level."""
     @abstractmethod
-    async def alen(self) -> int: ...
+    async def len(self) -> int: ...
     @abstractmethod
     async def get_schema(self) -> list[bytes]: ...
     @abstractmethod
@@ -388,7 +388,7 @@ class AsyncRawWritableBackend(AsyncRawReadableBackend):
 class AsyncReadableBackend(ABC):
     """Async read-only backend at the str/Any level."""
     @abstractmethod
-    async def alen(self) -> int: ...
+    async def len(self) -> int: ...
     @abstractmethod
     async def columns(self, index: int = 0) -> list[str]: ...
     @abstractmethod

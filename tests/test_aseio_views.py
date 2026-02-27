@@ -4,7 +4,7 @@ import pytest
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from asebytes import ASEIO
-from asebytes._views import ColumnView, RowView
+from asebytes._views import ASEColumnView, ColumnView, RowView
 from asebytes.lmdb import LMDBBackend
 
 
@@ -73,27 +73,30 @@ def test_row_view_iter(db):
 
 def test_getitem_str(db):
     view = db["calc.energy"]
-    assert isinstance(view, ColumnView)
+    assert isinstance(view, ASEColumnView)
     assert len(view) == 10
 
 
 def test_column_view_iter(db):
-    energies = list(db["calc.energy"])
-    assert len(energies) == 10
-    assert energies[0] == pytest.approx(0.0)
-    assert energies[9] == pytest.approx(-9.0)
+    """ASEIO column access returns Atoms."""
+    results = list(db["calc.energy"])
+    assert len(results) == 10
+    assert all(isinstance(r, ase.Atoms) for r in results)
+    assert results[0].calc.results["energy"] == pytest.approx(0.0)
+    assert results[9].calc.results["energy"] == pytest.approx(-9.0)
 
 
 def test_column_view_getitem_int(db):
     val = db["calc.energy"][5]
-    assert val == pytest.approx(-5.0)
+    assert isinstance(val, ase.Atoms)
+    assert val.calc.results["energy"] == pytest.approx(-5.0)
 
 
 def test_column_view_getitem_slice(db):
     view = db["calc.energy"][3:6]
-    assert isinstance(view, ColumnView)
+    assert isinstance(view, ASEColumnView)
     values = list(view)
-    assert values == pytest.approx([-3.0, -4.0, -5.0])
+    assert all(isinstance(v, ase.Atoms) for v in values)
 
 
 # --- Multi-column views ---
@@ -101,53 +104,60 @@ def test_column_view_getitem_slice(db):
 
 def test_getitem_list_str(db):
     view = db[["calc.energy", "info.tag"]]
-    assert isinstance(view, ColumnView)
+    assert isinstance(view, ASEColumnView)
     assert not view._single
     assert len(view) == 10
 
 
 def test_multi_column_view_iter(db):
-    rows = list(db[["calc.energy", "info.tag"]][:3])
-    assert len(rows) == 3
-    assert rows[0]["calc.energy"] == pytest.approx(0.0)
-    assert rows[0]["info.tag"] == "mol_0"
+    """ASEIO multi-column returns Atoms."""
+    results = list(db[["calc.energy", "info.tag"]][:3])
+    assert len(results) == 3
+    assert all(isinstance(r, ase.Atoms) for r in results)
+    assert results[0].calc.results["energy"] == pytest.approx(0.0)
+    assert results[0].info["tag"] == "mol_0"
 
 
-def test_multi_column_view_to_dict(db):
-    d = db[["calc.energy", "info.tag"]][:3].to_dict()
-    assert d["calc.energy"] == pytest.approx([0.0, -1.0, -2.0])
-    assert d["info.tag"] == ["mol_0", "mol_1", "mol_2"]
+def test_multi_column_view_to_dict_raises(db):
+    """to_dict() is not available on ASEIO column views."""
+    with pytest.raises(TypeError, match="to_dict.*not available"):
+        db[["calc.energy", "info.tag"]][:3].to_dict()
 
 
 # --- Chaining ---
 
 
 def test_row_then_column(db):
-    """db[5:8]["calc.energy"] should work."""
-    energies = list(db[5:8]["calc.energy"])
+    """db[5:8]["calc.energy"] should work — returns Atoms."""
+    results = list(db[5:8]["calc.energy"])
+    assert len(results) == 3
+    assert all(isinstance(r, ase.Atoms) for r in results)
+    energies = [r.calc.results["energy"] for r in results]
     assert energies == pytest.approx([-5.0, -6.0, -7.0])
 
 
 def test_column_then_slice(db):
-    """db["calc.energy"][5:8] should work."""
-    energies = list(db["calc.energy"][5:8])
-    assert energies == pytest.approx([-5.0, -6.0, -7.0])
+    """db["calc.energy"][5:8] should work — returns Atoms."""
+    results = list(db["calc.energy"][5:8])
+    assert len(results) == 3
+    assert all(isinstance(r, ase.Atoms) for r in results)
 
 
 def test_both_orderings_equal(db):
     """db[5:8]["calc.energy"] == db["calc.energy"][5:8]"""
-    via_row = list(db[5:8]["calc.energy"])
-    via_col = list(db["calc.energy"][5:8])
+    via_row = [r.calc.results["energy"] for r in db[5:8]["calc.energy"]]
+    via_col = [r.calc.results["energy"] for r in db["calc.energy"][5:8]]
     assert via_row == pytest.approx(via_col)
 
 
 def test_row_then_multi_column(db):
-    """db[0:3][["calc.energy", "info.tag"]] should work."""
+    """db[0:3][["calc.energy", "info.tag"]] should work — returns Atoms."""
     view = db[0:3][["calc.energy", "info.tag"]]
-    assert isinstance(view, ColumnView)
+    assert isinstance(view, ASEColumnView)
     assert not view._single
     rows = list(view)
     assert len(rows) == 3
+    assert all(isinstance(r, ase.Atoms) for r in rows)
 
 
 # --- .columns property ---
@@ -170,5 +180,6 @@ def test_aseio_from_backend(db_from_backend):
 
 
 def test_aseio_from_backend_views(db_from_backend):
-    energies = list(db_from_backend["calc.energy"])
-    assert len(energies) == 5
+    results = list(db_from_backend["calc.energy"])
+    assert len(results) == 5
+    assert all(isinstance(r, ase.Atoms) for r in results)

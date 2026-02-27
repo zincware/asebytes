@@ -27,7 +27,7 @@ K = TypeVar("K", str, bytes)
 | `AsyncSingleRowView` | `Generic[R]` | `Generic[R, K]` |
 | `AsyncRowView` | `Generic[R]` | `Generic[R, K]` |
 | `AsyncColumnView` | — | `Generic[K]` |
-| `_AsyncColumnValueView` | — | `Generic[K]` |
+| `AsyncSingleColumnView` | — | `Generic[K]` |
 
 `ASEColumnView` and `AsyncASEColumnView` remain subclasses with `K=str`.
 
@@ -94,7 +94,7 @@ class RowView(Generic[R, K]):
 
 ```python
 class AsyncSingleRowView(Generic[R, K]):
-    def __getitem__(self, key: K | list[K]) -> _AsyncColumnValueView[K]: ...
+    def __getitem__(self, key: K | list[K]) -> AsyncSingleColumnView[K]: ...
 ```
 
 ## Files modified
@@ -102,7 +102,7 @@ class AsyncSingleRowView(Generic[R, K]):
 | File | Changes |
 |---|---|
 | `_views.py` | Add `K` to `ViewParent`, `RowView`, `ColumnView` |
-| `_async_views.py` | Add `K` to `AsyncViewParent`, `AsyncSingleRowView`, `AsyncRowView`, `AsyncColumnView`, `_AsyncColumnValueView` |
+| `_async_views.py` | Add `K` to `AsyncViewParent`, `AsyncSingleRowView`, `AsyncRowView`, `AsyncColumnView`, `AsyncSingleColumnView` |
 | `_blob_io.py` | Remove bytes↔str encoding. Accept `bytes` natively. |
 | `_async_blob_io.py` | Remove encoding, native bytes. |
 | `_async_bytesio.py` | Remove encoding, native bytes. |

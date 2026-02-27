@@ -1,6 +1,6 @@
 # asebytes
 
-Storage-agnostic, lazy-loading interface for [ASE](https://wiki.fysik.dtu.dk/ase/) Atoms objects. Pluggable backends (LMDB, Zarr, HDF5/H5MD, HuggingFace Datasets, ASE file formats) behind a single `list`-like API with pandas-style column views.
+Storage-agnostic, lazy-loading data layer with pluggable backends (LMDB, Zarr, HDF5/H5MD, HuggingFace Datasets, ASE file formats). Three IO tiers — raw bytes, structured dicts, and ASE Atoms — each with full sync and async APIs plus pandas-style column views.
 
 ```
 pip install asebytes[lmdb]      # LMDB backend (recommended)
@@ -14,66 +14,196 @@ pip install asebytes[hf]        # HuggingFace Datasets backend
 ```python
 from asebytes import ASEIO
 
-# Write
+# Sync
 db = ASEIO("data.lmdb")
-db.extend(atoms_list)           # bulk append
-db[0] = new_atoms               # replace row
-db.update(0, calc={"energy": -10.5})  # partial update
+db.extend(atoms_list)
+db[0] = new_atoms
+atoms = db[0]
 
-# Read
-atoms = db[0]                   # ase.Atoms
-atoms = db[-1]                  # negative indexing
+# Async
+import asyncio
+from asebytes import AsyncASEIO
+
+async def main():
+    db = AsyncASEIO("data.lmdb")
+    await db.aextend(atoms_list)
+    atoms = await db[0]
+    async for atoms in db:
+        process(atoms)
+
+asyncio.run(main())
 ```
+
+String paths auto-detect the backend from the file extension. Pass a backend instance directly for full control.
+
+## Three IO Layers
+
+| Class | Async class | Row type | Use case |
+|-------|-------------|----------|----------|
+| `ASEIO` | `AsyncASEIO` | `ase.Atoms` | Atomistic simulations |
+| `ObjectIO` | `AsyncObjectIO` | `dict[str, Any]` | Structured data without ASE |
+| `BlobIO` | `AsyncBlobIO` | `dict[bytes, bytes]` | Raw bytes, zero deserialization |
+
+### ASEIO — Atoms objects
+
+```python
+from asebytes import ASEIO, AsyncASEIO
+
+# Sync
+db = ASEIO("atoms.lmdb")
+db.extend(atoms_list)
+db.update(0, calc={"energy": -10.5})
+atoms = db[0]                  # ase.Atoms
+
+# Async
+db = AsyncASEIO("atoms.lmdb")
+await db.aextend(atoms_list)
+atoms = await db[0]            # ase.Atoms
+await db[0].update({"calc.energy": -10.5})
+```
+
+### ObjectIO — plain dicts
+
+```python
+from asebytes import ObjectIO, AsyncObjectIO
+
+# Sync
+db = ObjectIO("records.lmdb")
+db.extend([
+    {"arrays.numbers": [29], "calc.energy": -3.5},
+    {"arrays.numbers": [26], "calc.energy": -8.3},
+])
+row = db[0]  # {"arrays.numbers": [29], "calc.energy": -3.5}
+
+# Async
+db = AsyncObjectIO("records.lmdb")
+await db.aextend([{"arrays.numbers": [29], "calc.energy": -3.5}])
+row = await db[0]
+```
+
+### BlobIO — raw bytes
+
+```python
+from asebytes import BlobIO, AsyncBlobIO
+
+# Sync
+db = BlobIO("blobs.lmdb")
+db.extend([{b"key": b"value"}, {b"key": b"other"}])
+row = db[0]                    # {b"key": b"value"}
+
+# Async
+db = AsyncBlobIO("blobs.lmdb")
+await db.aextend([{b"key": b"value"}])
+row = await db[0]
+```
+
+## Lazy Views
+
+Indexing with slices, lists, or strings returns lazy views — nothing is loaded until you iterate or materialize.
+
+### Row views
+
+```python
+# Sync
+view = db[5:100]               # RowView (lazy)
+view = db[[0, 42, 99]]         # RowView from index list
+for row in view:
+    process(row)
+
+# Async
+view = db[5:100]               # AsyncRowView (lazy)
+async for row in view:
+    process(row)
+rows = await view.to_list()    # materialize to list
+```
+
+### Column views
+
+```python
+# Sync
+energies = db["calc.energy"].to_list()
+cols = db[["calc.energy", "calc.forces"]].to_dict()
+# → {"calc.energy": [...], "calc.forces": [...]}
+
+# Async
+energies = await db["calc.energy"].to_list()
+cols = await db[["calc.energy", "calc.forces"]].to_dict()
+```
+
+### Chaining rows + columns
+
+```python
+# Sync
+db[0:500]["calc.energy"].to_list()
+
+# Async
+await db[0:500]["calc.energy"].to_list()
+```
+
+### Materialization
+
+```python
+# Sync
+view.to_list()                 # load all into memory
+view.to_dict()                 # column-oriented dict (ColumnView only)
+for batch in view.chunked(1000):  # iterate in chunks
+    process(batch)
+
+# Async
+await view.to_list()
+await view.to_dict()
+async for batch in view.achunked(1000):
+    process(batch)
+```
+
+### Write-back
+
+Views support in-place mutations when backed by a writable backend.
+
+```python
+# Sync
+db[0:10].set(new_rows)         # overwrite rows
+db[0:10].update({"info.tag": "train"})  # partial update (applies to all rows)
+db[0:10].delete()              # delete rows (contiguous only)
+
+# Async
+await db[0:10].set(new_rows)
+await db[0:10].update({"info.tag": "train"})
+await db[0:10].delete()
+```
+
+## Backends
 
 Backend is auto-detected from the file extension:
 
 | Extension | Backend | Install extra |
 |-----------|---------|---------------|
-| `*.lmdb` | `LMDBBackend` | `asebytes[lmdb]` |
+| `*.lmdb` | `LMDBBackend` / `LMDBObjectBackend` / `LMDBBlobBackend` | `asebytes[lmdb]` |
 | `*.zarr` | `ZarrBackend` | `asebytes[zarr]` |
 | `*.h5` / `*.h5md` | `H5MDBackend` | `asebytes[h5md]` |
 | `*.xyz` / `*.extxyz` / `*.traj` | `ASEReadOnlyBackend` | *(none)* |
 
-## Lazy Views
+URI schemes for remote/streaming sources:
 
-Indexing with slices, lists, or strings returns lazy views that load data on demand.
+| Scheme | Source | Example |
+|--------|--------|---------|
+| `hf://` | HuggingFace Datasets | `ASEIO("hf://user/dataset", ...)` |
+| `colabfit://` | ColabFit datasets | `ASEIO("colabfit://mlearn_Cu_train", ...)` |
+| `optimade://` | OPTIMADE datasets | `ASEIO("optimade://LeMaterial/LeMat-Bulk", ...)` |
 
-```python
-# Row views — lazy, stream one frame at a time
-view = db[5:100]                # slice → RowView (nothing loaded yet)
-view = db[[0, 42, 99]]         # list of indices → RowView
-for atoms in view:
-    process(atoms)
+## Read-Through Cache
 
-# Chunked iteration — loads N rows per batch for throughput
-for atoms in db[:].chunked(1000):
-    process(atoms)
-
-# Column views — avoid constructing full Atoms objects
-energies = db["calc.energy"].to_list()
-cols = db[["calc.energy", "calc.forces"]].to_dict()
-# → {"calc.energy": [...], "calc.forces": [...]}
-
-# Chaining — slice rows, then select columns
-db[0:500]["calc.energy"].to_list()
-```
-
-## Persistent Read-Through Cache
-
-For slow or remote sources, `cache_to` creates a persistent local cache.
-First pass reads from source and fills the cache; all subsequent reads are served from cache.
+For slow or remote sources, `cache_to` creates a persistent local cache. First pass reads from source and fills the cache; subsequent reads are served from cache.
 
 ```python
 db = ASEIO("colabfit://dataset", split="train", cache_to="cache.lmdb")
-
 for atoms in db:    # epoch 1: reads source, populates cache
     train(atoms)
-for atoms in db:    # epoch 2+: all reads from local cache
+for atoms in db:    # epoch 2+: reads from local cache
     train(atoms)
 ```
 
-Accepts a file path (auto-creates backend) or any `WritableBackend` instance.
-No invalidation — delete the cache file to reset.
+`cache_to` is available on `ASEIO` only. Accepts a file path (auto-creates backend) or any `ReadWriteBackend` instance. No invalidation — delete the cache file to reset.
 
 ## HuggingFace Datasets
 
@@ -98,9 +228,11 @@ db = ASEIO("hf://user/dataset", mapping=mapping, split="train")
 db = ASEIO("colabfit://dataset", split="train", streaming=False)
 ```
 
-## Zarr
+## Zarr / HDF5 / H5MD
 
-Zarr backend with flat layout and Blosc/LZ4 compression. Offers compact file sizes and fast read performance. Supports variable particle counts via NaN padding, append-only writes.
+### Zarr
+
+Flat layout with Blosc/LZ4 compression. Compact files and fast reads. Supports variable particle counts via NaN padding.
 
 ```python
 db = ASEIO("trajectory.zarr")
@@ -111,9 +243,9 @@ from asebytes import ZarrBackend
 db = ASEIO(ZarrBackend("data.zarr", compressor="zstd", clevel=9))
 ```
 
-## HDF5 / H5MD
+### HDF5 / H5MD
 
-H5MD-standard files with support for variable particle counts, per-frame PBC, and bond connectivity.
+H5MD-standard files with variable particle counts, per-frame PBC, and bond connectivity.
 
 ```python
 db = ASEIO("trajectory.h5", author_name="Jane Doe", compression="gzip")
@@ -139,23 +271,32 @@ All data follows a flat namespace:
 ```python
 from asebytes import atoms_to_dict, dict_to_atoms
 
-d = atoms_to_dict(atoms)   # Atoms → flat dict (~5x faster than encode/decode)
+d = atoms_to_dict(atoms)   # Atoms → flat dict
 atoms = dict_to_atoms(d)   # flat dict → Atoms
 ```
 
 ## Custom Backends
 
-Implement `ReadableBackend` for read-only or `WritableBackend` for read-write:
+Implement `ReadBackend[K, V]` for read-only access or `ReadWriteBackend[K, V]` for full read-write:
 
 ```python
-from asebytes import ASEIO, ReadableBackend
+from asebytes import ReadBackend
 
-class MyBackend(ReadableBackend):
-    def __len__(self): ...
-    def columns(self, index=0): ...
-    def read_row(self, index, keys=None): ...
+class MyBackend(ReadBackend[str, object]):
+    def __len__(self) -> int: ...
+    def schema(self) -> list[str]: ...
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, object] | None: ...
 
-db = ASEIO(MyBackend())
+db = ObjectIO(MyBackend())
+```
+
+For async backends, subclass `AsyncReadBackend[K, V]` / `AsyncReadWriteBackend[K, V]`, or wrap an existing sync backend:
+
+```python
+from asebytes import SyncToAsyncAdapter, AsyncObjectIO
+
+async_backend = SyncToAsyncAdapter(MyBackend())
+db = AsyncObjectIO(async_backend)
 ```
 
 ## Benchmarks

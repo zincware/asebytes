@@ -36,7 +36,7 @@ class MockParent:
     def _read_column(self, key: str, indices: list[int]) -> list[Any]:
         return [self._rows[i][key] for i in indices]
 
-    def _build_atoms(self, row: dict[str, Any]) -> ase.Atoms:
+    def _build_result(self, row: dict[str, Any]) -> ase.Atoms:
         """Minimal Atoms construction for testing."""
         n = len(row.get("arrays.numbers", []))
         return ase.Atoms(
@@ -195,14 +195,14 @@ class TestColumnViewMulti:
         view = ColumnView(parent, ["calc.energy", "info.tag"], range(0, 5))
         assert len(view) == 5
 
-    def test_getitem_int_returns_dict(self, parent):
-        """Multi-key ColumnView[int] returns a dict."""
+    def test_getitem_int_returns_list(self, parent):
+        """Multi-key ColumnView[int] returns a positional list."""
         view = ColumnView(parent, ["calc.energy", "info.tag"], range(0, 5))
         row = view[0]
-        assert isinstance(row, dict)
-        assert "calc.energy" in row
-        assert "info.tag" in row
-        assert "arrays.positions" not in row
+        assert isinstance(row, list)
+        assert len(row) == 2
+        assert row[0] == pytest.approx(0.0)  # calc.energy
+        assert row[1] == "mol_0"  # info.tag
 
     def test_getitem_slice(self, parent):
         view = ColumnView(parent, ["calc.energy", "info.tag"], range(0, 10))
@@ -218,19 +218,19 @@ class TestColumnViewMulti:
         assert isinstance(col, ColumnView)
         assert col._single
 
-    def test_iter_yields_dicts(self, parent):
+    def test_iter_yields_lists(self, parent):
         view = ColumnView(parent, ["calc.energy", "info.tag"], range(0, 3))
         rows = list(view)
         assert len(rows) == 3
-        assert all(isinstance(r, dict) for r in rows)
-        assert rows[0]["calc.energy"] == pytest.approx(0.0)
-        assert rows[0]["info.tag"] == "mol_0"
+        assert all(isinstance(r, list) for r in rows)
+        assert rows[0][0] == pytest.approx(0.0)  # calc.energy
+        assert rows[0][1] == "mol_0"  # info.tag
 
     def test_to_list(self, parent):
         view = ColumnView(parent, ["calc.energy", "info.tag"], range(0, 3))
         rows = view.to_list()
         assert len(rows) == 3
-        assert rows[0]["calc.energy"] == pytest.approx(0.0)
+        assert rows[0][0] == pytest.approx(0.0)  # calc.energy
 
     def test_to_dict(self, parent):
         view = ColumnView(parent, ["calc.energy", "info.tag"], range(0, 3))
@@ -246,4 +246,4 @@ class TestColumnViewMulti:
         cols = view[["calc.energy", "info.tag"]]
         rows = list(cols)
         assert len(rows) == 3
-        assert rows[0]["calc.energy"] == pytest.approx(-5.0)
+        assert rows[0][0] == pytest.approx(-5.0)  # calc.energy

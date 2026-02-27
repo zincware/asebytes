@@ -22,136 +22,161 @@ class AsyncBlobIO:
     """Async storage-agnostic interface for dict[bytes, bytes] rows.
 
     Wraps an AsyncReadBackend[bytes, bytes] or AsyncReadWriteBackend[bytes, bytes].
+    If *backend* is a string path, auto-creates a sync blob backend via the
+    registry and wraps it with SyncToAsyncAdapter.
+
     ``__getitem__`` is synchronous and returns awaitable views.
     """
 
-    def __init__(self, backend: AsyncReadBackend[bytes, bytes]):
-        self._backend = backend
+    def __init__(
+        self,
+        backend: str | AsyncReadBackend[bytes, bytes],
+        *,
+        readonly: bool | None = None,
+        **kwargs: Any,
+    ):
+        if isinstance(backend, str):
+            from ._registry import get_blob_backend_cls
+            from ._async_backends import SyncToAsyncAdapter
+
+            cls = get_blob_backend_cls(backend, readonly=readonly)
+            sync_backend = cls(backend, **kwargs)
+            self._backend: AsyncReadBackend[bytes, bytes] = SyncToAsyncAdapter(sync_backend)
+        else:
+            self._backend = backend
 
     # -- AsyncViewParent implementation ------------------------------------
 
     def __len__(self) -> int:
         raise TypeError(
-            "len() is not available on async objects. Use 'await io.alen()' instead."
+            "len() is not available on async objects. Use 'await io.len()' instead."
         )
 
-    async def alen(self) -> int:
-        return await self._backend.alen()
+    async def len(self) -> int:
+        return await self._backend.len()
 
     async def _read_row(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[bytes, bytes] | None:
-        byte_keys = [k.encode() for k in keys] if keys is not None else None
-        return await self._backend.aget(index, byte_keys)
+        self, index: int, keys: list[bytes] | None = None
+    ) -> Any:
+        return await self._backend.get(index, keys)
 
     async def _read_rows(
-        self, indices: list[int], keys: list[str] | None = None
-    ) -> list[dict[bytes, bytes] | None]:
-        byte_keys = [k.encode() for k in keys] if keys is not None else None
-        return await self._backend.aget_many(indices, byte_keys)
+        self, indices: list[int], keys: list[bytes] | None = None
+    ) -> list[Any]:
+        return await self._backend.get_many(indices, keys)
 
-    async def _read_column(self, key: str, indices: list[int]) -> list[Any]:
-        byte_key = key.encode()
-        return await self._backend.aget_column(byte_key, indices)
+    async def _read_column(self, key: bytes, indices: list[int]) -> list[Any]:
+        return await self._backend.get_column(key, indices)
 
     async def _write_row(self, index: int, data: Any) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
-        await self._backend.aset(index, data)
+        await self._backend.set(index, data)
 
     async def _delete_row(self, index: int) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
-        await self._backend.adelete(index)
+        await self._backend.delete(index)
 
     async def _delete_rows(self, start: int, stop: int) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
-        await self._backend.adelete_many(start, stop)
+        await self._backend.delete_many(start, stop)
 
     async def _update_row(self, index: int, data: Any) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
-        await self._backend.aupdate(index, data)
+        await self._backend.update(index, data)
 
-    async def _drop_keys(self, keys: list[str], indices: list[int]) -> None:
+    async def _drop_keys(self, keys: list[bytes], indices: list[int]) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
-        byte_keys = [k.encode() if isinstance(k, str) else k for k in keys]
-        await self._backend.adrop_keys(byte_keys, indices)
+        await self._backend.drop_keys(keys, indices)
 
     async def _get_available_keys(self, index: int) -> list[bytes]:
-        return await self._backend.aget_available_keys(index)
+        return await self._backend.get_available_keys(index)
 
-    def _build_result(self, row: Any) -> Any:
+    def _build_result(self, row: Any) -> dict[bytes, bytes] | None:
         """Identity transform -- returns raw dict[bytes, bytes] as-is."""
         return row
 
     # -- __getitem__ -> sync, returns views ---------------------------------
 
     @overload
-    def __getitem__(self, index: int) -> AsyncSingleRowView: ...
+    def __getitem__(self, index: int) -> AsyncSingleRowView[dict[bytes, bytes] | None]: ...
     @overload
-    def __getitem__(self, index: slice) -> AsyncRowView: ...
+    def __getitem__(self, index: slice) -> AsyncRowView[dict[bytes, bytes] | None]: ...
     @overload
-    def __getitem__(self, index: list[int]) -> AsyncRowView: ...
+    def __getitem__(self, index: list[int]) -> AsyncRowView[dict[bytes, bytes] | None]: ...
+    @overload
+    def __getitem__(self, index: str) -> AsyncColumnView: ...
+    @overload
+    def __getitem__(self, index: bytes) -> AsyncColumnView: ...
+    @overload
+    def __getitem__(self, index: list[str]) -> AsyncColumnView: ...
+    @overload
+    def __getitem__(self, index: list[bytes]) -> AsyncColumnView: ...
 
     def __getitem__(
         self,
-        index: int | slice | list[int],
-    ) -> AsyncSingleRowView | AsyncRowView:
+        index: int | slice | str | bytes | list[int] | list[str] | list[bytes],
+    ) -> AsyncSingleRowView[dict[bytes, bytes] | None] | AsyncRowView[dict[bytes, bytes] | None] | AsyncColumnView:
         if isinstance(index, int):
             return AsyncSingleRowView(self, index)
         if isinstance(index, slice):
             return _DeferredSliceRowView(self, index)
+        if isinstance(index, (bytes, str)):
+            return AsyncColumnView(self, index)
         if isinstance(index, list):
             if not index:
                 return AsyncRowView(self, [])
             if isinstance(index[0], int):
                 return AsyncRowView(self, index, contiguous=False)
+            if isinstance(index[0], (bytes, str)):
+                return AsyncColumnView(self, index)
         raise TypeError(f"Unsupported index type: {type(index)}")
 
     # -- Top-level async methods -------------------------------------------
 
-    async def aextend(self, data: list[dict[bytes, bytes] | None]) -> None:
+    async def extend(self, data: list[dict[bytes, bytes] | None]) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
-        await self._backend.aextend(data)
+        await self._backend.extend(data)
 
-    async def ainsert(self, index: int, data: dict[bytes, bytes] | None) -> None:
+    async def insert(self, index: int, data: dict[bytes, bytes] | None) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
-        await self._backend.ainsert(index, data)
+        await self._backend.insert(index, data)
 
     async def adrop(self, *, keys: list[bytes]) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
-        await self._backend.adrop_keys(keys)
+        await self._backend.drop_keys(keys)
 
-    async def aschema(self) -> list[bytes]:
-        return await self._backend.aschema()
+    async def schema(self) -> list[bytes]:
+        return await self._backend.schema()
 
-    async def aclear(self) -> None:
+    async def clear(self) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
-        await self._backend.aclear()
+        await self._backend.clear()
 
-    async def aremove(self) -> None:
+    async def remove(self) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
-        await self._backend.aremove()
+        await self._backend.remove()
 
-    async def areserve(self, count: int) -> None:
+    async def reserve(self, count: int) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
-        await self._backend.areserve(count)
+        await self._backend.reserve(count)
 
     # -- Async iteration ---------------------------------------------------
 
     async def __aiter__(self):
-        n = await self._backend.alen()
+        n = await self._backend.len()
         for i in range(n):
-            row = await self._backend.aget(i)
+            row = await self._backend.get(i)
             yield self._build_result(row)
 
     # -- Context manager ---------------------------------------------------

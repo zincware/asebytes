@@ -9,7 +9,7 @@ import numpy as np
 
 from ._convert import atoms_to_dict, dict_to_atoms
 from ._backends import ReadBackend, ReadWriteBackend
-from ._views import ColumnView, RowView
+from ._views import ASEColumnView, ColumnView, RowView
 
 
 class ASEIO(MutableSequence):
@@ -136,7 +136,27 @@ class ASEIO(MutableSequence):
             return [self._read_row(i, [key])[key] for i in indices]
         return self._backend.get_column(key, indices)
 
-    def _build_atoms(self, row: dict[str, Any]) -> ase.Atoms:
+    def _write_row(self, index: int, data: Any) -> None:
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.set(index, data)
+
+    def _update_row(self, index: int, data: dict[str, Any]) -> None:
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.update(index, data)
+
+    def _delete_row(self, index: int) -> None:
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.delete(index)
+
+    def _delete_rows(self, start: int, stop: int) -> None:
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.delete_many(start, stop)
+
+    def _build_result(self, row: dict[str, Any]) -> ase.Atoms:
         return dict_to_atoms(row)
 
     # --- MutableSequence interface ---
@@ -144,18 +164,18 @@ class ASEIO(MutableSequence):
     @overload
     def __getitem__(self, index: int) -> ase.Atoms: ...
     @overload
-    def __getitem__(self, index: slice) -> RowView: ...
+    def __getitem__(self, index: slice) -> RowView[ase.Atoms]: ...
     @overload
-    def __getitem__(self, index: list[int]) -> RowView: ...
+    def __getitem__(self, index: list[int]) -> RowView[ase.Atoms]: ...
     @overload
-    def __getitem__(self, index: str) -> ColumnView: ...
+    def __getitem__(self, index: str) -> ASEColumnView: ...
     @overload
-    def __getitem__(self, index: list[str]) -> ColumnView: ...
+    def __getitem__(self, index: list[str]) -> ASEColumnView: ...
 
     def __getitem__(
         self,
         index: int | slice | str | list[int] | list[str],
-    ) -> ase.Atoms | RowView | ColumnView:
+    ) -> ase.Atoms | RowView[ase.Atoms] | ASEColumnView:
         if isinstance(index, int):
             if index < 0:
                 index += len(self)  # raises TypeError if unknown
@@ -165,9 +185,9 @@ class ASEIO(MutableSequence):
             return dict_to_atoms(row)
         if isinstance(index, slice):
             indices = range(len(self))[index]
-            return RowView(self, list(indices))
+            return RowView(self, list(indices), column_view_cls=ASEColumnView)
         if isinstance(index, str):
-            return ColumnView(self, index)
+            return ASEColumnView(self, index)
         if isinstance(index, list):
             if not index:
                 return RowView(self, [])
@@ -179,9 +199,9 @@ class ASEIO(MutableSequence):
                     if idx < 0 or idx >= n:
                         raise IndexError(i)
                     normalized.append(idx)
-                return RowView(self, normalized)
+                return RowView(self, normalized, column_view_cls=ASEColumnView)
             if isinstance(index[0], str):
-                return ColumnView(self, index)
+                return ASEColumnView(self, index)
         raise TypeError(f"Unsupported index type: {type(index)}")
 
     def __setitem__(self, index: int, value: ase.Atoms) -> None:

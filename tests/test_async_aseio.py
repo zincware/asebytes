@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import ase
 import pytest
 
 from asebytes._async_io import AsyncASEIO
@@ -99,16 +100,17 @@ def db(backend):
 class TestSingleItemAccess:
     @pytest.mark.anyio
     async def test_await_single_row(self, db, backend):
-        """await db[0] → dict (or Atoms if convert enabled)."""
+        """await db[0] → Atoms."""
         result = await db[0]
-        assert isinstance(result, dict)
-        assert result["calc.energy"] == 0.0
+        assert isinstance(result, ase.Atoms)
+        assert result.calc.results["energy"] == 0.0
 
     @pytest.mark.anyio
     async def test_await_negative_index(self, db):
-        """await db[-1] → last row."""
+        """await db[-1] → last row as Atoms."""
         result = await db[-1]
-        assert result["calc.energy"] == -9.0
+        assert isinstance(result, ase.Atoms)
+        assert result.calc.results["energy"] == -9.0
 
     @pytest.mark.anyio
     async def test_await_none_placeholder(self, backend):
@@ -127,19 +129,20 @@ class TestSingleItemAccess:
 class TestBulkRead:
     @pytest.mark.anyio
     async def test_await_slice(self, db):
-        """await db[0:3] → list."""
-        result = await db[0:3]
+        """await db[0:3] → list of Atoms."""
+        result = await db[0:3].to_list()
         assert isinstance(result, list)
         assert len(result) == 3
-        assert result[0]["calc.energy"] == 0.0
-        assert result[2]["calc.energy"] == -2.0
+        assert all(isinstance(r, ase.Atoms) for r in result)
+        assert result[0].calc.results["energy"] == 0.0
+        assert result[2].calc.results["energy"] == -2.0
 
     @pytest.mark.anyio
     async def test_await_list_indices(self, db):
-        """await db[[0, 5, 9]] → list."""
-        result = await db[[0, 5, 9]]
+        """await db[[0, 5, 9]] → list of Atoms."""
+        result = await db[[0, 5, 9]].to_list()
         assert len(result) == 3
-        assert result[1]["calc.energy"] == -5.0
+        assert result[1].calc.results["energy"] == -5.0
 
 
 # ========================================================================
@@ -149,8 +152,8 @@ class TestBulkRead:
 
 class TestLength:
     @pytest.mark.anyio
-    async def test_alen(self, db):
-        n = await db.alen()
+    async def test_len(self, db):
+        n = await db.len()
         assert n == 10
 
 
@@ -161,55 +164,55 @@ class TestLength:
 
 class TestWriteOps:
     @pytest.mark.anyio
-    async def test_aextend(self, db, backend):
+    async def test_extend(self, db, backend):
         new_rows = [_make_row(100), _make_row(101)]
-        await db.aextend(new_rows)
+        await db.extend(new_rows)
         assert len(backend._rows) == 12
 
     @pytest.mark.anyio
-    async def test_aset_single(self, db, backend):
-        """await db[0].aset(row)."""
+    async def test_set_single(self, db, backend):
+        """await db[0].set(row)."""
         new_row = _make_row(99)
-        await db[0].aset(new_row)
+        await db[0].set(new_row)
         assert backend._rows[0]["calc.energy"] == -99.0
 
     @pytest.mark.anyio
-    async def test_aset_slice(self, db, backend):
-        """await db[0:3].aset([row, row, row])."""
+    async def test_set_slice(self, db, backend):
+        """await db[0:3].set([row, row, row])."""
         new_rows = [_make_row(90 + i) for i in range(3)]
-        await db[0:3].aset(new_rows)
+        await db[0:3].set(new_rows)
         assert backend._rows[0]["calc.energy"] == -90.0
         assert backend._rows[2]["calc.energy"] == -92.0
 
     @pytest.mark.anyio
-    async def test_ainsert(self, db, backend):
+    async def test_insert(self, db, backend):
         new_row = _make_row(55)
-        await db.ainsert(0, new_row)
+        await db.insert(0, new_row)
         assert len(backend._rows) == 11
         assert backend._rows[0]["calc.energy"] == -55.0
 
     @pytest.mark.anyio
-    async def test_adelete_single(self, db, backend):
-        """await db[0].adelete()."""
-        await db[0].adelete()
+    async def test_delete_single(self, db, backend):
+        """await db[0].delete()."""
+        await db[0].delete()
         assert len(backend._rows) == 9
 
     @pytest.mark.anyio
-    async def test_adelete_contiguous_slice(self, db, backend):
-        """await db[0:3].adelete()."""
-        await db[0:3].adelete()
+    async def test_delete_contiguous_slice(self, db, backend):
+        """await db[0:3].delete()."""
+        await db[0:3].delete()
         assert len(backend._rows) == 7
 
     @pytest.mark.anyio
-    async def test_adelete_non_contiguous_raises(self, db):
-        """await db[[2, 5, 8]].adelete() → TypeError."""
+    async def test_delete_non_contiguous_raises(self, db):
+        """await db[[2, 5, 8]].delete() → TypeError."""
         with pytest.raises(TypeError, match="contiguous"):
-            await db[[2, 5, 8]].adelete()
+            await db[[2, 5, 8]].delete()
 
     @pytest.mark.anyio
-    async def test_aset_none_empties_slots(self, db, backend):
-        """await db[[2, 5, 8]].aset([None]*3) — empties without shifting."""
-        await db[[2, 5, 8]].aset([None] * 3)
+    async def test_set_none_empties_slots(self, db, backend):
+        """await db[[2, 5, 8]].set([None]*3) — empties without shifting."""
+        await db[[2, 5, 8]].set([None] * 3)
         assert backend._rows[2] is None
         assert backend._rows[5] is None
         assert backend._rows[8] is None
@@ -223,8 +226,8 @@ class TestWriteOps:
 
 class TestUpdate:
     @pytest.mark.anyio
-    async def test_aupdate_single(self, db, backend):
-        await db[0].aupdate({"calc.energy": -10.5})
+    async def test_update_single(self, db, backend):
+        await db[0].update({"calc.energy": -10.5})
         assert backend._rows[0]["calc.energy"] == -10.5
         assert backend._rows[0]["info.tag"] == "mol_0"  # untouched
 
@@ -271,32 +274,37 @@ class TestDrop:
 class TestColumnAccess:
     @pytest.mark.anyio
     async def test_await_column(self, db):
-        """await db["calc.energy"] → list of values."""
-        result = await db["calc.energy"]
+        """await db["calc.energy"] → list of Atoms."""
+        result = await db["calc.energy"].to_list()
         assert isinstance(result, list)
         assert len(result) == 10
-        assert result[0] == 0.0
-        assert result[9] == -9.0
+        assert all(isinstance(r, ase.Atoms) for r in result)
+        assert result[0].calc.results["energy"] == 0.0
+        assert result[9].calc.results["energy"] == -9.0
 
     @pytest.mark.anyio
     async def test_await_column_slice(self, db):
-        """await db["calc.energy"][0:3] → list of 3 values."""
-        result = await db["calc.energy"][0:3]
-        assert result == [0.0, -1.0, -2.0]
+        """await db["calc.energy"][0:3] → list of 3 Atoms."""
+        result = await db["calc.energy"][0:3].to_list()
+        assert len(result) == 3
+        assert all(isinstance(r, ase.Atoms) for r in result)
+        energies = [r.calc.results["energy"] for r in result]
+        assert energies == [0.0, -1.0, -2.0]
 
     @pytest.mark.anyio
     async def test_await_multi_column(self, db):
-        """await db[["calc.energy", "info.tag"]] → list of dicts."""
-        result = await db[["calc.energy", "info.tag"]]
+        """await db[["calc.energy", "info.tag"]] → list of Atoms."""
+        result = await db[["calc.energy", "info.tag"]].to_list()
         assert len(result) == 10
-        assert result[0] == {"calc.energy": 0.0, "info.tag": "mol_0"}
+        assert all(isinstance(r, ase.Atoms) for r in result)
+        assert result[0].calc.results["energy"] == 0.0
+        assert result[0].info["tag"] == "mol_0"
 
     @pytest.mark.anyio
-    async def test_column_to_dict(self, db):
-        """await db["calc.energy"].to_dict()."""
-        result = await db["calc.energy"].to_dict()
-        assert "calc.energy" in result
-        assert result["calc.energy"][0] == 0.0
+    async def test_column_to_dict_raises(self, db):
+        """await db["calc.energy"].to_dict() raises TypeError."""
+        with pytest.raises(TypeError, match="to_dict.*not available"):
+            await db["calc.energy"].to_dict()
 
 
 # ========================================================================
@@ -307,19 +315,19 @@ class TestColumnAccess:
 class TestPlaceholders:
     @pytest.mark.anyio
     async def test_extend_none(self, db, backend):
-        await db.aextend([None, None, None])
+        await db.extend([None, None, None])
         assert len(backend._rows) == 13
         assert backend._rows[10] is None
 
     @pytest.mark.anyio
     async def test_insert_none(self, db, backend):
-        await db.ainsert(0, None)
+        await db.insert(0, None)
         assert backend._rows[0] is None
         assert len(backend._rows) == 11
 
     @pytest.mark.anyio
     async def test_set_none_single(self, db, backend):
-        await db[0].aset(None)
+        await db[0].set(None)
         assert backend._rows[0] is None
 
     @pytest.mark.anyio
@@ -334,7 +342,7 @@ class TestPlaceholders:
         backend._rows[0] = None
         backend._rows[2] = None
         db = AsyncASEIO(SyncToAsyncAdapter(backend))
-        result = await db[0:3]
+        result = await db[0:3].to_list()
         assert result[0] is None
         assert result[1] is not None
         assert result[2] is None
@@ -361,24 +369,30 @@ class TestAsyncIteration:
         async for row in db[2:5]:
             results.append(row)
         assert len(results) == 3
-        assert results[0]["calc.energy"] == -2.0
+        assert isinstance(results[0], ase.Atoms)
+        assert results[0].calc.results["energy"] == -2.0
 
     @pytest.mark.anyio
     async def test_aiter_column(self, db):
-        """async for val in db["calc.energy"][0:3]."""
+        """async for val in db["calc.energy"][0:3] → Atoms."""
         results = []
         async for val in db["calc.energy"][0:3]:
             results.append(val)
-        assert results == [0.0, -1.0, -2.0]
+        assert len(results) == 3
+        assert all(isinstance(r, ase.Atoms) for r in results)
+        energies = [r.calc.results["energy"] for r in results]
+        assert energies == [0.0, -1.0, -2.0]
 
     @pytest.mark.anyio
     async def test_aiter_multi_column(self, db):
-        """async for row in db[["calc.energy", "info.tag"]]."""
+        """async for row in db[["calc.energy", "info.tag"]] → Atoms."""
         results = []
         async for row in db[["calc.energy", "info.tag"]]:
             results.append(row)
         assert len(results) == 10
-        assert results[0] == {"calc.energy": 0.0, "info.tag": "mol_0"}
+        assert all(isinstance(r, ase.Atoms) for r in results)
+        assert results[0].calc.results["energy"] == 0.0
+        assert results[0].info["tag"] == "mol_0"
 
 
 # ========================================================================
@@ -416,21 +430,21 @@ class TestContextManager:
 
 class TestLifecycle:
     @pytest.mark.anyio
-    async def test_aclear(self, db, backend):
-        await db.aclear()
+    async def test_clear(self, db, backend):
+        await db.clear()
         assert len(backend._rows) == 0
 
     @pytest.mark.anyio
-    async def test_areserve(self, db, backend):
-        await db.areserve(5)
+    async def test_reserve(self, db, backend):
+        await db.reserve(5)
         assert len(backend._rows) == 15
         assert backend._rows[10] is None
 
     @pytest.mark.anyio
-    async def test_aremove(self, db):
-        """aremove delegates to backend; default raises NotImplementedError."""
+    async def test_remove(self, db):
+        """remove delegates to backend; default raises NotImplementedError."""
         with pytest.raises(NotImplementedError):
-            await db.aremove()
+            await db.remove()
 
 
 # ========================================================================

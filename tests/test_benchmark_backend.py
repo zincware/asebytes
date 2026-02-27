@@ -7,7 +7,7 @@ Measures:
 - View materialization: db[0:1000] iteration vs direct loop
 - Random access: new path vs old path
 
-All benchmarks use the same 1000-ethanol dataset for comparison
+All benchmarks use the same 1000-ethanol datset for comparison
 with existing benchmarks in test_benchmark_read.py / test_benchmark_write.py.
 """
 
@@ -66,7 +66,7 @@ def test_dict_to_atoms_new(benchmark, ethanol):
     benchmark(dict_to_atoms, data)
 
 
-# --- Sequential read: full dataset ---
+# --- Sequential read: full datset ---
 
 
 @pytest.mark.benchmark(group="read_backend")
@@ -97,7 +97,7 @@ def test_read_new_aseio(benchmark, ethanol, tmp_path):
     assert len(results) == len(ethanol)
 
 
-# --- Sequential write: full dataset ---
+# --- Sequential write: full datset ---
 
 
 @pytest.mark.benchmark(group="write_backend")
@@ -165,7 +165,7 @@ def test_random_access_new(benchmark, ethanol, tmp_path):
     assert len(results) == len(ethanol)
 
 
-# --- Column access (new feature, no current equivalent) ---
+# --- Column access (new feature, no current equivlent) ---
 
 
 @pytest.mark.benchmark(group="column_access")
@@ -247,17 +247,16 @@ def test_direct_iteration(benchmark, ethanol, tmp_path):
 
 @pytest.mark.benchmark(group="multi_column")
 def test_multi_column_view(benchmark, ethanol_with_calc, tmp_path):
-    """New: db[["calc.energy", "calc.forces"]] -> ColumnView (multi) -> to_dict()."""
+    """New: db[["calc.energy", "calc.forces"]] -> ASEColumnView (multi) -> to_list()."""
     db_path = tmp_path / "multi_col.lmdb"
     db = ASEIO(str(db_path))
     db.extend(ethanol_with_calc)
 
     def read_multi():
-        return db[["calc.energy", "calc.forces"]][: len(ethanol_with_calc)].to_dict()
+        return db[["calc.energy", "calc.forces"]][: len(ethanol_with_calc)].to_list()
 
     result = benchmark(read_multi)
-    assert len(result["calc.energy"]) == len(ethanol_with_calc)
-    assert len(result["calc.forces"]) == len(ethanol_with_calc)
+    assert len(result) == len(ethanol_with_calc)
 
 
 @pytest.mark.benchmark(group="multi_column")

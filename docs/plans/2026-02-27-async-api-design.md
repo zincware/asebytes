@@ -12,10 +12,10 @@ which get auto-wrapped via `asyncio.to_thread`.
 1. **Separate classes**: `AsyncASEIO` / `ASEIO`, `AsyncBytesIO` / `BytesIO` — no mixed sync/async.
 2. **Awaitable views**: `__getitem__` is always sync (returns a view). Views implement `__await__` for smart materialization and `__aiter__` for async iteration.
 3. **`__await__` semantics**: single row view → unwrapped item, multi row view → list, column view → list of values.
-4. **Naming**: async method = sync method + `a` prefix (`extend` → `aextend`).
+4. **Naming**: async method = sync method + `a` prefix (`extend` → `extend`).
 5. **`drop()`** for column/key removal (pandas-style), scoped via views.
 6. **None placeholders** for reserving slots without data.
-7. **Non-contiguous delete is TypeError**: `adelete`/`ainsert` require contiguous slices or single int. Non-shifting ops (`aset`, `aupdate`, `adrop`) work on arbitrary index lists.
+7. **Non-contiguous delete is TypeError**: `delete`/`insert` require contiguous slices or single int. Non-shifting ops (`set`, `update`, `adrop`) work on arbitrary index lists.
 8. **Bytes-level protocol**: new `RawReadableBackend` / `RawWritableBackend` ABCs (BytesIO currently has no ABC).
 9. **Serialization adapter**: generalizes the LMDBBackend pattern of "raw bytes + msgpack" so any `RawBackend` can be lifted to str-level.
 
@@ -92,7 +92,7 @@ class RawWritableBackend(RawReadableBackend):
 
 ## Async Protocols
 
-Mirror the sync protocols with all methods async. `__len__` becomes `async def alen()`.
+Mirror the sync protocols with all methods async. `__len__` becomes `async def len()`.
 
 ## View Types
 
@@ -111,7 +111,7 @@ AsyncBytesIO.__getitem__
   list[bytes]  → AsyncColumnFilterView (further [int]/[slice])
 ```
 
-View methods: `aset`, `adelete` (contiguous only), `aupdate`, `adrop`, `akeys`.
+View methods: `set`, `delete` (contiguous only), `update`, `adrop`, `akeys`.
 Sync views get matching methods: `set`, `delete`, `update`, `drop`, `keys`.
 
 ## SyncToAsyncAdapter
@@ -140,4 +140,4 @@ with ASEIO("data.lmdb") as db:   # optional, LMDB auto-opens
 
 ## API Reference
 
-See `async-api.py` for complete usage examples with sync equivalents annotated.
+See `async-api.py` for complete usage examples with sync equivlents annotated.

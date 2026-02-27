@@ -1,6 +1,6 @@
-"""Round-trip dataset tests ported from ZnH5MD, run against all writable backends.
+"""Round-trip datset tests ported from ZnH5MD, run against all writable backends.
 
-Tests verify that diverse ASE datasets (varying atom counts, calc properties,
+Tests verify that diverse ASE datsets (varying atom counts, calc properties,
 info/arrays metadata, PBC, velocities) survive a write→read round-trip.
 """
 
@@ -47,11 +47,11 @@ def assert_atoms_roundtrip(a, b):
         npt.assert_array_equal(a.info[key], b.info[key])
 
 
-# -- Dataset round-trip tests -----------------------------------------------
+# -- Datset round-trip tests -----------------------------------------------
 
 
 @pytest.mark.parametrize(
-    "dataset",
+    "datset",
     [
         "s22",
         "s22_energy",
@@ -63,9 +63,9 @@ def assert_atoms_roundtrip(a, b):
         "s22_nested_calc",
     ],
 )
-def test_datasets(db_path, dataset, request):
-    """Write a full dataset, read back, and verify every frame."""
-    images = request.getfixturevalue(dataset)
+def test_datsets(db_path, datset, request):
+    """Write a full datset, read back, and verify every frame."""
+    images = request.getfixturevalue(datset)
     io = asebytes.ASEIO(db_path)
     io.extend(images)
     images2 = list(io[:])

@@ -18,12 +18,34 @@ class ObjectIO(MutableSequence):
 
     Parameters
     ----------
-    backend : ReadBackend[str, Any] | ReadWriteBackend[str, Any]
-        An object-level backend instance.
+    backend : str | ReadBackend[str, Any]
+        Either a file path (auto-creates backend via registry) or a
+        backend instance.
+    readonly : bool | None
+        Force read-only or writable mode. None (default) auto-detects.
+        Only used when *backend* is a string.
+    **kwargs
+        When backend is a str, forwarded to the backend constructor.
     """
 
-    def __init__(self, backend: ReadBackend[str, Any]):
-        self._backend = backend
+    def __init__(
+        self,
+        backend: str | ReadBackend[str, Any],
+        *,
+        readonly: bool | None = None,
+        **kwargs: Any,
+    ):
+        if isinstance(backend, str):
+            from ._registry import get_backend_cls, parse_uri
+
+            scheme, _remainder = parse_uri(backend)
+            cls = get_backend_cls(backend, readonly=readonly)
+            if scheme is not None:
+                self._backend: ReadBackend[str, Any] = cls.from_uri(backend, **kwargs)
+            else:
+                self._backend = cls(backend, **kwargs)
+        else:
+            self._backend = backend
 
     @property
     def columns(self) -> list[str]:
@@ -57,7 +79,27 @@ class ObjectIO(MutableSequence):
     def _read_column(self, key: str, indices: list[int]) -> list[Any]:
         return self._backend.get_column(key, indices)
 
-    def _build_atoms(self, row: dict[str, Any]) -> dict[str, Any]:
+    def _write_row(self, index: int, data: Any) -> None:
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.set(index, data)
+
+    def _update_row(self, index: int, data: dict[str, Any]) -> None:
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.update(index, data)
+
+    def _delete_row(self, index: int) -> None:
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.delete(index)
+
+    def _delete_rows(self, start: int, stop: int) -> None:
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.delete_many(start, stop)
+
+    def _build_result(self, row: dict[str, Any]) -> dict[str, Any]:
         """Identity transform -- returns dict as-is.
 
         ASEIO overrides this to call dict_to_atoms.
@@ -69,9 +111,9 @@ class ObjectIO(MutableSequence):
     @overload
     def __getitem__(self, index: int) -> dict[str, Any]: ...
     @overload
-    def __getitem__(self, index: slice) -> RowView: ...
+    def __getitem__(self, index: slice) -> RowView[dict[str, Any]]: ...
     @overload
-    def __getitem__(self, index: list[int]) -> RowView: ...
+    def __getitem__(self, index: list[int]) -> RowView[dict[str, Any]]: ...
     @overload
     def __getitem__(self, index: str) -> ColumnView: ...
     @overload
@@ -80,7 +122,7 @@ class ObjectIO(MutableSequence):
     def __getitem__(
         self,
         index: int | slice | str | list[int] | list[str],
-    ) -> dict[str, Any] | RowView | ColumnView:
+    ) -> dict[str, Any] | RowView[dict[str, Any]] | ColumnView:
         if isinstance(index, int):
             if index < 0:
                 index += len(self)

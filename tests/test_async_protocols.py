@@ -30,17 +30,17 @@ class MemoryAsyncRawReadable(AsyncRawReadableBackend):
     def __init__(self, data: list[dict[bytes, bytes] | None] | None = None):
         self._data: list[dict[bytes, bytes] | None] = data or []
 
-    async def alen(self) -> int:
+    async def len(self) -> int:
         return len(self._data)
 
-    async def aschema(self) -> list[bytes]:
+    async def schema(self) -> list[bytes]:
         keys: set[bytes] = set()
         for row in self._data:
             if row is not None:
                 keys.update(row.keys())
         return sorted(keys)
 
-    async def aget(
+    async def get(
         self, index: int, keys: list[bytes] | None = None
     ) -> dict[bytes, bytes] | None:
         if index < 0 or index >= len(self._data):
@@ -54,7 +54,7 @@ class MemoryAsyncRawReadable(AsyncRawReadableBackend):
 
 
 class MemoryAsyncRawWritable(MemoryAsyncRawReadable, AsyncRawWritableBackend):
-    async def aset(self, index: int, data: dict[bytes, bytes] | None) -> None:
+    async def set(self, index: int, data: dict[bytes, bytes] | None) -> None:
         if index < len(self._data):
             self._data[index] = data
         elif index == len(self._data):
@@ -62,13 +62,13 @@ class MemoryAsyncRawWritable(MemoryAsyncRawReadable, AsyncRawWritableBackend):
         else:
             raise IndexError(index)
 
-    async def ainsert(self, index: int, data: dict[bytes, bytes] | None) -> None:
+    async def insert(self, index: int, data: dict[bytes, bytes] | None) -> None:
         self._data.insert(index, data)
 
-    async def adelete(self, index: int) -> None:
+    async def delete(self, index: int) -> None:
         del self._data[index]
 
-    async def aextend(self, data: list[dict[bytes, bytes] | None]) -> None:
+    async def extend(self, data: list[dict[bytes, bytes] | None]) -> None:
         self._data.extend(data)
 
 
@@ -98,41 +98,41 @@ class TestAbstractInstantiation:
 
 class TestAsyncRawReadable:
     @pytest.mark.anyio
-    async def test_alen(self):
+    async def test_len(self):
         backend = MemoryAsyncRawReadable([{b"a": b"1"}, {b"b": b"2"}])
-        assert await backend.alen() == 2
+        assert await backend.len() == 2
 
     @pytest.mark.anyio
-    async def test_aget(self):
+    async def test_get(self):
         backend = MemoryAsyncRawReadable([{b"a": b"1", b"b": b"2"}])
-        assert await backend.aget(0) == {b"a": b"1", b"b": b"2"}
+        assert await backend.get(0) == {b"a": b"1", b"b": b"2"}
 
     @pytest.mark.anyio
-    async def test_aget_with_keys(self):
+    async def test_get_with_keys(self):
         backend = MemoryAsyncRawReadable([{b"a": b"1", b"b": b"2"}])
-        assert await backend.aget(0, keys=[b"a"]) == {b"a": b"1"}
+        assert await backend.get(0, keys=[b"a"]) == {b"a": b"1"}
 
     @pytest.mark.anyio
-    async def test_aget_none(self):
+    async def test_get_none(self):
         backend = MemoryAsyncRawReadable([None])
-        assert await backend.aget(0) is None
+        assert await backend.get(0) is None
 
     @pytest.mark.anyio
-    async def test_aget_keys_from_row(self):
+    async def test_get_keys_from_row(self):
         backend = MemoryAsyncRawReadable([{b"a": b"1", b"b": b"2"}])
-        row = await backend.aget(0)
+        row = await backend.get(0)
         assert sorted(row.keys()) == [b"a", b"b"]
 
     @pytest.mark.anyio
-    async def test_aget_keys_from_none_row(self):
+    async def test_get_keys_from_none_row(self):
         backend = MemoryAsyncRawReadable([None])
-        row = await backend.aget(0)
+        row = await backend.get(0)
         assert row is None
 
     @pytest.mark.anyio
-    async def test_aget_many_default(self):
+    async def test_get_many_default(self):
         backend = MemoryAsyncRawReadable([{b"a": b"1"}, {b"a": b"2"}, {b"a": b"3"}])
-        rows = await backend.aget_many([0, 2])
+        rows = await backend.get_many([0, 2])
         assert rows == [{b"a": b"1"}, {b"a": b"3"}]
 
     @pytest.mark.anyio
@@ -149,102 +149,102 @@ class TestAsyncRawReadable:
 
 class TestAsyncRawWritable:
     @pytest.mark.anyio
-    async def test_aset(self):
+    async def test_set(self):
         backend = MemoryAsyncRawWritable([{b"a": b"1"}])
-        await backend.aset(0, {b"a": b"99"})
-        assert await backend.aget(0) == {b"a": b"99"}
+        await backend.set(0, {b"a": b"99"})
+        assert await backend.get(0) == {b"a": b"99"}
 
     @pytest.mark.anyio
-    async def test_ainsert(self):
+    async def test_insert(self):
         backend = MemoryAsyncRawWritable([{b"a": b"1"}, {b"a": b"3"}])
-        await backend.ainsert(1, {b"a": b"2"})
-        assert await backend.alen() == 3
-        assert await backend.aget(1) == {b"a": b"2"}
+        await backend.insert(1, {b"a": b"2"})
+        assert await backend.len() == 3
+        assert await backend.get(1) == {b"a": b"2"}
 
     @pytest.mark.anyio
-    async def test_adelete(self):
+    async def test_delete(self):
         backend = MemoryAsyncRawWritable([{b"a": b"1"}, {b"a": b"2"}])
-        await backend.adelete(0)
-        assert await backend.alen() == 1
-        assert await backend.aget(0) == {b"a": b"2"}
+        await backend.delete(0)
+        assert await backend.len() == 1
+        assert await backend.get(0) == {b"a": b"2"}
 
     @pytest.mark.anyio
-    async def test_aextend(self):
+    async def test_extend(self):
         backend = MemoryAsyncRawWritable([])
-        await backend.aextend([{b"a": b"1"}, {b"a": b"2"}])
-        assert await backend.alen() == 2
+        await backend.extend([{b"a": b"1"}, {b"a": b"2"}])
+        assert await backend.len() == 2
 
     @pytest.mark.anyio
-    async def test_aupdate_default(self):
+    async def test_update_default(self):
         backend = MemoryAsyncRawWritable([{b"a": b"1", b"b": b"2"}])
-        await backend.aupdate(0, {b"a": b"99"})
-        assert await backend.aget(0) == {b"a": b"99", b"b": b"2"}
+        await backend.update(0, {b"a": b"99"})
+        assert await backend.get(0) == {b"a": b"99", b"b": b"2"}
 
     @pytest.mark.anyio
-    async def test_aupdate_none_placeholder(self):
+    async def test_update_none_placeholder(self):
         backend = MemoryAsyncRawWritable([None])
-        await backend.aupdate(0, {b"a": b"1"})
-        assert await backend.aget(0) == {b"a": b"1"}
+        await backend.update(0, {b"a": b"1"})
+        assert await backend.get(0) == {b"a": b"1"}
 
     @pytest.mark.anyio
-    async def test_adelete_many_default(self):
+    async def test_delete_many_default(self):
         backend = MemoryAsyncRawWritable([
             {b"a": b"0"}, {b"a": b"1"}, {b"a": b"2"},
             {b"a": b"3"}, {b"a": b"4"},
         ])
-        await backend.adelete_many(1, 4)
-        assert await backend.alen() == 2
-        assert await backend.aget(0) == {b"a": b"0"}
-        assert await backend.aget(1) == {b"a": b"4"}
+        await backend.delete_many(1, 4)
+        assert await backend.len() == 2
+        assert await backend.get(0) == {b"a": b"0"}
+        assert await backend.get(1) == {b"a": b"4"}
 
     @pytest.mark.anyio
-    async def test_aset_many_default(self):
+    async def test_set_many_default(self):
         backend = MemoryAsyncRawWritable([{b"a": b"0"}, {b"a": b"1"}, {b"a": b"2"}])
         for offset, row in enumerate([{b"a": b"99"}, {b"a": b"98"}]):
-            await backend.aset(1 + offset, row)
-        assert await backend.aget(1) == {b"a": b"99"}
-        assert await backend.aget(2) == {b"a": b"98"}
+            await backend.set(1 + offset, row)
+        assert await backend.get(1) == {b"a": b"99"}
+        assert await backend.get(2) == {b"a": b"98"}
 
     @pytest.mark.anyio
-    async def test_adrop_keys_default(self):
+    async def test_drop_keys_default(self):
         backend = MemoryAsyncRawWritable([
             {b"a": b"1", b"b": b"2"},
             {b"a": b"3", b"b": b"4"},
         ])
-        await backend.adrop_keys([b"b"])
-        assert await backend.aget(0) == {b"a": b"1"}
-        assert await backend.aget(1) == {b"a": b"3"}
+        await backend.drop_keys([b"b"])
+        assert await backend.get(0) == {b"a": b"1"}
+        assert await backend.get(1) == {b"a": b"3"}
 
     @pytest.mark.anyio
-    async def test_adrop_keys_with_indices(self):
+    async def test_drop_keys_with_indices(self):
         backend = MemoryAsyncRawWritable([
             {b"a": b"1", b"b": b"2"},
             {b"a": b"3", b"b": b"4"},
             {b"a": b"5", b"b": b"6"},
         ])
-        await backend.adrop_keys([b"b"], indices=[0, 2])
-        assert await backend.aget(0) == {b"a": b"1"}
-        assert await backend.aget(1) == {b"a": b"3", b"b": b"4"}
-        assert await backend.aget(2) == {b"a": b"5"}
+        await backend.drop_keys([b"b"], indices=[0, 2])
+        assert await backend.get(0) == {b"a": b"1"}
+        assert await backend.get(1) == {b"a": b"3", b"b": b"4"}
+        assert await backend.get(2) == {b"a": b"5"}
 
     @pytest.mark.anyio
-    async def test_areserve_default(self):
+    async def test_reserve_default(self):
         backend = MemoryAsyncRawWritable([{b"a": b"1"}])
-        await backend.areserve(3)
-        assert await backend.alen() == 4
-        assert await backend.aget(1) is None
+        await backend.reserve(3)
+        assert await backend.len() == 4
+        assert await backend.get(1) is None
 
     @pytest.mark.anyio
-    async def test_aclear_default(self):
+    async def test_clear_default(self):
         backend = MemoryAsyncRawWritable([{b"a": b"1"}, {b"a": b"2"}])
-        await backend.aclear()
-        assert await backend.alen() == 0
+        await backend.clear()
+        assert await backend.len() == 0
 
     @pytest.mark.anyio
-    async def test_aremove_raises(self):
+    async def test_remove_raises(self):
         backend = MemoryAsyncRawWritable([])
         with pytest.raises(NotImplementedError):
-            await backend.aremove()
+            await backend.remove()
 
 
 # ── Tests: SyncToAsyncRawAdapter ────────────────────────────────────────
@@ -299,80 +299,80 @@ class TestSyncToAsyncRawAdapter:
         return MemorySyncRaw(data)
 
     @pytest.mark.anyio
-    async def test_alen(self):
+    async def test_len(self):
         sync = self._make_sync_backend([{b"a": b"1"}, {b"a": b"2"}])
         adapter = SyncToAsyncRawAdapter(sync)
-        assert await adapter.alen() == 2
+        assert await adapter.len() == 2
 
     @pytest.mark.anyio
-    async def test_aget(self):
+    async def test_get(self):
         sync = self._make_sync_backend([{b"a": b"1", b"b": b"2"}])
         adapter = SyncToAsyncRawAdapter(sync)
-        assert await adapter.aget(0) == {b"a": b"1", b"b": b"2"}
+        assert await adapter.get(0) == {b"a": b"1", b"b": b"2"}
 
     @pytest.mark.anyio
-    async def test_aget_with_keys(self):
+    async def test_get_with_keys(self):
         sync = self._make_sync_backend([{b"a": b"1", b"b": b"2"}])
         adapter = SyncToAsyncRawAdapter(sync)
-        assert await adapter.aget(0, keys=[b"a"]) == {b"a": b"1"}
+        assert await adapter.get(0, keys=[b"a"]) == {b"a": b"1"}
 
     @pytest.mark.anyio
-    async def test_aset(self):
+    async def test_set(self):
         sync = self._make_sync_backend([{b"a": b"1"}])
         adapter = SyncToAsyncRawAdapter(sync)
-        await adapter.aset(0, {b"a": b"99"})
-        assert await adapter.aget(0) == {b"a": b"99"}
+        await adapter.set(0, {b"a": b"99"})
+        assert await adapter.get(0) == {b"a": b"99"}
 
     @pytest.mark.anyio
-    async def test_aextend(self):
+    async def test_extend(self):
         sync = self._make_sync_backend([])
         adapter = SyncToAsyncRawAdapter(sync)
-        await adapter.aextend([{b"a": b"1"}, {b"a": b"2"}])
-        assert await adapter.alen() == 2
+        await adapter.extend([{b"a": b"1"}, {b"a": b"2"}])
+        assert await adapter.len() == 2
 
     @pytest.mark.anyio
-    async def test_adelete(self):
+    async def test_delete(self):
         sync = self._make_sync_backend([{b"a": b"1"}, {b"a": b"2"}])
         adapter = SyncToAsyncRawAdapter(sync)
-        await adapter.adelete(0)
-        assert await adapter.alen() == 1
-        assert await adapter.aget(0) == {b"a": b"2"}
+        await adapter.delete(0)
+        assert await adapter.len() == 1
+        assert await adapter.get(0) == {b"a": b"2"}
 
     @pytest.mark.anyio
-    async def test_ainsert(self):
+    async def test_insert(self):
         sync = self._make_sync_backend([{b"a": b"1"}, {b"a": b"3"}])
         adapter = SyncToAsyncRawAdapter(sync)
-        await adapter.ainsert(1, {b"a": b"2"})
-        assert await adapter.alen() == 3
-        assert await adapter.aget(1) == {b"a": b"2"}
+        await adapter.insert(1, {b"a": b"2"})
+        assert await adapter.len() == 3
+        assert await adapter.get(1) == {b"a": b"2"}
 
     @pytest.mark.anyio
-    async def test_aschema(self):
+    async def test_schema(self):
         sync = self._make_sync_backend([{b"a": b"1"}, {b"b": b"2"}])
         adapter = SyncToAsyncRawAdapter(sync)
-        assert await adapter.aschema() == [b"a", b"b"]
+        assert await adapter.schema() == [b"a", b"b"]
 
     @pytest.mark.anyio
-    async def test_aupdate(self):
+    async def test_update(self):
         sync = self._make_sync_backend([{b"a": b"1", b"b": b"2"}])
         adapter = SyncToAsyncRawAdapter(sync)
-        await adapter.aupdate(0, {b"a": b"99"})
-        assert await adapter.aget(0) == {b"a": b"99", b"b": b"2"}
+        await adapter.update(0, {b"a": b"99"})
+        assert await adapter.get(0) == {b"a": b"99", b"b": b"2"}
 
     @pytest.mark.anyio
-    async def test_adrop_keys(self):
+    async def test_drop_keys(self):
         sync = self._make_sync_backend([{b"a": b"1", b"b": b"2"}])
         adapter = SyncToAsyncRawAdapter(sync)
-        await adapter.adrop_keys([b"b"])
-        assert await adapter.aget(0) == {b"a": b"1"}
+        await adapter.drop_keys([b"b"])
+        assert await adapter.get(0) == {b"a": b"1"}
 
     @pytest.mark.anyio
-    async def test_areserve(self):
+    async def test_reserve(self):
         sync = self._make_sync_backend([])
         adapter = SyncToAsyncRawAdapter(sync)
-        await adapter.areserve(3)
-        assert await adapter.alen() == 3
-        assert await adapter.aget(0) is None
+        await adapter.reserve(3)
+        assert await adapter.len() == 3
+        assert await adapter.get(0) is None
 
 
 # ── Tests: SyncToAsyncAdapter (str-level) ───────────────────────────────
@@ -425,39 +425,39 @@ class TestSyncToAsyncAdapter:
         return MemorySyncStr(data)
 
     @pytest.mark.anyio
-    async def test_alen(self):
+    async def test_len(self):
         sync = self._make_sync_backend([{"a": 1}, {"a": 2}])
         adapter = SyncToAsyncAdapter(sync)
-        assert await adapter.alen() == 2
+        assert await adapter.len() == 2
 
     @pytest.mark.anyio
-    async def test_aget(self):
+    async def test_get(self):
         sync = self._make_sync_backend([{"a": 1, "b": 2}])
         adapter = SyncToAsyncAdapter(sync)
-        assert await adapter.aget(0) == {"a": 1, "b": 2}
+        assert await adapter.get(0) == {"a": 1, "b": 2}
 
     @pytest.mark.anyio
-    async def test_aset_and_aget(self):
+    async def test_set_and_get(self):
         sync = self._make_sync_backend([{"a": 1}])
         adapter = SyncToAsyncAdapter(sync)
-        await adapter.aset(0, {"a": 99})
-        assert await adapter.aget(0) == {"a": 99}
+        await adapter.set(0, {"a": 99})
+        assert await adapter.get(0) == {"a": 99}
 
     @pytest.mark.anyio
-    async def test_aschema(self):
+    async def test_schema(self):
         sync = self._make_sync_backend([{"a": 1, "b": 2}])
         adapter = SyncToAsyncAdapter(sync)
-        assert await adapter.aschema() == ["a", "b"]
+        assert await adapter.schema() == ["a", "b"]
 
     @pytest.mark.anyio
-    async def test_aget_column(self):
+    async def test_get_column(self):
         sync = self._make_sync_backend([{"a": 1}, {"a": 2}, {"a": 3}])
         adapter = SyncToAsyncAdapter(sync)
-        assert await adapter.aget_column("a") == [1, 2, 3]
+        assert await adapter.get_column("a") == [1, 2, 3]
 
     @pytest.mark.anyio
-    async def test_adrop_keys(self):
+    async def test_drop_keys(self):
         sync = self._make_sync_backend([{"a": 1, "b": 2}])
         adapter = SyncToAsyncAdapter(sync)
-        await adapter.adrop_keys(["b"])
-        assert await adapter.aget(0) == {"a": 1}
+        await adapter.drop_keys(["b"])
+        assert await adapter.get(0) == {"a": 1}

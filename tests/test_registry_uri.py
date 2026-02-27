@@ -14,9 +14,9 @@ class TestParseUri:
     """Tests for the parse_uri helper."""
 
     def test_hf_scheme(self):
-        scheme, remainder = parse_uri("hf://user/dataset")
+        scheme, remainder = parse_uri("hf://user/datset")
         assert scheme == "hf"
-        assert remainder == "user/dataset"
+        assert remainder == "user/datset"
 
     def test_colabfit_scheme(self):
         scheme, remainder = parse_uri("colabfit://some/path")
@@ -65,7 +65,7 @@ class TestGetBackendClsUri:
     """
 
     def test_hf_returns_backend(self):
-        cls = get_backend_cls("hf://user/dataset")
+        cls = get_backend_cls("hf://user/datset")
         assert cls.__name__ == "HuggingFaceBackend"
 
     def test_colabfit_returns_backend(self):
@@ -77,16 +77,16 @@ class TestGetBackendClsUri:
         assert cls.__name__ == "HuggingFaceBackend"
 
     def test_hf_readonly_true(self):
-        cls = get_backend_cls("hf://user/dataset", readonly=True)
+        cls = get_backend_cls("hf://user/datset", readonly=True)
         assert cls.__name__ == "HuggingFaceBackend"
 
     def test_hf_readonly_none(self):
-        cls = get_backend_cls("hf://user/dataset", readonly=None)
+        cls = get_backend_cls("hf://user/datset", readonly=None)
         assert cls.__name__ == "HuggingFaceBackend"
 
     def test_hf_readonly_false_raises_type_error(self):
         with pytest.raises(TypeError, match="read-only"):
-            get_backend_cls("hf://user/dataset", readonly=False)
+            get_backend_cls("hf://user/datset", readonly=False)
 
     def test_unknown_uri_raises_key_error(self):
         with pytest.raises(KeyError, match="No backend registered"):

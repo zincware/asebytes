@@ -18,47 +18,47 @@ class AsyncReadBackend(Generic[K, V], ABC):
     """Async read-only backend. Mirrors ReadBackend with a-prefix methods."""
 
     @abstractmethod
-    async def alen(self) -> int: ...
+    async def len(self) -> int: ...
 
     @abstractmethod
-    async def aget(
+    async def get(
         self, index: int, keys: list[K] | None = None
     ) -> dict[K, V] | None: ...
 
     @abstractmethod
-    async def aschema(self) -> list[K]: ...
+    async def schema(self) -> list[K]: ...
 
-    async def aget_many(
+    async def get_many(
         self, indices: list[int], keys: list[K] | None = None
     ) -> list[dict[K, V] | None]:
-        """Read multiple rows. Default: loops over aget."""
-        return [await self.aget(i, keys) for i in indices]
+        """Read multiple rows. Default: loops over get."""
+        return [await self.get(i, keys) for i in indices]
 
     async def aiter_rows(
         self, indices: list[int], keys: list[K] | None = None
     ) -> AsyncIterator[dict[K, V] | None]:
         """Yield rows one at a time."""
         for i in indices:
-            yield await self.aget(i, keys)
+            yield await self.get(i, keys)
 
-    async def aget_column(self, key: K, indices: list[int] | None = None) -> list[Any]:
-        """Read a single column. Default: loops over aget."""
+    async def get_column(self, key: K, indices: list[int] | None = None) -> list[Any]:
+        """Read a single column. Default: loops over get."""
         if indices is None:
-            n = await self.alen()
+            n = await self.len()
             indices = list(range(n))
         results = []
         for i in indices:
-            row = await self.aget(i, [key])
+            row = await self.get(i, [key])
             results.append(row[key] if row is not None else None)
         return results
 
-    async def aget_available_keys(self, index: int) -> list[K]:
+    async def get_available_keys(self, index: int) -> list[K]:
         """Return keys present at index WITHOUT loading values.
 
         Override for backends where key-existence checks are cheaper than
         full reads.
         """
-        row = await self.aget(index)
+        row = await self.get(index)
         if row is None:
             return []
         return list(row.keys())
@@ -71,61 +71,61 @@ class AsyncReadWriteBackend(AsyncReadBackend[K, V], ABC):
     """Async read-write backend. Mirrors ReadWriteBackend with a-prefix."""
 
     @abstractmethod
-    async def aset(self, index: int, value: dict[K, V] | None) -> None: ...
+    async def set(self, index: int, value: dict[K, V] | None) -> None: ...
 
     @abstractmethod
-    async def adelete(self, index: int) -> None: ...
+    async def delete(self, index: int) -> None: ...
 
     @abstractmethod
-    async def aextend(self, values: list[dict[K, V] | None]) -> None: ...
+    async def extend(self, values: list[dict[K, V] | None]) -> None: ...
 
     @abstractmethod
-    async def ainsert(self, index: int, value: dict[K, V] | None) -> None: ...
+    async def insert(self, index: int, value: dict[K, V] | None) -> None: ...
 
-    async def aupdate(self, index: int, data: dict[K, V]) -> None:
-        """Partial update. Default: aget+merge+aset."""
-        row = await self.aget(index) or {}
+    async def update(self, index: int, data: dict[K, V]) -> None:
+        """Partial update. Default: get+merge+set."""
+        row = await self.get(index) or {}
         row.update(data)
-        await self.aset(index, row)
+        await self.set(index, row)
 
-    async def adelete_many(self, start: int, stop: int) -> None:
+    async def delete_many(self, start: int, stop: int) -> None:
         """Delete contiguous range [start, stop). Default: loop in reverse."""
         for i in range(stop - 1, start - 1, -1):
-            await self.adelete(i)
+            await self.delete(i)
 
-    async def adrop_keys(
+    async def drop_keys(
         self, keys: list[K], indices: list[int] | None = None
     ) -> None:
         """Remove specific keys from rows."""
         if indices is None:
-            n = await self.alen()
+            n = await self.len()
             indices = list(range(n))
         key_set = set(keys)
         for i in indices:
-            row = await self.aget(i)
+            row = await self.get(i)
             if row is None:
                 continue
             pruned = {k: v for k, v in row.items() if k not in key_set}
-            await self.aset(i, pruned)
+            await self.set(i, pruned)
 
-    async def aset_many(self, start: int, data: list[dict[K, V] | None]) -> None:
+    async def set_many(self, start: int, data: list[dict[K, V] | None]) -> None:
         """Overwrite contiguous rows [start, start+len(data)).
 
         Override for backends where batch writes are cheaper than
-        individual aset() calls.
+        individual set() calls.
         """
         for i, row in enumerate(data):
-            await self.aset(start + i, row)
+            await self.set(start + i, row)
 
-    async def areserve(self, count: int) -> None:
-        await self.aextend([None] * count)
+    async def reserve(self, count: int) -> None:
+        await self.extend([None] * count)
 
-    async def aclear(self) -> None:
-        n = await self.alen()
+    async def clear(self) -> None:
+        n = await self.len()
         for i in range(n - 1, -1, -1):
-            await self.adelete(i)
+            await self.delete(i)
 
-    async def aremove(self) -> None:
+    async def remove(self) -> None:
         raise NotImplementedError
 
 
@@ -142,55 +142,55 @@ class SyncToAsyncAdapter(AsyncReadWriteBackend[K, V]):
     def __init__(self, backend: ReadWriteBackend[K, V]):
         self._backend = backend
 
-    async def alen(self) -> int:
+    async def len(self) -> int:
         return await asyncio.to_thread(len, self._backend)
 
-    async def aget(self, index, keys=None):
+    async def get(self, index, keys=None):
         return await asyncio.to_thread(self._backend.get, index, keys)
 
-    async def aschema(self):
+    async def schema(self):
         return await asyncio.to_thread(self._backend.schema)
 
-    async def aget_many(self, indices, keys=None):
+    async def get_many(self, indices, keys=None):
         return await asyncio.to_thread(self._backend.get_many, indices, keys)
 
-    async def aget_column(self, key, indices=None):
+    async def get_column(self, key, indices=None):
         return await asyncio.to_thread(self._backend.get_column, key, indices)
 
-    async def aget_available_keys(self, index):
+    async def get_available_keys(self, index):
         return await asyncio.to_thread(self._backend.get_available_keys, index)
 
-    async def aset(self, index, value):
+    async def set(self, index, value):
         return await asyncio.to_thread(self._backend.set, index, value)
 
-    async def adelete(self, index):
+    async def delete(self, index):
         return await asyncio.to_thread(self._backend.delete, index)
 
-    async def aextend(self, values):
+    async def extend(self, values):
         return await asyncio.to_thread(self._backend.extend, values)
 
-    async def ainsert(self, index, value):
+    async def insert(self, index, value):
         return await asyncio.to_thread(self._backend.insert, index, value)
 
-    async def aupdate(self, index, data):
+    async def update(self, index, data):
         return await asyncio.to_thread(self._backend.update, index, data)
 
-    async def adelete_many(self, start, stop):
+    async def delete_many(self, start, stop):
         return await asyncio.to_thread(self._backend.delete_many, start, stop)
 
-    async def adrop_keys(self, keys, indices=None):
+    async def drop_keys(self, keys, indices=None):
         return await asyncio.to_thread(self._backend.drop_keys, keys, indices)
 
-    async def aset_many(self, start, data):
+    async def set_many(self, start, data):
         return await asyncio.to_thread(self._backend.set_many, start, data)
 
-    async def areserve(self, count):
+    async def reserve(self, count):
         return await asyncio.to_thread(self._backend.reserve, count)
 
-    async def aclear(self):
+    async def clear(self):
         return await asyncio.to_thread(self._backend.clear)
 
-    async def aremove(self):
+    async def remove(self):
         return await asyncio.to_thread(self._backend.remove)
 
 

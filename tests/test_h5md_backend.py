@@ -44,7 +44,7 @@ def water_frames():
 
 @pytest.fixture
 def s22_frames():
-    """S22 dataset - variable size molecules."""
+    """S22 datset - variable size molecules."""
     return list(ase.collections.s22)
 
 

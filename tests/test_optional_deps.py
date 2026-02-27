@@ -25,7 +25,7 @@ class TestRegistryImportHints:
         [
             ("test.lmdb", "lmdb"),
             ("data.lmdb", "lmdb"),
-            ("hf://user/dataset", "hf"),
+            ("hf://user/datset", "hf"),
             ("colabfit://some/path", "hf"),
             ("optimade://provider/structures", "hf"),
         ],
@@ -65,7 +65,7 @@ class TestRegistryImportHints:
 class TestModuleGetattr:
     """Verify asebytes.__getattr__ gives helpful ImportError for optional names.
 
-    In the dev environment lmdb and datasets are installed, so the names are
+    In the dev environment lmdb and datsets are installed, so the names are
     already bound as real module attributes.  We call __getattr__ directly to
     exercise the fallback path that fires when the optional deps are absent.
     """

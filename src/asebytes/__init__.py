@@ -46,8 +46,14 @@ from ._async_io import AsyncASEIO
 from .io import ASEIO
 
 # Views
-from ._views import ColumnView, RowView
-from ._async_views import AsyncColumnView, AsyncRowView, AsyncSingleRowView
+from ._views import ASEColumnView, ColumnView, RowView, ViewParent
+from ._async_views import (
+    AsyncASEColumnView,
+    AsyncColumnView,
+    AsyncRowView,
+    AsyncSingleRowView,
+    AsyncViewParent,
+)
 
 # Utilities
 from .decode import decode
@@ -97,9 +103,13 @@ __all__ = [
     # Views
     "RowView",
     "ColumnView",
+    "ASEColumnView",
+    "ViewParent",
     "AsyncRowView",
     "AsyncColumnView",
+    "AsyncASEColumnView",
     "AsyncSingleRowView",
+    "AsyncViewParent",
     # Built-in backends
     "ASEReadOnlyBackend",
 ]

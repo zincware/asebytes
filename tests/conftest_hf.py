@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-datasets = pytest.importorskip("datasets")
+datsets = pytest.importorskip("datsets")
 
 
-def make_hf_dataset(n: int = 5) -> datasets.Dataset:
-    """Create a small in-memory HF Dataset with ColabFit-style columns."""
-    return datasets.Dataset.from_dict(
+def make_hf_datset(n: int = 5) -> datsets.Datset:
+    """Create a small in-memory HF Datset with ColabFit-style columns."""
+    return datsets.Datset.from_dict(
         {
             "positions": [[[float(i), 0.0, 0.0]] for i in range(n)],
             "atomic_numbers": [[1] for _ in range(n)],

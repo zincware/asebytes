@@ -1,7 +1,7 @@
 """Benchmark sequential read performance across backends.
 
 Backends: asebytes LMDB, asebytes H5MD, aselmdb, znh5md, extxyz, sqlite.
-Datasets: ethanol (1000 small molecules), lemat (1000 periodic structures).
+Datsets: ethanol (1000 small molecules), lemat (1000 periodic structures).
 """
 
 import ase
@@ -11,11 +11,11 @@ from ase.db import connect
 
 from asebytes import ASEIO
 
-DATASETS = ["ethanol", "lemat"]
+DATsetS = ["ethanol", "lemat"]
 
 
-@pytest.fixture(params=DATASETS)
-def dataset(request):
+@pytest.fixture(params=DATsetS)
+def datset(request):
     return request.param, request.getfixturevalue(request.param)
 
 
@@ -25,8 +25,8 @@ def dataset(request):
 
 
 @pytest.mark.benchmark(group="read")
-def test_read_asebytes_lmdb(benchmark, dataset, tmp_path):
-    name, frames = dataset
+def test_read_asebytes_lmdb(benchmark, datset, tmp_path):
+    name, frames = datset
     p = tmp_path / f"r_{name}.lmdb"
     db = ASEIO(str(p))
     db.extend(frames)
@@ -40,8 +40,8 @@ def test_read_asebytes_lmdb(benchmark, dataset, tmp_path):
 
 
 @pytest.mark.benchmark(group="read")
-def test_read_asebytes_zarr(benchmark, dataset, tmp_path):
-    name, frames = dataset
+def test_read_asebytes_zarr(benchmark, datset, tmp_path):
+    name, frames = datset
     p = tmp_path / f"r_{name}.zarr"
     db_w = ASEIO(str(p))
     db_w.extend(frames)
@@ -55,8 +55,8 @@ def test_read_asebytes_zarr(benchmark, dataset, tmp_path):
 
 
 @pytest.mark.benchmark(group="read")
-def test_read_asebytes_h5md(benchmark, dataset, tmp_path):
-    name, frames = dataset
+def test_read_asebytes_h5md(benchmark, datset, tmp_path):
+    name, frames = datset
     p = tmp_path / f"r_{name}.h5"
     db_w = ASEIO(str(p))
     db_w.extend(frames)
@@ -70,8 +70,8 @@ def test_read_asebytes_h5md(benchmark, dataset, tmp_path):
 
 
 @pytest.mark.benchmark(group="read")
-def test_read_aselmdb(benchmark, dataset, tmp_path):
-    name, frames = dataset
+def test_read_aselmdb(benchmark, datset, tmp_path):
+    name, frames = datset
     p = tmp_path / f"r_{name}_aselmdb.lmdb"
     db = connect(str(p), type="aselmdb")
     for mol in frames:
@@ -85,11 +85,11 @@ def test_read_aselmdb(benchmark, dataset, tmp_path):
 
 
 @pytest.mark.benchmark(group="read")
-def test_read_znh5md(benchmark, dataset, tmp_path):
+def test_read_znh5md(benchmark, datset, tmp_path):
     import h5py
     import znh5md
 
-    name, frames = dataset
+    name, frames = datset
     p = tmp_path / f"r_{name}_znh5md.h5"
     io_w = znh5md.IO(filename=str(p))
     io_w.extend(frames)
@@ -104,8 +104,8 @@ def test_read_znh5md(benchmark, dataset, tmp_path):
 
 
 @pytest.mark.benchmark(group="read")
-def test_read_extxyz(benchmark, dataset, tmp_path):
-    name, frames = dataset
+def test_read_extxyz(benchmark, datset, tmp_path):
+    name, frames = datset
     p = tmp_path / f"r_{name}.extxyz"
     ase.io.write(str(p), frames, format="extxyz")
 
@@ -117,8 +117,8 @@ def test_read_extxyz(benchmark, dataset, tmp_path):
 
 
 @pytest.mark.benchmark(group="read")
-def test_read_sqlite(benchmark, dataset, tmp_path):
-    name, frames = dataset
+def test_read_sqlite(benchmark, datset, tmp_path):
+    name, frames = datset
     p = tmp_path / f"r_{name}_sqlite.db"
     db = connect(str(p), type="db")
     for mol in frames:

@@ -156,7 +156,7 @@ def aseio_instance(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# ZnH5MD-ported fixtures: diverse datasets for multi-backend round-trip tests
+# ZnH5MD-ported fixtures: diverse datsets for multi-backend round-trip tests
 # ---------------------------------------------------------------------------
 
 
@@ -286,7 +286,7 @@ def s22_illegal_calc_results() -> list[ase.Atoms]:
 
 @pytest.fixture
 def water() -> list[ase.Atoms]:
-    """Get a dataset without positions (all at origin)."""
+    """Get a datset without positions (all at origin)."""
     return [ase.Atoms("H2O")]
 
 
