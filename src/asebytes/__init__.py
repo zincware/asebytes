@@ -1,7 +1,12 @@
 import importlib.metadata
 
 from ._convert import atoms_to_dict, dict_to_atoms
-from ._protocols import ReadableBackend, WritableBackend
+from ._protocols import (
+    RawReadableBackend,
+    RawWritableBackend,
+    ReadableBackend,
+    WritableBackend,
+)
 from ._views import ColumnView, RowView
 from .decode import decode
 from .encode import encode
@@ -14,6 +19,8 @@ __all__ = [
     "decode",
     "ASEIO",
     "get_metadata",
+    "RawReadableBackend",
+    "RawWritableBackend",
     "ReadableBackend",
     "WritableBackend",
     "atoms_to_dict",
