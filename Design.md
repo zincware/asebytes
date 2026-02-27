@@ -31,3 +31,53 @@ Machine-learned interatomic potentials require
 
 Use context7 on all relevant libraries and standards.
 Use context7 to find existing tooling from the ML / data science and atomistic community that can partially solve this.
+
+
+```mermaid
+flowchart LR
+    %% Define Styles (Colors)
+    classDef ui fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#000
+    classDef protocol fill:#f3e8ff,stroke:#9333ea,stroke-width:2px,color:#000
+    classDef adapter fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#000
+    classDef utility fill:#ffedd5,stroke:#ea580c,stroke-width:2px,color:#000
+
+    BlobReadBackend --> BlobIO
+    AsyncBlobReadBackend --> AsyncBlobIO
+
+    BlobReadWriteBackend --> BlobIO
+    AsyncBlobReadWriteBackend --> AsyncBlobIO
+
+    ObjectReadBackend --> ObjectIO
+    AsyncObjectReadBackend --> AsyncObjectIO
+
+    ObjectReadWriteBackend --> ObjectIO
+    AsyncObjectReadWriteBackend --> AsyncObjectIO
+
+    %% If there is no AsyncBackend we use a wrapper
+    BlobIO --> SyncToAsyncAdapter --> AsyncBlobIO
+    ObjectIO --> SyncToAsyncAdapter --> AsyncObjectIO
+
+    %% convienience ASE Interface
+    ObjectIO --> ASEIO
+    AsyncObjectIO --> AsyncASEIO
+
+    %% Existing Backends
+    LMDBReadWrite --> BlobReadWriteBackend
+    HFRead --> ObjectReadBackend
+    ZarrReadWrite --> BlobReadWriteBackend
+    H5MDReadWrite --> ObjectReadWriteBackend
+    %% special case, because ASE XYZ does result in ASE atoms directly
+    XYZRead --> ASEIO
+
+    %% New Backends
+    RedisReadWrite --> BlobReadWriteBackend
+    AsyncRedisReadWrite --> AsyncBlobReadWriteBackend
+    MongoDBReadWrite --> ObjectReadWriteBackend
+    AsyncMongoDBReadWrite --> AsyncObjectReadWriteBackend
+
+%% Apply Styles to Nodes
+    class BlobIO,AsyncBlobIO,AsyncObjectIO,ObjectIO,ASEIO,AsyncASEIO ui
+    class BlobReadBackend,AsyncBlobReadBackend,BlobReadWriteBackend,AsyncBlobReadWriteBackend,ObjectReadBackend,AsyncObjectReadBackend,ObjectReadWriteBackend,AsyncObjectReadWriteBackend protocol
+    class LMDBReadWrite,HFRead,ZarrReadWrite,H5MDReadWrite,RedisReadWrite,AsyncRedisReadWrite,MongoDBReadWrite,AsyncMongoDBReadWrite,XYZRead adapter
+    class SyncToAsyncAdapter utility
+```
