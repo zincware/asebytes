@@ -19,6 +19,7 @@ class AsyncViewParent(Protocol):
     """Protocol for objects that serve as parent of async views."""
 
     def __len__(self) -> int: ...
+    async def alen(self) -> int: ...
     async def _read_row(self, index: int, keys: list[str] | None = None) -> Any: ...
     async def _read_rows(self, indices: list[int], keys: list[str] | None = None) -> list[Any]: ...
     async def _read_column(self, key: str, indices: list[int]) -> list[Any]: ...
@@ -75,21 +76,37 @@ class AsyncSingleRowView:
     def __await__(self):
         return self._materialize().__await__()
 
+    async def _resolve_index(self) -> int:
+        """Resolve negative indices via alen()."""
+        idx = self._index
+        if idx < 0:
+            try:
+                n = len(self._parent)
+            except TypeError:
+                n = await self._parent.alen()
+            idx += n
+        return idx
+
     async def _materialize(self):
-        row = await self._parent._read_row(self._index)
+        idx = await self._resolve_index()
+        row = await self._parent._read_row(idx)
         return self._parent._build_result(row)
 
     async def aset(self, data: Any) -> None:
-        await self._parent._write_row(self._index, data)
+        idx = await self._resolve_index()
+        await self._parent._write_row(idx, data)
 
     async def adelete(self) -> None:
-        await self._parent._delete_row(self._index)
+        idx = await self._resolve_index()
+        await self._parent._delete_row(idx)
 
     async def aupdate(self, data: dict) -> None:
-        await self._parent._update_row(self._index, data)
+        idx = await self._resolve_index()
+        await self._parent._update_row(idx, data)
 
     async def akeys(self) -> list[str]:
-        return await self._parent._get_available_keys(self._index)
+        idx = await self._resolve_index()
+        return await self._parent._get_available_keys(idx)
 
     def __repr__(self) -> str:
         return f"AsyncSingleRowView(index={self._index})"
@@ -230,6 +247,16 @@ class AsyncColumnView:
             return self._indices
         return list(range(len(self._parent)))
 
+    async def _aresolved_indices(self) -> list[int]:
+        """Async variant of _resolved_indices for parents without sync __len__."""
+        if self._indices is not None:
+            return self._indices
+        try:
+            n = len(self._parent)
+        except TypeError:
+            n = await self._parent.alen()
+        return list(range(n))
+
     def __len__(self) -> int:
         if self._indices is not None:
             return len(self._indices)
@@ -245,14 +272,14 @@ class AsyncColumnView:
         return await self.to_list()
 
     async def to_list(self) -> list[Any]:
-        indices = self._resolved_indices()
+        indices = await self._aresolved_indices()
         if self._single:
             return await self._parent._read_column(self._keys[0], indices)
         rows = await self._parent._read_rows(indices, keys=self._keys)
         return rows
 
     async def to_dict(self) -> dict[str, list[Any]]:
-        indices = self._resolved_indices()
+        indices = await self._aresolved_indices()
         if self._single:
             return {self._keys[0]: await self._parent._read_column(self._keys[0], indices)}
         rows = await self._parent._read_rows(indices, keys=self._keys)
@@ -263,7 +290,7 @@ class AsyncColumnView:
         return result
 
     async def __aiter__(self) -> AsyncIterator[Any]:
-        indices = self._resolved_indices()
+        indices = await self._aresolved_indices()
         if self._single:
             values = await self._parent._read_column(self._keys[0], indices)
             for v in values:
@@ -285,7 +312,31 @@ class AsyncColumnView:
     def __getitem__(
         self, key: int | slice | str | list[int]
     ) -> AsyncSingleRowView | AsyncColumnView:
-        indices = self._resolved_indices()
+        if self._indices is not None:
+            indices = self._indices
+        else:
+            # _indices is None means "all rows". For int/list[int], we can
+            # use the key directly as absolute index. For slice, we need
+            # to defer or compute.
+            if isinstance(key, int):
+                return AsyncSingleRowView(self._parent, key)
+            if isinstance(key, slice):
+                # Defer: create a column view with a deferred slice
+                return _DeferredSliceColumnView(
+                    self._parent,
+                    self._keys[0] if self._single else self._keys,
+                    key,
+                )
+            if isinstance(key, str):
+                return AsyncColumnView(self._parent, key)
+            if isinstance(key, list):
+                return AsyncColumnView(
+                    self._parent,
+                    self._keys[0] if self._single else self._keys,
+                    key,
+                )
+            raise TypeError(f"Unsupported key type: {type(key)}")
+
         if isinstance(key, int):
             abs_idx = _sub_select(indices, key)
             if self._single:
@@ -310,6 +361,56 @@ class AsyncColumnView:
         raise TypeError(f"Unsupported key type: {type(key)}")
 
     def __repr__(self) -> str:
+        if self._indices is not None:
+            length = len(self._indices)
+        else:
+            length = "?"
         if self._single:
-            return f"AsyncColumnView(key={self._keys[0]!r}, len={len(self)})"
-        return f"AsyncColumnView(keys={self._keys!r}, len={len(self)})"
+            return f"AsyncColumnView(key={self._keys[0]!r}, len={length})"
+        return f"AsyncColumnView(keys={self._keys!r}, len={length})"
+
+
+# ── _DeferredSliceColumnView ──────────────────────────────────────────
+
+
+class _DeferredSliceColumnView(AsyncColumnView):
+    """AsyncColumnView that resolves a slice lazily via alen().
+
+    Created when AsyncColumnView with _indices=None is sliced, and the
+    parent doesn't support sync __len__.
+    """
+
+    def __init__(
+        self,
+        parent: AsyncViewParent,
+        keys: str | list[str],
+        slc: slice,
+    ):
+        super().__init__(parent, keys, None)
+        self._slice = slc
+        self._resolved = False
+
+    async def _ensure_resolved(self) -> None:
+        if not self._resolved:
+            try:
+                n = len(self._parent)
+            except TypeError:
+                n = await self._parent.alen()
+            self._indices = list(range(n))[self._slice]
+            self._resolved = True
+
+    async def _aresolved_indices(self) -> list[int]:
+        await self._ensure_resolved()
+        return self._indices
+
+    def __await__(self):
+        return self._deferred_materialize().__await__()
+
+    async def _deferred_materialize(self) -> list[Any]:
+        await self._ensure_resolved()
+        return await super().to_list()
+
+    async def __aiter__(self):
+        await self._ensure_resolved()
+        async for item in AsyncColumnView.__aiter__(self):
+            yield item

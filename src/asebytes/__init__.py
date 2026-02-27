@@ -1,6 +1,17 @@
 import importlib.metadata
 
 from ._convert import atoms_to_dict, dict_to_atoms
+from ._async_bytesio import AsyncBytesIO
+from ._async_io import AsyncASEIO
+from ._async_protocols import (
+    AsyncRawReadableBackend,
+    AsyncRawWritableBackend,
+    AsyncReadableBackend,
+    AsyncWritableBackend,
+    SyncToAsyncAdapter,
+    SyncToAsyncRawAdapter,
+)
+from ._async_views import AsyncColumnView, AsyncRowView, AsyncSingleRowView
 from ._protocols import (
     RawReadableBackend,
     RawWritableBackend,
@@ -18,15 +29,26 @@ __all__ = [
     "encode",
     "decode",
     "ASEIO",
+    "AsyncASEIO",
+    "AsyncBytesIO",
     "get_metadata",
     "RawReadableBackend",
     "RawWritableBackend",
     "ReadableBackend",
     "WritableBackend",
+    "AsyncRawReadableBackend",
+    "AsyncRawWritableBackend",
+    "AsyncReadableBackend",
+    "AsyncWritableBackend",
+    "SyncToAsyncAdapter",
+    "SyncToAsyncRawAdapter",
     "atoms_to_dict",
     "dict_to_atoms",
     "RowView",
     "ColumnView",
+    "AsyncRowView",
+    "AsyncColumnView",
+    "AsyncSingleRowView",
     "ASEReadOnlyBackend",
 ]
 
