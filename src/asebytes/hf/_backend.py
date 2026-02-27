@@ -7,7 +7,7 @@ from collections import OrderedDict
 from collections.abc import Iterator
 from typing import Any
 
-from .._protocols import ReadableBackend
+from .._backends import ReadBackend
 from ._mappings import COLABFIT, OPTIMADE, ColumnMapping
 
 
@@ -26,7 +26,7 @@ def load_dataset(path: str, *, streaming: bool = False, split: str | None = None
     return _hf_load_dataset(path, streaming=streaming, split=split, **kwargs)
 
 
-class HuggingFaceBackend(ReadableBackend):
+class HuggingFaceBackend(ReadBackend[str, Any]):
     """Read-only backend for HuggingFace datasets.
 
     Supports two modes:
@@ -204,11 +204,11 @@ class HuggingFaceBackend(ReadableBackend):
             )
         return self._length
 
-    def columns(self, index: int = 0) -> list[str]:
-        row = self.read_row(index)
+    def schema(self, index: int = 0) -> list[str]:
+        row = self.get(index)
         return list(row.keys())
 
-    def read_row(
+    def get(
         self, index: int, keys: list[str] | None = None
     ) -> dict[str, Any]:
         # Handle negative indexing for downloaded mode
@@ -245,18 +245,18 @@ class HuggingFaceBackend(ReadableBackend):
             return {k: row[k] for k in keys if k in row}
         return row
 
-    def read_rows(
+    def get_many(
         self, indices: list[int], keys: list[str] | None = None
     ) -> list[dict[str, Any]]:
-        return [self.read_row(i, keys) for i in indices]
+        return [self.get(i, keys) for i in indices]
 
     def iter_rows(
         self, indices: list[int], keys: list[str] | None = None
     ) -> Iterator[dict[str, Any]]:
         for i in indices:
-            yield self.read_row(i, keys)
+            yield self.get(i, keys)
 
-    def read_column(
+    def get_column(
         self, key: str, indices: list[int] | None = None
     ) -> list[Any]:
         if indices is None:
@@ -267,7 +267,7 @@ class HuggingFaceBackend(ReadableBackend):
                     "through the dataset first."
                 )
             indices = list(range(len(self)))
-        return [self.read_row(i, [key])[key] for i in indices]
+        return [self.get(i, [key])[key] for i in indices]
 
     # ── Class method: from_uri ────────────────────────────────────────────
 
@@ -359,3 +359,7 @@ class HuggingFaceBackend(ReadableBackend):
             )
 
         return cls(dataset, mapping=mapping, cache_size=cache_size)
+
+
+# Backward compatibility alias
+HuggingFaceObjectBackend = HuggingFaceBackend

@@ -17,10 +17,10 @@ import numpy as np
 import zarr
 
 from asebytes._columnar import concat_varying, get_version, jsonable, strip_nan_padding
-from asebytes._protocols import WritableBackend
+from asebytes._backends import ReadWriteBackend
 
 
-class ZarrBackend(WritableBackend):
+class ZarrBackend(ReadWriteBackend[str, Any]):
     """Read-write Zarr backend using zarr-python v3.
 
     Uses a flat layout where each asebytes column maps directly to a Zarr
@@ -110,14 +110,14 @@ class ZarrBackend(WritableBackend):
     def __len__(self) -> int:
         return self._n_frames
 
-    def columns(self, index: int = 0) -> list[str]:
+    def schema(self, index: int = 0) -> list[str]:
         if self._columns:
             return list(self._columns)
         if self._n_frames > 0:
-            return list(self.read_row(index).keys())
+            return list(self.get(index).keys())
         return []
 
-    def read_row(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         index = self._check_index(index)
         result: dict[str, Any] = {}
         for col_name, arr in self._col_cache.items():
@@ -133,7 +133,7 @@ class ZarrBackend(WritableBackend):
                 result[col_name] = val
         return result
 
-    def read_rows(
+    def get_many(
         self, indices: list[int], keys: list[str] | None = None
     ) -> list[dict[str, Any]]:
         """Bulk columnar read — each array is accessed once."""
@@ -193,12 +193,12 @@ class ZarrBackend(WritableBackend):
         self, indices: list[int], keys: list[str] | None = None
     ) -> Iterator[dict[str, Any]]:
         """Yield rows using bulk columnar read."""
-        yield from self.read_rows(indices, keys)
+        yield from self.get_many(indices, keys)
 
-    def read_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
-        """Direct array access — the flat layout's main perf advantage."""
+    def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
+        """Direct array access -- the flat layout's main perf advantage."""
         if key not in self._col_cache:
-            return super().read_column(key, indices)
+            return super().get_column(key, indices)
 
         arr = self._col_cache[key]
         arr_len = arr.shape[0]
@@ -230,7 +230,7 @@ class ZarrBackend(WritableBackend):
     # WritableBackend (append-only)
     # ------------------------------------------------------------------
 
-    def append_rows(self, data: list[dict[str, Any]]) -> None:
+    def extend(self, data: list[dict[str, Any] | None]) -> None:
         if not data:
             return
 
@@ -268,7 +268,7 @@ class ZarrBackend(WritableBackend):
         self._update_attrs(all_keys)
         self._discover()
 
-    def write_row(self, index: int, data: dict[str, Any]) -> None:
+    def set(self, index: int, data: dict[str, Any] | None) -> None:
         index = self._check_index(index)
         for key, val in data.items():
             if key not in self._col_cache:
@@ -283,10 +283,10 @@ class ZarrBackend(WritableBackend):
                     val = padded
             arr[index] = val
 
-    def insert_row(self, index: int, data: dict[str, Any]) -> None:
+    def insert(self, index: int, data: dict[str, Any] | None) -> None:
         raise NotImplementedError("Zarr backend does not support insert")
 
-    def delete_row(self, index: int) -> None:
+    def delete(self, index: int) -> None:
         raise NotImplementedError("Zarr backend does not support delete")
 
     # ------------------------------------------------------------------
@@ -610,3 +610,7 @@ class ZarrBackend(WritableBackend):
         if isinstance(val, (dict, list, str)):
             return json.dumps(jsonable(val))
         return val
+
+
+# Backward compatibility alias
+ZarrObjectBackend = ZarrBackend

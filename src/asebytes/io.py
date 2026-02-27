@@ -8,7 +8,7 @@ import ase
 import numpy as np
 
 from ._convert import atoms_to_dict, dict_to_atoms
-from ._protocols import ReadableBackend, WritableBackend
+from ._backends import ReadBackend, ReadWriteBackend
 from ._views import ColumnView, RowView
 
 
@@ -20,11 +20,11 @@ class ASEIO(MutableSequence):
 
     Parameters
     ----------
-    backend : str | ReadableBackend | WritableBackend
+    backend : str | ReadBackend[str, Any]
         Either a file path (auto-creates LMDBBackend) or a backend instance.
     readonly : bool | None
         Force read-only or writable mode. None (default) auto-detects.
-    cache_to : str | WritableBackend | None
+    cache_to : str | ReadWriteBackend[str, Any] | None
         Optional persistent read-through cache. On read, the cache is
         checked first; on miss the full row is read from source and written
         to cache. String paths auto-create a writable backend via the
@@ -36,10 +36,10 @@ class ASEIO(MutableSequence):
 
     def __init__(
         self,
-        backend: str | ReadableBackend,
+        backend: str | ReadBackend[str, Any],
         *,
         readonly: bool | None = None,
-        cache_to: str | WritableBackend | None = None,
+        cache_to: str | ReadWriteBackend[str, Any] | None = None,
         **kwargs: Any,
     ):
         if isinstance(backend, str):
@@ -49,7 +49,7 @@ class ASEIO(MutableSequence):
             cls = get_backend_cls(backend, readonly=readonly)
             if scheme is not None:
                 # URI-style: delegate to from_uri constructor
-                self._backend: ReadableBackend = cls.from_uri(backend, **kwargs)
+                self._backend: ReadBackend[str, Any] = cls.from_uri(backend, **kwargs)
             else:
                 # File path: pass path directly to backend constructor
                 self._backend = cls(backend, **kwargs)
@@ -58,24 +58,24 @@ class ASEIO(MutableSequence):
 
         # Persistent read-through cache
         if cache_to is None:
-            self._cache: WritableBackend | None = None
+            self._cache: ReadWriteBackend[str, Any] | None = None
         elif isinstance(cache_to, str):
             from ._registry import get_backend_cls
 
             cache_cls = get_backend_cls(cache_to, readonly=False)
             self._cache = cache_cls(cache_to)
-        elif isinstance(cache_to, WritableBackend):
+        elif isinstance(cache_to, ReadWriteBackend):
             self._cache = cache_to
         else:
             raise TypeError(
-                f"cache_to must be str or WritableBackend, "
+                f"cache_to must be str or ReadWriteBackend, "
                 f"got {type(cache_to).__name__}"
             )
 
         if (
             self._cache is not None
             and readonly is not True
-            and isinstance(self._backend, WritableBackend)
+            and isinstance(self._backend, ReadWriteBackend)
         ):
             warnings.warn(
                 "cache_to with a writable source may serve stale data after "
@@ -94,7 +94,7 @@ class ASEIO(MutableSequence):
         else:
             if n == 0:
                 return []
-        return self._backend.columns()
+        return self._backend.schema()
 
     # --- Internal methods used by views ---
 
@@ -103,26 +103,26 @@ class ASEIO(MutableSequence):
     ) -> dict[str, Any]:
         if self._cache is not None:
             try:
-                return self._cache.read_row(index, keys)
+                return self._cache.get(index, keys)
             except (IndexError, KeyError):
                 pass
-            # Cache miss — read full row from source, write to cache
-            full_row = self._backend.read_row(index)
+            # Cache miss -- read full row from source, write to cache
+            full_row = self._backend.get(index)
             try:
-                self._cache.write_row(index, full_row)
+                self._cache.set(index, full_row)
             except Exception:
                 pass  # cache write is best-effort
             if keys is not None:
                 return {k: full_row[k] for k in keys if k in full_row}
             return full_row
-        return self._backend.read_row(index, keys)
+        return self._backend.get(index, keys)
 
     def _read_rows(
         self, indices: list[int], keys: list[str] | None = None
     ) -> list[dict[str, Any]]:
         if self._cache is not None:
             return [self._read_row(i, keys) for i in indices]
-        return self._backend.read_rows(indices, keys)
+        return self._backend.get_many(indices, keys)
 
     def _iter_rows(
         self, indices: list[int], keys: list[str] | None = None
@@ -134,7 +134,7 @@ class ASEIO(MutableSequence):
     def _read_column(self, key: str, indices: list[int]) -> list[Any]:
         if self._cache is not None:
             return [self._read_row(i, [key])[key] for i in indices]
-        return self._backend.read_column(key, indices)
+        return self._backend.get_column(key, indices)
 
     def _build_atoms(self, row: dict[str, Any]) -> ase.Atoms:
         return dict_to_atoms(row)
@@ -185,28 +185,28 @@ class ASEIO(MutableSequence):
         raise TypeError(f"Unsupported index type: {type(index)}")
 
     def __setitem__(self, index: int, value: ase.Atoms) -> None:
-        if not isinstance(self._backend, WritableBackend):
+        if not isinstance(self._backend, ReadWriteBackend):
             raise TypeError("Backend is read-only")
         data = atoms_to_dict(value)
-        self._backend.write_row(index, data)
+        self._backend.set(index, data)
 
     def __delitem__(self, index: int) -> None:
-        if not isinstance(self._backend, WritableBackend):
+        if not isinstance(self._backend, ReadWriteBackend):
             raise TypeError("Backend is read-only")
-        self._backend.delete_row(index)
+        self._backend.delete(index)
 
     def insert(self, index: int, value: ase.Atoms) -> None:
-        if not isinstance(self._backend, WritableBackend):
+        if not isinstance(self._backend, ReadWriteBackend):
             raise TypeError("Backend is read-only")
         data = atoms_to_dict(value)
-        self._backend.insert_row(index, data)
+        self._backend.insert(index, data)
 
     def extend(self, values: list[ase.Atoms]) -> None:
         """Efficiently extend with multiple Atoms objects using bulk operations."""
-        if not isinstance(self._backend, WritableBackend):
+        if not isinstance(self._backend, ReadWriteBackend):
             raise TypeError("Backend is read-only")
         data_list = [atoms_to_dict(atoms) for atoms in values]
-        self._backend.append_rows(data_list)
+        self._backend.extend(data_list)
 
     def __len__(self) -> int:
         return len(self._backend)
@@ -260,7 +260,7 @@ class ASEIO(MutableSequence):
 
             db.update(i, info={"tag": "done"}, calc={"energy": -10.5})
         """
-        if not isinstance(self._backend, WritableBackend):
+        if not isinstance(self._backend, ReadWriteBackend):
             raise TypeError("Backend is read-only")
 
         # Build flat dict from either new or legacy API
@@ -281,4 +281,4 @@ class ASEIO(MutableSequence):
             return
 
         self._validate_keys(flat_data)
-        self._backend.update_row(index, flat_data)
+        self._backend.update(index, flat_data)

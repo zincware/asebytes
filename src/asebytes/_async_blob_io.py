@@ -1,6 +1,6 @@
-"""AsyncBytesIO — async facade for raw bytes-level backends.
+"""AsyncBlobIO -- async facade for blob-level backends.
 
-Mirrors BytesIO but all I/O is async. __getitem__ is sync and returns
+Mirrors BlobIO but all I/O is async. __getitem__ is sync and returns
 awaitable views; materialization happens on ``await`` or ``async for``.
 Works with dict[bytes, bytes] rows (no serialization).
 """
@@ -15,13 +15,13 @@ from ._async_views import (
     AsyncRowView,
     AsyncSingleRowView,
 )
-from ._async_io import _DeferredSliceRowView
+from ._async_object_io import _DeferredSliceRowView
 
 
-class AsyncBytesIO:
+class AsyncBlobIO:
     """Async storage-agnostic interface for dict[bytes, bytes] rows.
 
-    Wraps an AsyncRawReadableBackend or AsyncRawWritableBackend.
+    Wraps an AsyncReadBackend[bytes, bytes] or AsyncReadWriteBackend[bytes, bytes].
     ``__getitem__`` is synchronous and returns awaitable views.
     """
 
@@ -84,10 +84,10 @@ class AsyncBytesIO:
         return await self._backend.aschema()
 
     def _build_result(self, row: Any) -> Any:
-        """Identity transform — returns raw dict[bytes, bytes] as-is."""
+        """Identity transform -- returns raw dict[bytes, bytes] as-is."""
         return row
 
-    # ── __getitem__ → sync, returns views ─────────────────────────────
+    # -- __getitem__ -> sync, returns views ---------------------------------
 
     @overload
     def __getitem__(self, index: int) -> AsyncSingleRowView: ...
@@ -111,37 +111,37 @@ class AsyncBytesIO:
                 return AsyncRowView(self, index, contiguous=False)
         raise TypeError(f"Unsupported index type: {type(index)}")
 
-    # ── Top-level async methods ───────────────────────────────────────
+    # -- Top-level async methods -------------------------------------------
 
-    async def aextend(self, data: list[dict[bytes, bytes] | None]) -> None:
+    async def async_extend(self, data: list[dict[bytes, bytes] | None]) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.aextend(data)
 
-    async def ainsert(self, index: int, data: dict[bytes, bytes] | None) -> None:
+    async def async_insert(self, index: int, data: dict[bytes, bytes] | None) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.ainsert(index, data)
 
-    async def adrop(self, *, keys: list[bytes]) -> None:
+    async def async_drop(self, *, keys: list[bytes]) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.adrop_keys(keys)
 
-    async def aget_schema(self) -> list[bytes]:
+    async def async_schema(self) -> list[bytes]:
         return await self._backend.aschema()
 
-    async def aclear(self) -> None:
+    async def async_clear(self) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.aclear()
 
-    async def aremove(self) -> None:
+    async def async_remove(self) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.aremove()
 
-    async def areserve(self, count: int) -> None:
+    async def async_reserve(self, count: int) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.areserve(count)
@@ -154,7 +154,7 @@ class AsyncBytesIO:
             row = await self._backend.aget(i)
             yield self._build_result(row)
 
-    # ── Context manager ───────────────────────────────────────────────
+    # -- Context manager ---------------------------------------------------
 
     async def __aenter__(self):
         return self
@@ -163,4 +163,4 @@ class AsyncBytesIO:
         return False
 
     def __repr__(self) -> str:
-        return f"AsyncBytesIO(backend={self._backend!r})"
+        return f"AsyncBlobIO(backend={self._backend!r})"

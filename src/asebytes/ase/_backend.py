@@ -7,10 +7,10 @@ from typing import Any
 import ase.io
 
 from .._convert import atoms_to_dict
-from .._protocols import ReadableBackend
+from .._backends import ReadBackend
 
 
-class ASEReadOnlyBackend(ReadableBackend):
+class ASEReadOnlyBackend(ReadBackend[str, Any]):
     """Read-only backend wrapping ``ase.io.read`` for file-based formats.
 
     Supports any format ASE can read (.traj, .xyz, .extxyz, etc.).
@@ -95,11 +95,11 @@ class ASEReadOnlyBackend(ReadableBackend):
             )
         return self._length
 
-    def columns(self, index: int = 0) -> list[str]:
+    def schema(self, index: int = 0) -> list[str]:
         row = self._read_frame(index)
         return list(row.keys())
 
-    def read_row(
+    def get(
         self, index: int, keys: list[str] | None = None
     ) -> dict[str, Any]:
         row = self._read_frame(index)
@@ -107,10 +107,10 @@ class ASEReadOnlyBackend(ReadableBackend):
             return {k: row[k] for k in keys if k in row}
         return row
 
-    def read_rows(
+    def get_many(
         self, indices: list[int], keys: list[str] | None = None
     ) -> list[dict[str, Any]]:
-        return [self.read_row(i, keys) for i in indices]
+        return [self.get(i, keys) for i in indices]
 
     def iter_rows(
         self, indices: list[int], keys: list[str] | None = None
@@ -144,11 +144,15 @@ class ASEReadOnlyBackend(ReadableBackend):
                 self._length = frame_idx
         else:
             for i in indices:
-                yield self.read_row(i, keys)
+                yield self.get(i, keys)
 
-    def read_column(
+    def get_column(
         self, key: str, indices: list[int] | None = None
     ) -> list[Any]:
         if indices is None:
             indices = list(range(len(self)))
-        return [self.read_row(i, [key])[key] for i in indices]
+        return [self.get(i, [key])[key] for i in indices]
+
+
+# Backward compatibility alias
+ASEObjectBackend = ASEReadOnlyBackend

@@ -284,10 +284,10 @@ def test_registry_xyz_readonly_false_raises(trajectory):
 
 def test_registry_lmdb_auto_writable(tmp_path):
     """LMDB auto-selects writable backend with readonly=None."""
-    from asebytes.lmdb import LMDBBackend
+    from asebytes.lmdb import LMDBObjectBackend
 
     db = asebytes.ASEIO(str(tmp_path / "test.lmdb"))
-    assert isinstance(db._backend, LMDBBackend)
+    assert isinstance(db._backend, LMDBObjectBackend)
 
 
 # =============================================================================

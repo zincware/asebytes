@@ -1,13 +1,13 @@
 import numpy as np
 import pytest
 
-from asebytes._protocols import ReadableBackend, WritableBackend
-from asebytes.lmdb import LMDBBackend
+from asebytes._backends import ReadBackend, ReadWriteBackend
+from asebytes.lmdb import LMDBObjectBackend
 
 
 @pytest.fixture
 def backend(tmp_path):
-    return LMDBBackend(str(tmp_path / "test.lmdb"))
+    return LMDBObjectBackend(str(tmp_path / "test.lmdb"))
 
 
 @pytest.fixture
@@ -23,8 +23,8 @@ def sample_row():
 
 
 def test_is_writable_backend(backend):
-    assert isinstance(backend, WritableBackend)
-    assert isinstance(backend, ReadableBackend)
+    assert isinstance(backend, ReadWriteBackend)
+    assert isinstance(backend, ReadBackend)
 
 
 def test_empty_len(backend):
@@ -129,11 +129,11 @@ def test_read_row_nonexistent(backend):
 def test_readonly_mode(tmp_path, sample_row):
     path = str(tmp_path / "readonly.lmdb")
     # Write first
-    wb = LMDBBackend(path)
+    wb = LMDBObjectBackend(path)
     wb.write_row(0, sample_row)
     del wb
     # Read-only
-    rb = LMDBBackend(path, readonly=True)
+    rb = LMDBObjectBackend(path, readonly=True)
     assert len(rb) == 1
     row = rb.read_row(0)
     assert row["calc.energy"] == pytest.approx(-10.5)

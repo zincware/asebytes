@@ -26,14 +26,14 @@ class MemoryRawReadable(RawReadableBackend):
     def __len__(self) -> int:
         return len(self._data)
 
-    def get_schema(self) -> list[bytes]:
+    def schema(self) -> list[bytes]:
         keys: set[bytes] = set()
         for row in self._data:
             if row is not None:
                 keys.update(row.keys())
         return sorted(keys)
 
-    def read_row(
+    def get(
         self, index: int, keys: list[bytes] | None = None
     ) -> dict[bytes, bytes] | None:
         if index < 0 or index >= len(self._data):
@@ -49,7 +49,7 @@ class MemoryRawReadable(RawReadableBackend):
 class MemoryRawWritable(MemoryRawReadable, RawWritableBackend):
     """In-memory implementation of the read-write bytes-level protocol."""
 
-    def write_row(self, index: int, data: dict[bytes, bytes] | None) -> None:
+    def set(self, index: int, data: dict[bytes, bytes] | None) -> None:
         if index < len(self._data):
             self._data[index] = data
         elif index == len(self._data):
@@ -57,13 +57,13 @@ class MemoryRawWritable(MemoryRawReadable, RawWritableBackend):
         else:
             raise IndexError(index)
 
-    def insert_row(self, index: int, data: dict[bytes, bytes] | None) -> None:
+    def insert(self, index: int, data: dict[bytes, bytes] | None) -> None:
         self._data.insert(index, data)
 
-    def delete_row(self, index: int) -> None:
+    def delete(self, index: int) -> None:
         del self._data[index]
 
-    def append_rows(self, data: list[dict[bytes, bytes] | None]) -> None:
+    def extend(self, data: list[dict[bytes, bytes] | None]) -> None:
         self._data.extend(data)
 
 

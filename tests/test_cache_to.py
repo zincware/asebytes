@@ -29,10 +29,12 @@ class InMemoryReadOnly(ReadableBackend):
     def __len__(self) -> int:
         return len(self._rows)
 
-    def columns(self, index: int = 0) -> list[str]:
-        return list(self._rows[index].keys())
+    def schema(self) -> list[str]:
+        if not self._rows:
+            return []
+        return list(self._rows[0].keys())
 
-    def read_row(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         if index < 0 or index >= len(self._rows):
             raise IndexError(index)
         self.access_count += 1
@@ -51,12 +53,12 @@ class InMemoryWritable(WritableBackend):
     def __len__(self) -> int:
         return len(self._rows)
 
-    def columns(self, index: int = 0) -> list[str]:
+    def schema(self) -> list[str]:
         if not self._rows:
             return []
-        return list(self._rows[index].keys())
+        return list(self._rows[0].keys())
 
-    def read_row(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         if index < 0 or index >= len(self._rows):
             raise IndexError(index)
         row = self._rows[index]
@@ -64,18 +66,18 @@ class InMemoryWritable(WritableBackend):
             return {k: row[k] for k in keys if k in row}
         return dict(row)
 
-    def write_row(self, index: int, data: dict[str, Any]) -> None:
+    def set(self, index: int, data: dict[str, Any]) -> None:
         while len(self._rows) <= index:
             self._rows.append({})
         self._rows[index] = data
 
-    def insert_row(self, index: int, data: dict[str, Any]) -> None:
+    def insert(self, index: int, data: dict[str, Any]) -> None:
         self._rows.insert(index, data)
 
-    def delete_row(self, index: int) -> None:
+    def delete(self, index: int) -> None:
         del self._rows[index]
 
-    def append_rows(self, data: list[dict[str, Any]]) -> None:
+    def extend(self, data: list[dict[str, Any]]) -> None:
         self._rows.extend(data)
 
 

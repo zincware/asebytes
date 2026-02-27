@@ -1,4 +1,17 @@
-from ._backend import LMDBBackend, LMDBReadOnlyBackend
-from ._bytesio import BytesIO
+from ._backend import (
+    LMDBBackend,
+    LMDBObjectBackend,
+    LMDBObjectReadBackend,
+    LMDBReadOnlyBackend,
+)
+from ._blob_backend import BytesIO, LMDBBlobBackend
 
-__all__ = ["BytesIO", "LMDBBackend", "LMDBReadOnlyBackend"]
+__all__ = [
+    "LMDBBlobBackend",
+    "LMDBObjectBackend",
+    "LMDBObjectReadBackend",
+    # Deprecated
+    "BytesIO",
+    "LMDBReadOnlyBackend",
+    "LMDBBackend",
+]

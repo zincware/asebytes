@@ -17,7 +17,7 @@ import h5py
 import numpy as np
 
 from asebytes._columnar import concat_varying, get_version, jsonable, strip_nan_padding
-from asebytes._protocols import WritableBackend
+from asebytes._backends import ReadWriteBackend
 from asebytes.h5md._mapping import (
     ASE_TO_H5MD,
     H5MD_TO_ASE,
@@ -38,12 +38,12 @@ class _PostProc(enum.IntEnum):
     NDARRAY_PLAIN = 6  # return as-is
 
 
-class H5MDBackend(WritableBackend):
+class H5MDBackend(ReadWriteBackend[str, Any]):
     """Read-write H5MD backend using h5py.
 
     Supports standard H5MD files and ZnH5MD extensions
     (variable particle count via NaN padding, per-frame PBC).
-    Append-only: ``insert_row`` and ``delete_row`` raise
+    Append-only: ``insert`` and ``delete`` raise
     ``NotImplementedError``.
     """
 
@@ -225,12 +225,12 @@ class H5MDBackend(WritableBackend):
     def __len__(self) -> int:
         return self._n_frames
 
-    def columns(self, index: int = 0) -> list[str]:
+    def schema(self) -> list[str]:
         if self._col_cache or self._box_cache:
             return list(self._box_cache.keys()) + list(self._col_cache.keys())
-        return list(self.read_row(index).keys())
+        return list(self.get(0).keys())
 
-    def read_row(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         index = self._check_index(index)
         result: dict[str, Any] = {}
 
@@ -274,7 +274,7 @@ class H5MDBackend(WritableBackend):
 
         return result
 
-    def read_rows(
+    def get_many(
         self, indices: list[int], keys: list[str] | None = None
     ) -> list[dict[str, Any]]:
         """Bulk columnar read — each dataset is accessed once."""
@@ -378,16 +378,16 @@ class H5MDBackend(WritableBackend):
         self, indices: list[int], keys: list[str] | None = None
     ) -> Iterator[dict[str, Any]]:
         """Yield rows using bulk columnar read."""
-        yield from self.read_rows(indices, keys)
+        yield from self.get_many(indices, keys)
 
-    def read_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
+    def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
         """Optimised: reads a single HDF5 dataset directly."""
         if key in self._col_cache:
             ds, h5_name, tag = self._col_cache[key]
         else:
             h5_path = self._find_dataset_path(key)
             if h5_path is None:
-                return super().read_column(key, indices)
+                return super().get_column(key, indices)
             grp = self._file[h5_path]
             ds = grp["value"]
             h5_name = h5_path.rsplit("/", 1)[-1]
@@ -409,7 +409,7 @@ class H5MDBackend(WritableBackend):
     # WritableBackend (append-only)
     # ------------------------------------------------------------------
 
-    def append_rows(self, data: list[dict[str, Any]]) -> None:
+    def extend(self, data: list[dict[str, Any]]) -> None:
         if not data:
             return
 
@@ -459,7 +459,7 @@ class H5MDBackend(WritableBackend):
         self._n_frames += n_new
         self._discover()  # Rebuild dataset cache for new/extended datasets
 
-    def write_row(self, index: int, data: dict[str, Any]) -> None:
+    def set(self, index: int, data: dict[str, Any]) -> None:
         index = self._check_index(index)
         for key, val in data.items():
             h5_path = self._find_dataset_path(key)
@@ -475,10 +475,10 @@ class H5MDBackend(WritableBackend):
                     val = padded
             ds[index] = val
 
-    def insert_row(self, index: int, data: dict[str, Any]) -> None:
+    def insert(self, index: int, data: dict[str, Any]) -> None:
         raise NotImplementedError("H5MD backend does not support insert")
 
-    def delete_row(self, index: int) -> None:
+    def delete(self, index: int) -> None:
         raise NotImplementedError("H5MD backend does not support delete")
 
     # ------------------------------------------------------------------
@@ -1211,3 +1211,7 @@ class H5MDBackend(WritableBackend):
         if isinstance(val, (dict, list, str)):
             return json.dumps(jsonable(val))
         return val
+
+
+# Backward compatibility aliases
+H5MDObjectBackend = H5MDBackend

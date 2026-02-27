@@ -26,10 +26,10 @@ class MemoryRawBackend(RawWritableBackend):
     def __len__(self) -> int:
         return len(self._rows)
 
-    def get_schema(self) -> list[bytes]:
+    def schema(self) -> list[bytes]:
         return sorted(self._schema)
 
-    def read_row(
+    def get(
         self, index: int, keys: list[bytes] | None = None
     ) -> dict[bytes, bytes] | None:
         if index < 0 or index >= len(self._rows):
@@ -41,7 +41,7 @@ class MemoryRawBackend(RawWritableBackend):
             return {k: row[k] for k in keys if k in row}
         return dict(row)
 
-    def write_row(self, index: int, data: dict[bytes, bytes] | None) -> None:
+    def set(self, index: int, data: dict[bytes, bytes] | None) -> None:
         if data is not None:
             self._schema |= set(data.keys())
         if index < len(self._rows):
@@ -51,15 +51,15 @@ class MemoryRawBackend(RawWritableBackend):
         else:
             raise IndexError(index)
 
-    def insert_row(self, index: int, data: dict[bytes, bytes] | None) -> None:
+    def insert(self, index: int, data: dict[bytes, bytes] | None) -> None:
         if data is not None:
             self._schema |= set(data.keys())
         self._rows.insert(index, data)
 
-    def delete_row(self, index: int) -> None:
+    def delete(self, index: int) -> None:
         del self._rows[index]
 
-    def append_rows(self, data: list[dict[bytes, bytes] | None]) -> None:
+    def extend(self, data: list[dict[bytes, bytes] | None]) -> None:
         for d in data:
             if d is not None:
                 self._schema |= set(d.keys())

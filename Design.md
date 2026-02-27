@@ -64,7 +64,7 @@ flowchart LR
     %% Existing Backends
     LMDBReadWrite --> BlobReadWriteBackend
     HFRead --> ObjectReadBackend
-    ZarrReadWrite --> BlobReadWriteBackend
+    ZarrReadWrite --> ObjectReadWriteBackend
     H5MDReadWrite --> ObjectReadWriteBackend
     %% special case, because ASE XYZ does result in ASE atoms directly
     XYZRead --> ASEIO

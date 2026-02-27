@@ -14,12 +14,12 @@ class MinimalReadable(ReadableBackend):
     def __len__(self) -> int:
         return len(self._data)
 
-    def columns(self, index: int = 0) -> list[str]:
+    def schema(self) -> list[str]:
         if not self._data:
             return []
-        return list(self._data[index].keys())
+        return list(self._data[0].keys())
 
-    def read_row(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         row = self._data[index]
         if keys is not None:
             return {k: row[k] for k in keys if k in row}
@@ -29,19 +29,19 @@ class MinimalReadable(ReadableBackend):
 class MinimalWritable(MinimalReadable, WritableBackend):
     """Minimal writable implementation."""
 
-    def write_row(self, index: int, data: dict[str, Any]) -> None:
+    def set(self, index: int, data: dict[str, Any]) -> None:
         if index < len(self._data):
             self._data[index] = data
         elif index == len(self._data):
             self._data.append(data)
 
-    def insert_row(self, index: int, data: dict[str, Any]) -> None:
+    def insert(self, index: int, data: dict[str, Any]) -> None:
         self._data.insert(index, data)
 
-    def delete_row(self, index: int) -> None:
+    def delete(self, index: int) -> None:
         del self._data[index]
 
-    def append_rows(self, data: list[dict[str, Any]]) -> None:
+    def extend(self, data: list[dict[str, Any]]) -> None:
         self._data.extend(data)
 
 

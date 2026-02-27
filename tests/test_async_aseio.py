@@ -28,13 +28,13 @@ class MemoryBackend(WritableBackend):
     def __len__(self) -> int:
         return len(self._rows)
 
-    def columns(self, index: int = 0) -> list[str]:
+    def schema(self) -> list[str]:
         if not self._rows:
             return []
-        row = self._rows[index]
+        row = self._rows[0]
         return sorted(row.keys()) if row is not None else []
 
-    def read_row(
+    def get(
         self, index: int, keys: list[str] | None = None
     ) -> dict[str, Any] | None:
         if index < 0 or index >= len(self._rows):
@@ -46,7 +46,7 @@ class MemoryBackend(WritableBackend):
             return {k: row[k] for k in keys if k in row}
         return dict(row)
 
-    def write_row(self, index: int, data: dict[str, Any] | None) -> None:
+    def set(self, index: int, data: dict[str, Any] | None) -> None:
         if index < len(self._rows):
             self._rows[index] = data
         elif index == len(self._rows):
@@ -54,13 +54,13 @@ class MemoryBackend(WritableBackend):
         else:
             raise IndexError(index)
 
-    def insert_row(self, index: int, data: dict[str, Any] | None) -> None:
+    def insert(self, index: int, data: dict[str, Any] | None) -> None:
         self._rows.insert(index, data)
 
-    def delete_row(self, index: int) -> None:
+    def delete(self, index: int) -> None:
         del self._rows[index]
 
-    def append_rows(self, data: list[dict[str, Any] | None]) -> None:
+    def extend(self, data: list[dict[str, Any] | None]) -> None:
         self._rows.extend(data)
 
 

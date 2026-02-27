@@ -1,5 +1,5 @@
 """H5MD backend for asebytes."""
 
-from asebytes.h5md._backend import H5MDBackend
+from ._backend import H5MDBackend, H5MDObjectBackend
 
-__all__ = ["H5MDBackend"]
+__all__ = ["H5MDBackend", "H5MDObjectBackend"]

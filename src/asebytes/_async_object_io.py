@@ -1,6 +1,6 @@
-"""AsyncASEIO — async facade for str-level backends.
+"""AsyncObjectIO -- async facade for object-level backends.
 
-Mirrors ASEIO but all I/O is async. __getitem__ is sync and returns
+Mirrors ObjectIO but all I/O is async. __getitem__ is sync and returns
 awaitable views; materialization happens on ``await`` or ``async for``.
 """
 
@@ -13,14 +13,13 @@ from ._async_views import (
     AsyncColumnView,
     AsyncRowView,
     AsyncSingleRowView,
-    AsyncViewParent,
 )
 
 
-class AsyncASEIO:
+class AsyncObjectIO:
     """Async storage-agnostic interface for dict[str, Any] rows.
 
-    Wraps an AsyncReadableBackend or AsyncWritableBackend. If the backend
+    Wraps an AsyncReadBackend or AsyncReadWriteBackend. If the backend
     is sync, wrap it with SyncToAsyncAdapter before passing it here.
 
     ``__getitem__`` is synchronous and returns awaitable views.
@@ -83,14 +82,14 @@ class AsyncASEIO:
         return await self._backend.aschema()
 
     def _build_result(self, row: Any) -> Any:
-        """Identity transform — returns dict as-is.
+        """Identity transform -- returns dict as-is.
 
-        Subclasses (or a future AsyncASEAtomIO) can override to convert
+        Subclasses (e.g. AsyncASEIO) can override to convert
         to ase.Atoms via dict_to_atoms.
         """
         return row
 
-    # ── __getitem__ → sync, returns views ─────────────────────────────
+    # -- __getitem__ -> sync, returns views ---------------------------------
 
     @overload
     def __getitem__(self, index: int) -> AsyncSingleRowView: ...
@@ -108,13 +107,8 @@ class AsyncASEIO:
         index: int | slice | str | list[int] | list[str],
     ) -> AsyncSingleRowView | AsyncRowView | AsyncColumnView:
         if isinstance(index, int):
-            # For negative indices we need len, but alen is async.
-            # Store the raw index; _read_row will handle IndexError at
-            # the backend level.
             return AsyncSingleRowView(self, index)
         if isinstance(index, slice):
-            # We can't resolve slice without len. Store slice and resolve
-            # lazily in the view's __await__.
             return _DeferredSliceRowView(self, index)
         if isinstance(index, str):
             return AsyncColumnView(self, index)
@@ -127,34 +121,34 @@ class AsyncASEIO:
                 return AsyncColumnView(self, index)
         raise TypeError(f"Unsupported index type: {type(index)}")
 
-    # ── Top-level async write methods ─────────────────────────────────
+    # -- Top-level async write methods -------------------------------------
 
-    async def aextend(self, data: list[Any]) -> None:
+    async def async_extend(self, data: list[Any]) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.aextend(data)
 
-    async def ainsert(self, index: int, data: Any) -> None:
+    async def async_insert(self, index: int, data: Any) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.ainsert(index, data)
 
-    async def adrop(self, *, keys: list[str]) -> None:
+    async def async_drop(self, *, keys: list[str]) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.adrop_keys(keys)
 
-    async def aclear(self) -> None:
+    async def async_clear(self) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.aclear()
 
-    async def aremove(self) -> None:
+    async def async_remove(self) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.aremove()
 
-    async def areserve(self, count: int) -> None:
+    async def async_reserve(self, count: int) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.areserve(count)
@@ -167,7 +161,7 @@ class AsyncASEIO:
             row = await self._backend.aget(i)
             yield self._build_result(row)
 
-    # ── Context manager ───────────────────────────────────────────────
+    # -- Context manager ---------------------------------------------------
 
     async def __aenter__(self):
         return self
@@ -176,19 +170,13 @@ class AsyncASEIO:
         return False
 
     def __repr__(self) -> str:
-        return f"AsyncASEIO(backend={self._backend!r})"
+        return f"AsyncObjectIO(backend={self._backend!r})"
 
 
 class _DeferredSliceRowView(AsyncRowView):
-    """AsyncRowView that resolves a slice lazily via alen().
+    """AsyncRowView that resolves a slice lazily via alen()."""
 
-    When __getitem__ receives a slice, we can't call len() synchronously
-    on an async object. This subclass stores the raw slice and resolves
-    it to concrete indices on first await / aiter.
-    """
-
-    def __init__(self, parent: AsyncASEIO, slc: slice):
-        # Initialize with empty indices — will be resolved lazily
+    def __init__(self, parent: AsyncObjectIO, slc: slice):
         super().__init__(parent, [], contiguous=True)
         self._slice = slc
         self._resolved = False

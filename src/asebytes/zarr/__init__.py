@@ -1,5 +1,5 @@
 """Zarr backend for asebytes."""
 
-from asebytes.zarr._backend import ZarrBackend
+from asebytes.zarr._backend import ZarrBackend, ZarrObjectBackend
 
-__all__ = ["ZarrBackend"]
+__all__ = ["ZarrBackend", "ZarrObjectBackend"]

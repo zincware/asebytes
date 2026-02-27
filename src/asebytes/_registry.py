@@ -7,7 +7,7 @@ import importlib
 
 # pattern -> (module_path, writable_cls_name | None, readonly_cls_name)
 _BACKEND_REGISTRY: dict[str, tuple[str, str | None, str]] = {
-    "*.lmdb": ("asebytes.lmdb", "LMDBBackend", "LMDBReadOnlyBackend"),
+    "*.lmdb": ("asebytes.lmdb", "LMDBObjectBackend", "LMDBObjectReadBackend"),
     "*.h5": ("asebytes.h5md", "H5MDBackend", "H5MDBackend"),
     "*.h5md": ("asebytes.h5md", "H5MDBackend", "H5MDBackend"),
     "*.zarr": ("asebytes.zarr", "ZarrBackend", "ZarrBackend"),
