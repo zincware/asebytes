@@ -56,30 +56,32 @@ class LMDBObjectReadBackend(ReadBackend[str, Any]):
 
     def get(
         self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
         self._check_index(index)
         byte_keys = [k.encode() for k in keys] if keys is not None else None
         raw = self._store.get(index, keys=byte_keys)
+        if raw is None:
+            return None
         return self._deserialize_row(raw)
 
     def iter_rows(
         self, indices: list[int], keys: list[str] | None = None
-    ) -> Iterator[dict[str, Any]]:
+    ) -> Iterator[dict[str, Any] | None]:
         """Stream rows within a single LMDB read transaction."""
         byte_keys = [k.encode() for k in keys] if keys is not None else None
         with self._store.env.begin() as txn:
             for i in indices:
-                yield self._deserialize_row(
-                    self._store.get_with_txn(txn, i, byte_keys)
-                )
+                raw = self._store.get_with_txn(txn, i, byte_keys)
+                yield None if raw is None else self._deserialize_row(raw)
 
     def get_many(
         self, indices: list[int], keys: list[str] | None = None
-    ) -> list[dict[str, Any]]:
+    ) -> list[dict[str, Any] | None]:
         byte_keys = [k.encode() for k in keys] if keys is not None else None
         with self._store.env.begin() as txn:
             return [
-                self._deserialize_row(self._store.get_with_txn(txn, i, byte_keys))
+                None if (raw := self._store.get_with_txn(txn, i, byte_keys)) is None
+                else self._deserialize_row(raw)
                 for i in indices
             ]
 

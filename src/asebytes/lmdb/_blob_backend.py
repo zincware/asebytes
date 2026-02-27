@@ -243,6 +243,9 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
                 f"Invalid keys at index {index}: {sorted(invalid_keys)}"
             )
 
+        # If caller didn't request specific keys and got nothing, it's a None placeholder
+        if keys_set is None and not result:
+            return None
         return result
 
     def keys(self, index: int) -> list[bytes]:

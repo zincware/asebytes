@@ -267,7 +267,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
             if conn is not None:
                 result["info.connectivity"] = conn
 
-        return result
+        return result if result else None
 
     def get_many(
         self, indices: list[int], keys: list[str] | None = None
@@ -365,7 +365,8 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         result: list[dict[str, Any] | None] = [None] * n
         for j in range(n):
             src = unique_rows[inverse[j]]
-            result[order[j]] = dict(src) if n_unique < n else src
+            row = dict(src) if n_unique < n else src
+            result[order[j]] = row if row else None
 
         return result  # type: ignore[return-value]
 
@@ -412,11 +413,13 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
             self._init_h5md()
 
         n_new = len(data)
-        all_keys = sorted({k for row in data for k in row})
+        all_keys = sorted({k for row in data if row is not None for k in row})
 
         # Determine new max atoms
         new_max = 0
         for row in data:
+            if row is None:
+                continue
             pos = row.get("arrays.positions")
             nums = row.get("arrays.numbers")
             if pos is not None:
@@ -431,7 +434,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
             h5_path, origin = self._key_to_h5(key, data)
             if h5_path is None:
                 continue
-            values = [row.get(key) for row in data]
+            values = [row.get(key) if row is not None else None for row in data]
             self._write_element(h5_path, origin, key, values, max_atoms)
 
         self._write_connectivity(data)
@@ -732,7 +735,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         ``NaN`` fill.
         """
         conn_key = "info.connectivity"
-        raw = [row.get(conn_key) for row in data]
+        raw = [row.get(conn_key) if row is not None else None for row in data]
 
         # Nothing to write if no frame has connectivity
         if all(v is None for v in raw):
@@ -926,6 +929,8 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
     def _is_per_atom(self, key: str, data: list[dict[str, Any]]) -> bool:
         """Check if a calc result is per-atom (first dim == n_atoms)."""
         for row in data:
+            if row is None:
+                continue
             val = row.get(key)
             if val is None or not isinstance(val, np.ndarray) or val.ndim < 1:
                 continue

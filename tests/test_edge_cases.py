@@ -282,10 +282,14 @@ def test_bytesio_multiple_prefixes_isolated(tmp_path):
 
 
 def test_bytesio_empty_data_dict(tmp_path):
-    """Test BlobIO with empty data dictionary."""
+    """Test BlobIO with empty data dictionary.
+
+    An empty dict is stored as a row with no fields, which is
+    indistinguishable from a None placeholder — so get() returns None.
+    """
     io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
     io[0] = {}
-    assert io[0] == {}
+    assert io[0] is None
     assert len(io) == 1
 
 
