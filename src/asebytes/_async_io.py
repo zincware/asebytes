@@ -80,7 +80,7 @@ class AsyncASEIO:
         await self._backend.adrop_keys(keys, indices)
 
     async def _get_available_keys(self, index: int) -> list[str]:
-        return await self._backend.aschema()
+        return await self._backend.aget_available_keys(index)
 
     def _build_result(self, row: Any) -> Any:
         """Identity transform — returns dict as-is.

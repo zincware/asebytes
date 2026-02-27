@@ -81,7 +81,7 @@ class AsyncBytesIO:
         await self._backend.adrop_keys(byte_keys, indices)
 
     async def _get_available_keys(self, index: int) -> list[bytes]:
-        return await self._backend.aschema()
+        return await self._backend.aget_available_keys(index)
 
     def _build_result(self, row: Any) -> Any:
         """Identity transform — returns raw dict[bytes, bytes] as-is."""

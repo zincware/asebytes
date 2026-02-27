@@ -228,6 +228,22 @@ class TestAsyncRowView:
             results.append(row)
         assert len(results) == 10  # yields individual items, not chunks
 
+    @pytest.mark.anyio
+    async def test_achunked_chunk_larger_than_view(self, parent):
+        view = AsyncRowView(parent, [0, 1, 2])
+        results = []
+        async for row in view.achunked(100):
+            results.append(row)
+        assert len(results) == 3
+
+    @pytest.mark.anyio
+    async def test_achunked_empty_view(self, parent):
+        view = AsyncRowView(parent, [])
+        results = []
+        async for row in view.achunked(3):
+            results.append(row)
+        assert len(results) == 0
+
     # -- __len__ --
 
     def test_len(self, parent):

@@ -444,3 +444,39 @@ class TestKeys:
         keys = await db[0].akeys()
         assert "calc.energy" in keys
         assert "info.tag" in keys
+
+    @pytest.mark.anyio
+    async def test_akeys_returns_per_row_keys(self, db):
+        """akeys() returns keys for that specific row, not global schema."""
+        keys = await db[0].akeys()
+        assert "calc.energy" in keys
+        assert "arrays.positions" in keys
+
+    @pytest.mark.anyio
+    async def test_akeys_none_placeholder(self, backend):
+        """akeys() on a None placeholder returns empty list."""
+        backend._rows[0] = None
+        db = AsyncASEIO(SyncToAsyncAdapter(backend))
+        keys = await db[0].akeys()
+        assert keys == []
+
+
+# ========================================================================
+# Async iteration with None placeholders
+# ========================================================================
+
+
+class TestAsyncIterationWithNone:
+    @pytest.mark.anyio
+    async def test_aiter_with_mixed_none(self, backend):
+        """Async iteration preserves None placeholders."""
+        backend._rows[1] = None
+        backend._rows[3] = None
+        db = AsyncASEIO(SyncToAsyncAdapter(backend))
+        results = []
+        async for item in db:
+            results.append(item)
+        assert len(results) == 10
+        assert results[1] is None
+        assert results[3] is None
+        assert results[0] is not None

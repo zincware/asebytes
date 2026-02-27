@@ -283,6 +283,16 @@ class TestPlaceholders:
 # ========================================================================
 
 
+class TestColumnAccessViaRowView:
+    @pytest.mark.anyio
+    async def test_column_access_via_row_view(self, io):
+        view = io[[0, 1, 2]]  # concrete indices (slices defer resolution)
+        col_key = b"calc.energy".decode()  # views use str keys
+        col_view = view[col_key]
+        values = await col_view
+        assert len(values) == 3
+
+
 class TestAsyncIteration:
     @pytest.mark.anyio
     async def test_aiter_full(self, io):
@@ -297,6 +307,16 @@ class TestAsyncIteration:
         async for row in io[2:5]:
             results.append(row)
         assert len(results) == 3
+
+    @pytest.mark.anyio
+    async def test_aiter_with_mixed_none(self, raw_backend):
+        raw_backend._rows[1] = None
+        io = AsyncBytesIO(SyncToAsyncRawAdapter(raw_backend))
+        results = []
+        async for item in io:
+            results.append(item)
+        assert results[1] is None
+        assert results[0] is not None
 
 
 # ========================================================================

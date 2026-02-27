@@ -79,7 +79,7 @@ class AsyncObjectIO:
         await self._backend.adrop_keys(keys, indices)
 
     async def _get_available_keys(self, index: int) -> list[str]:
-        return await self._backend.aschema()
+        return await self._backend.aget_available_keys(index)
 
     def _build_result(self, row: Any) -> Any:
         """Identity transform -- returns dict as-is.
@@ -123,32 +123,32 @@ class AsyncObjectIO:
 
     # -- Top-level async write methods -------------------------------------
 
-    async def async_extend(self, data: list[Any]) -> None:
+    async def aextend(self, data: list[Any]) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.aextend(data)
 
-    async def async_insert(self, index: int, data: Any) -> None:
+    async def ainsert(self, index: int, data: Any) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.ainsert(index, data)
 
-    async def async_drop(self, *, keys: list[str]) -> None:
+    async def adrop(self, *, keys: list[str]) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.adrop_keys(keys)
 
-    async def async_clear(self) -> None:
+    async def aclear(self) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.aclear()
 
-    async def async_remove(self) -> None:
+    async def aremove(self) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.aremove()
 
-    async def async_reserve(self, count: int) -> None:
+    async def areserve(self, count: int) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         await self._backend.areserve(count)
