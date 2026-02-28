@@ -211,13 +211,15 @@ def test_bytesio_getitem_nonexistent_index_raises_keyerror(tmp_path):
         _ = io[0]
 
 
-def test_bytesio_getitem_negative_index_nonexistent_raises_keyerror(tmp_path):
-    """Test that accessing negative non-existent index raises KeyError."""
+def test_bytesio_getitem_negative_index(tmp_path):
+    """Test that negative indices are normalized correctly."""
     io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
     io[0] = {b"test": b"data"}
-    # Negative indices are not supported, so it tries to look up mapping for -1
-    with pytest.raises(KeyError):
-        _ = io[-1]
+    # Negative indices are normalized: -1 refers to the last element
+    assert io[-1] == {b"test": b"data"}
+    # Out-of-bounds negative index raises IndexError
+    with pytest.raises(IndexError):
+        _ = io[-5]
 
 
 def test_bytesio_delitem_out_of_bounds_raises_indexerror(tmp_path):
