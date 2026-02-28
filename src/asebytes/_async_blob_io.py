@@ -36,12 +36,20 @@ class AsyncBlobIO:
         **kwargs: Any,
     ):
         if isinstance(backend, str):
-            from ._registry import get_blob_backend_cls
-            from ._async_backends import sync_to_async
+            from ._registry import get_async_backend_cls, get_blob_backend_cls, parse_uri
+            from ._async_backends import sync_to_async, AsyncReadBackend as _AsyncRB
 
-            cls = get_blob_backend_cls(backend, readonly=readonly)
-            sync_backend = cls(backend, **kwargs)
-            self._backend: AsyncReadBackend[bytes, bytes] = sync_to_async(sync_backend)
+            scheme, _remainder = parse_uri(backend)
+            if scheme is not None:
+                cls = get_async_backend_cls(backend, readonly=readonly)
+                inst = cls.from_uri(backend, **kwargs)
+            else:
+                cls = get_blob_backend_cls(backend, readonly=readonly)
+                inst = cls(backend, **kwargs)
+            if isinstance(inst, _AsyncRB):
+                self._backend: AsyncReadBackend[bytes, bytes] = inst
+            else:
+                self._backend = sync_to_async(inst)
         else:
             self._backend = backend
 

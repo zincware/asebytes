@@ -41,16 +41,19 @@ class AsyncASEIO:
         **kwargs: Any,
     ):
         if isinstance(backend, str):
-            from ._registry import get_backend_cls, parse_uri
-            from ._async_backends import sync_to_async
+            from ._registry import get_async_backend_cls, parse_uri
+            from ._async_backends import sync_to_async, AsyncReadBackend as _AsyncRB
 
             scheme, _remainder = parse_uri(backend)
-            cls = get_backend_cls(backend, readonly=readonly)
+            cls = get_async_backend_cls(backend, readonly=readonly)
             if scheme is not None:
-                sync_backend = cls.from_uri(backend, **kwargs)
+                inst = cls.from_uri(backend, **kwargs)
             else:
-                sync_backend = cls(backend, **kwargs)
-            self._backend: AsyncReadBackend[str, Any] = sync_to_async(sync_backend)
+                inst = cls(backend, **kwargs)
+            if isinstance(inst, _AsyncRB):
+                self._backend: AsyncReadBackend[str, Any] = inst
+            else:
+                self._backend = sync_to_async(inst)
         else:
             self._backend = backend
 

@@ -41,6 +41,17 @@ _EXTRAS_HINT: dict[str, str] = {
     "asebytes.zarr._backend": "zarr",
     "asebytes.mongodb": "mongodb",
     "asebytes.mongodb._backend": "mongodb",
+    "asebytes.mongodb._async_backend": "mongodb",
+}
+
+# Async URI scheme -> native async backend class.
+# Checked first by get_async_backend_cls(); if no entry, falls back to sync.
+_ASYNC_URI_REGISTRY: dict[str, tuple[str, str | None, str]] = {
+    "mongodb": (
+        "asebytes.mongodb._async_backend",
+        "AsyncMongoObjectBackend",
+        "AsyncMongoObjectBackend",
+    ),
 }
 
 
@@ -63,7 +74,7 @@ def parse_uri(path: str) -> tuple[str | None, str]:
     if sep not in path:
         return None, path
     scheme, remainder = path.split(sep, 1)
-    if scheme in _URI_REGISTRY:
+    if scheme in _URI_REGISTRY or scheme in _ASYNC_URI_REGISTRY:
         return scheme, remainder
     return None, path
 
@@ -148,6 +159,41 @@ def get_backend_cls(path: str, *, readonly: bool | None = None):
                 return getattr(mod, writable)
             return getattr(mod, read_only)
     raise KeyError(f"No backend registered for '{path}'")
+
+
+def get_async_backend_cls(path: str, *, readonly: bool | None = None):
+    """Resolve a path/URI to a backend class, preferring native async.
+
+    Checks _ASYNC_URI_REGISTRY first for URI schemes. If no async-specific
+    entry exists, falls back to get_backend_cls (sync registry). The caller
+    is responsible for wrapping sync backends with sync_to_async().
+    """
+    scheme, _remainder = parse_uri(path)
+    if scheme is not None and scheme in _ASYNC_URI_REGISTRY:
+        module_path, writable, read_only = _ASYNC_URI_REGISTRY[scheme]
+        try:
+            mod = importlib.import_module(module_path)
+        except ImportError:
+            hint = _EXTRAS_HINT.get(module_path, module_path)
+            raise ImportError(
+                f"Backend '{module_path}' requires additional dependencies. "
+                f"Install them with: pip install asebytes[{hint}]"
+            ) from None
+        if readonly is True:
+            return getattr(mod, read_only)
+        if readonly is False:
+            if writable is None:
+                raise TypeError(
+                    f"Backend for '{path}' is read-only, "
+                    "no writable variant available"
+                )
+            return getattr(mod, writable)
+        if writable is not None:
+            return getattr(mod, writable)
+        return getattr(mod, read_only)
+
+    # Fall back to sync registry
+    return get_backend_cls(path, readonly=readonly)
 
 
 def get_blob_backend_cls(path: str, *, readonly: bool | None = None):
