@@ -21,6 +21,19 @@ class ViewParent(Protocol[R]):
     def _delete_row(self, index: int) -> None: ...
     def _delete_rows(self, start: int, stop: int) -> None: ...
     def _drop_keys(self, keys: list, indices: list[int]) -> None: ...
+    def _update_many(self, start: int, data: list[dict[str, Any]]) -> None: ...
+    def _set_column(self, key: str, start: int, values: list[Any]) -> None: ...
+    def _write_many(self, start: int, data: list[Any]) -> None: ...
+
+
+def _is_contiguous(indices: list[int]) -> bool:
+    """Check if indices form a contiguous ascending range."""
+    if len(indices) <= 1:
+        return True
+    for i in range(1, len(indices)):
+        if indices[i] != indices[i - 1] + 1:
+            return False
+    return True
 
 
 def _sub_select(
@@ -139,8 +152,11 @@ class RowView(Generic[R]):
                     "For positional array writes, use column-filtered access: "
                     "db[['key1','key2']][:n].set(data)"
                 )
-        for idx, d in zip(self._indices, data):
-            self._parent._write_row(idx, d)
+        if self._indices and _is_contiguous(self._indices):
+            self._parent._write_many(self._indices[0], data)
+        else:
+            for idx, d in zip(self._indices, data):
+                self._parent._write_row(idx, d)
 
     def update(self, data: dict) -> None:
         """Merge dict into all rows in this view."""
@@ -148,8 +164,11 @@ class RowView(Generic[R]):
             raise TypeError(
                 f"update() requires a dict. Got {type(data).__name__}."
             )
-        for idx in self._indices:
-            self._parent._update_row(idx, data)
+        if self._indices and _is_contiguous(self._indices):
+            self._parent._update_many(self._indices[0], [data] * len(self._indices))
+        else:
+            for idx in self._indices:
+                self._parent._update_row(idx, data)
 
     def delete(self) -> None:
         """Delete all rows in this view (must be contiguous)."""
@@ -293,11 +312,15 @@ class ColumnView:
                 f"{len(indices)} rows."
             )
         if self._single:
-            for idx, value in zip(indices, data):
-                self._parent._update_row(idx, {self._keys[0]: value})
+            if _is_contiguous(indices):
+                self._parent._set_column(self._keys[0], indices[0], data)
+            else:
+                for idx, value in zip(indices, data):
+                    self._parent._update_row(idx, {self._keys[0]: value})
         else:
             n_keys = len(self._keys)
-            for idx, row_values in zip(indices, data):
+            # Validate all inner lengths first
+            for row_values in data:
                 if not isinstance(row_values, (list, tuple)):
                     raise TypeError(
                         f"Multi-key writes require list-of-lists. "
@@ -308,9 +331,14 @@ class ColumnView:
                         f"Inner length mismatch: got {len(row_values)} values, "
                         f"expected {n_keys} keys."
                     )
-                self._parent._update_row(
-                    idx, dict(zip(self._keys, row_values))
-                )
+            if _is_contiguous(indices):
+                dicts = [dict(zip(self._keys, row_values)) for row_values in data]
+                self._parent._update_many(indices[0], dicts)
+            else:
+                for idx, row_values in zip(indices, data):
+                    self._parent._update_row(
+                        idx, dict(zip(self._keys, row_values))
+                    )
 
     def __repr__(self) -> str:
         if self._single:

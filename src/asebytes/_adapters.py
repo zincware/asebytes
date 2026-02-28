@@ -130,6 +130,15 @@ class BlobToObjectReadWriteAdapter(BlobToObjectReadAdapter, ReadWriteBackend[str
     def update(self, index: int, data: dict[str, Any]) -> None:
         self._store.update(index, _serialize_row(data))
 
+    def update_many(self, start: int, data: list[dict[str, Any]]) -> None:
+        self._store.update_many(start, [_serialize_row(d) for d in data])
+
+    def set_column(self, key: str, start: int, values: list[Any]) -> None:
+        self._store.set_column(
+            key.encode(), start,
+            [msgpack.packb(v, default=m.encode) for v in values],
+        )
+
     def clear(self) -> None:
         self._store.clear()
 
@@ -241,3 +250,12 @@ class ObjectToBlobReadWriteAdapter(ObjectToBlobReadAdapter, ReadWriteBackend[byt
 
     def update(self, index: int, data: dict[bytes, bytes]) -> None:
         self._store.update(index, _deserialize_row(data))
+
+    def update_many(self, start: int, data: list[dict[bytes, bytes]]) -> None:
+        self._store.update_many(start, [_deserialize_row(d) for d in data])
+
+    def set_column(self, key: bytes, start: int, values: list[bytes]) -> None:
+        self._store.set_column(
+            key.decode(), start,
+            [msgpack.unpackb(v, object_hook=m.decode) for v in values],
+        )

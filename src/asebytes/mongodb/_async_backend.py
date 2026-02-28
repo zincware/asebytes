@@ -265,6 +265,33 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         update_fields = {f"data.{k}": _bson_safe(v) for k, v in data.items()}
         await self._col.update_one({"_id": sk}, {"$set": update_fields})
 
+    async def update_many(self, start: int, data: list[dict[str, Any]]) -> None:
+        if not data:
+            return
+        from pymongo import UpdateOne
+        await self._ensure_cache()
+        ops = []
+        for i, row_data in enumerate(data):
+            if not row_data:
+                continue
+            sk = self._resolve_sort_key(start + i)
+            update_fields = {f"data.{k}": _bson_safe(v) for k, v in row_data.items()}
+            ops.append(UpdateOne({"_id": sk}, {"$set": update_fields}))
+        if ops:
+            await self._col.bulk_write(ops, ordered=False)
+
+    async def set_column(self, key: str, start: int, values: list[Any]) -> None:
+        if not values:
+            return
+        from pymongo import UpdateOne
+        await self._ensure_cache()
+        ops = []
+        for i, value in enumerate(values):
+            sk = self._resolve_sort_key(start + i)
+            ops.append(UpdateOne({"_id": sk}, {"$set": {f"data.{key}": _bson_safe(value)}}))
+        if ops:
+            await self._col.bulk_write(ops, ordered=False)
+
     async def drop_keys(
         self, keys: list[str], indices: list[int] | None = None
     ) -> None:

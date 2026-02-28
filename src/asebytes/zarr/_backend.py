@@ -280,6 +280,42 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
                     val = padded
             arr[index] = val
 
+    def set_column(self, key: str, start: int, values: list[Any]) -> None:
+        if not values:
+            return
+        if key not in self._col_cache:
+            # New column not yet created — fall back to base
+            for i, v in enumerate(values):
+                self.update(start + i, {key: v})
+            return
+        arr = self._col_cache[key]
+        serialized = [self._serialize_value(v) for v in values]
+        # Use direct slice assignment for vectorized write
+        arr[start:start + len(serialized)] = serialized
+
+    def update_many(self, start: int, data: list[dict[str, Any]]) -> None:
+        if not data:
+            return
+        from collections import defaultdict
+        # Group by key for vectorized per-column writes
+        columns: dict[str, list[tuple[int, Any]]] = defaultdict(list)
+        for i, row_data in enumerate(data):
+            for key, value in row_data.items():
+                columns[key].append((i, value))
+        for key, pairs in columns.items():
+            if key not in self._col_cache:
+                for offset, value in pairs:
+                    self.update(start + offset, {key: value})
+                continue
+            arr = self._col_cache[key]
+            offsets = [p[0] for p in pairs]
+            vals = [self._serialize_value(p[1]) for p in pairs]
+            if len(offsets) == len(data) and offsets == list(range(len(data))):
+                arr[start:start + len(vals)] = vals
+            else:
+                for offset, val in zip(offsets, vals):
+                    arr[start + offset] = val
+
     def insert(self, index: int, data: dict[str, Any] | None) -> None:
         raise NotImplementedError("Zarr backend does not support insert")
 

@@ -325,6 +325,27 @@ class AsyncRedisBlobBackend(AsyncReadWriteBackend[bytes, bytes]):
             flat.append(v)
         await self._call_lua("update", flat)
 
+    async def update_many(self, start: int, data: list[dict[bytes, bytes]]) -> None:
+        if not data:
+            return
+        indices = list(range(start, start + len(data)))
+        sks = await self._resolve_indices(indices)
+        pipe = self._r.pipeline(transaction=False)
+        for sk, row_data in zip(sks, data):
+            if row_data:
+                pipe.hset(self._row_key(sk), mapping=row_data)
+        await pipe.execute()
+
+    async def set_column(self, key: bytes, start: int, values: list[bytes]) -> None:
+        if not values:
+            return
+        indices = list(range(start, start + len(values)))
+        sks = await self._resolve_indices(indices)
+        pipe = self._r.pipeline(transaction=False)
+        for sk, value in zip(sks, values):
+            pipe.hset(self._row_key(sk), key, value)
+        await pipe.execute()
+
     async def drop_keys(
         self, keys: list[bytes], indices: list[int] | None = None
     ) -> None:

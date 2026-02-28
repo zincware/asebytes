@@ -555,3 +555,45 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
                 self._save_schema(txn)
 
         self._invalidate_cache()
+
+    def update_many(self, start: int, data: list[dict[bytes, bytes]]) -> None:
+        """Batch partial-merge in a single LMDB transaction."""
+        if not data:
+            return
+        with self.env.begin(write=True) as txn:
+            self._ensure_cache(txn)
+            all_items = []
+            new_fields: set[bytes] = set()
+            for i, row_data in enumerate(data):
+                if not row_data:
+                    continue
+                sort_key = self._resolve_sort_key(start + i)
+                sort_key_str = str(sort_key).encode()
+                prefix = self.prefix + sort_key_str + b"-"
+                for field_key, value in row_data.items():
+                    all_items.append((prefix + field_key, value))
+                new_fields.update(row_data.keys())
+            if all_items:
+                cursor = txn.cursor()
+                cursor.putmulti(all_items, dupdata=False, overwrite=True)
+            if self._merge_schema(new_fields):
+                self._save_schema(txn)
+        self._invalidate_cache()
+
+    def set_column(self, key: bytes, start: int, values: list[bytes]) -> None:
+        """Write a single key across contiguous rows in a single LMDB transaction."""
+        if not values:
+            return
+        with self.env.begin(write=True) as txn:
+            self._ensure_cache(txn)
+            all_items = []
+            for i, value in enumerate(values):
+                sort_key = self._resolve_sort_key(start + i)
+                sort_key_str = str(sort_key).encode()
+                all_items.append((self.prefix + sort_key_str + b"-" + key, value))
+            if all_items:
+                cursor = txn.cursor()
+                cursor.putmulti(all_items, dupdata=False, overwrite=True)
+            if self._merge_schema({key}):
+                self._save_schema(txn)
+        self._invalidate_cache()

@@ -52,6 +52,18 @@ class MockParent:
     def _update_row(self, index, data):
         self._rows[index].update(data)
 
+    def _update_many(self, start, data):
+        for i, d in enumerate(data):
+            self._rows[start + i].update(d)
+
+    def _set_column(self, key, start, values):
+        for i, v in enumerate(values):
+            self._rows[start + i][key] = v
+
+    def _write_many(self, start, data):
+        for i, d in enumerate(data):
+            self._rows[start + i] = d
+
 
 # ── Async mock parent ───────────────────────────────────────────────────
 
@@ -83,6 +95,18 @@ class AsyncMockParent:
 
     async def _update_row(self, index, data):
         self._rows[index].update(data)
+
+    async def _update_many(self, start, data):
+        for i, d in enumerate(data):
+            self._rows[start + i].update(d)
+
+    async def _set_column(self, key, start, values):
+        for i, v in enumerate(values):
+            self._rows[start + i][key] = v
+
+    async def _write_many(self, start, data):
+        for i, d in enumerate(data):
+            self._rows[start + i] = d
 
     def _build_result(self, row):
         return row

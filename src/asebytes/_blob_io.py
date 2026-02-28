@@ -80,6 +80,21 @@ class BlobIO(MutableSequence):
             raise TypeError("Backend is read-only")
         self._backend.update(index, data)
 
+    def _update_many(self, start: int, data: list) -> None:
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.update_many(start, data)
+
+    def _set_column(self, key, start: int, values: list) -> None:
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.set_column(key, start, values)
+
+    def _write_many(self, start: int, data: list) -> None:
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.set_many(start, data)
+
     def _delete_row(self, index: int) -> None:
         if not isinstance(self._backend, ReadWriteBackend):
             raise TypeError("Backend is read-only")

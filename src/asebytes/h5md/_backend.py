@@ -473,6 +473,41 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                     val = padded
             ds[index] = val
 
+    def set_column(self, key: str, start: int, values: list[Any]) -> None:
+        if not values:
+            return
+        h5_path = self._find_dataset_path(key)
+        if h5_path is None:
+            for i, v in enumerate(values):
+                self.update(start + i, {key: v})
+            return
+        ds = self._file[h5_path]["value"]
+        serialized = [self._serialize_value(v) for v in values]
+        ds[start:start + len(serialized)] = serialized
+
+    def update_many(self, start: int, data: list[dict[str, Any]]) -> None:
+        if not data:
+            return
+        from collections import defaultdict
+        columns: dict[str, list[tuple[int, Any]]] = defaultdict(list)
+        for i, row_data in enumerate(data):
+            for key, value in row_data.items():
+                columns[key].append((i, value))
+        for key, pairs in columns.items():
+            h5_path = self._find_dataset_path(key)
+            if h5_path is None:
+                for offset, value in pairs:
+                    self.update(start + offset, {key: value})
+                continue
+            ds = self._file[h5_path]["value"]
+            offsets = [p[0] for p in pairs]
+            vals = [self._serialize_value(p[1]) for p in pairs]
+            if len(offsets) == len(data) and offsets == list(range(len(data))):
+                ds[start:start + len(vals)] = vals
+            else:
+                for offset, val in zip(offsets, vals):
+                    ds[start + offset] = val
+
     def insert(self, index: int, data: dict[str, Any]) -> None:
         raise NotImplementedError("H5MD backend does not support insert")
 

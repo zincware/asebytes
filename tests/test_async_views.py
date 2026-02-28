@@ -88,6 +88,25 @@ class AsyncMockParent:
         row.update(data)
         self._rows[index] = row
 
+    async def _update_many(self, start: int, data: list) -> None:
+        for i, d in enumerate(data):
+            row = self._rows[start + i] or {}
+            row.update(d)
+            self._rows[start + i] = row
+
+    async def _set_column(self, key: str, start: int, values: list) -> None:
+        for i, v in enumerate(values):
+            row = self._rows[start + i] or {}
+            row[key] = v
+            self._rows[start + i] = row
+
+    async def _write_many(self, start: int, data: list) -> None:
+        for i, d in enumerate(data):
+            if start + i < len(self._rows):
+                self._rows[start + i] = d
+            elif start + i == len(self._rows):
+                self._rows.append(d)
+
     async def _drop_keys(
         self, keys: list[str], indices: list[int]
     ) -> None:

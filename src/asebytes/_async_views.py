@@ -32,6 +32,9 @@ class AsyncViewParent(Protocol[R]):
     async def _delete_rows(self, start: int, stop: int) -> None: ...
     async def _update_row(self, index: int, data: Any) -> None: ...
     async def _drop_keys(self, keys: list[str], indices: list[int]) -> None: ...
+    async def _update_many(self, start: int, data: list[dict[str, Any]]) -> None: ...
+    async def _set_column(self, key: str, start: int, values: list[Any]) -> None: ...
+    async def _write_many(self, start: int, data: list[Any]) -> None: ...
     async def _keys(self, index: int) -> list[str]: ...
     def _build_result(self, row: Any) -> R: ...
 
@@ -213,8 +216,11 @@ class AsyncRowView(Generic[R]):
         raise TypeError(f"Unsupported key type: {type(key)}")
 
     async def set(self, data: list[Any]) -> None:
-        for idx, d in zip(self._indices, data):
-            await self._parent._write_row(idx, d)
+        if self._indices and _is_contiguous(self._indices):
+            await self._parent._write_many(self._indices[0], data)
+        else:
+            for idx, d in zip(self._indices, data):
+                await self._parent._write_row(idx, d)
 
     async def delete(self) -> None:
         if not self._contiguous:
@@ -228,8 +234,11 @@ class AsyncRowView(Generic[R]):
         await self._parent._delete_rows(self._indices[0], self._indices[-1] + 1)
 
     async def update(self, data: dict) -> None:
-        for idx in self._indices:
-            await self._parent._update_row(idx, data)
+        if self._indices and _is_contiguous(self._indices):
+            await self._parent._update_many(self._indices[0], [data] * len(self._indices))
+        else:
+            for idx in self._indices:
+                await self._parent._update_row(idx, data)
 
     async def drop(self, keys: list[str]) -> None:
         await self._parent._drop_keys(keys, self._indices)
@@ -448,11 +457,14 @@ class AsyncColumnView:
                 f"{len(indices)} rows."
             )
         if self._single:
-            for idx, value in zip(indices, data):
-                await self._parent._update_row(idx, {self._keys[0]: value})
+            if _is_contiguous(indices):
+                await self._parent._set_column(self._keys[0], indices[0], data)
+            else:
+                for idx, value in zip(indices, data):
+                    await self._parent._update_row(idx, {self._keys[0]: value})
         else:
             n_keys = len(self._keys)
-            for idx, row_values in zip(indices, data):
+            for row_values in data:
                 if not isinstance(row_values, (list, tuple)):
                     raise TypeError(
                         f"Multi-key writes require list-of-lists. "
@@ -463,9 +475,14 @@ class AsyncColumnView:
                         f"Inner length mismatch: got {len(row_values)} values, "
                         f"expected {n_keys} keys."
                     )
-                await self._parent._update_row(
-                    idx, dict(zip(self._keys, row_values))
-                )
+            if _is_contiguous(indices):
+                dicts = [dict(zip(self._keys, row_values)) for row_values in data]
+                await self._parent._update_many(indices[0], dicts)
+            else:
+                for idx, row_values in zip(indices, data):
+                    await self._parent._update_row(
+                        idx, dict(zip(self._keys, row_values))
+                    )
 
     def __repr__(self) -> str:
         if self._indices is not None:

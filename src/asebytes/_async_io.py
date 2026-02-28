@@ -104,6 +104,21 @@ class AsyncASEIO:
             raise TypeError("Backend is read-only")
         await self._backend.update(index, data)
 
+    async def _update_many(self, start: int, data: list) -> None:
+        if not isinstance(self._backend, AsyncReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        await self._backend.update_many(start, data)
+
+    async def _set_column(self, key, start: int, values: list) -> None:
+        if not isinstance(self._backend, AsyncReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        await self._backend.set_column(key, start, values)
+
+    async def _write_many(self, start: int, data: list) -> None:
+        if not isinstance(self._backend, AsyncReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        await self._backend.set_many(start, data)
+
     async def _drop_keys(self, keys: list[str], indices: list[int]) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
