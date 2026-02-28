@@ -23,6 +23,18 @@ from ._async_backends import (
     SyncToAsyncReadWriteAdapter,
     sync_to_async,
 )
+from ._adapters import (
+    BlobToObjectReadAdapter,
+    BlobToObjectReadWriteAdapter,
+    ObjectToBlobReadAdapter,
+    ObjectToBlobReadWriteAdapter,
+)
+from ._async_adapters import (
+    AsyncBlobToObjectReadAdapter,
+    AsyncBlobToObjectReadWriteAdapter,
+    AsyncObjectToBlobReadAdapter,
+    AsyncObjectToBlobReadWriteAdapter,
+)
 
 # Facades
 from ._blob_io import BlobIO
@@ -67,6 +79,15 @@ __all__ = [
     "SyncToAsyncReadAdapter",
     "SyncToAsyncReadWriteAdapter",
     "sync_to_async",
+    # Adapters
+    "BlobToObjectReadAdapter",
+    "BlobToObjectReadWriteAdapter",
+    "ObjectToBlobReadAdapter",
+    "ObjectToBlobReadWriteAdapter",
+    "AsyncBlobToObjectReadAdapter",
+    "AsyncBlobToObjectReadWriteAdapter",
+    "AsyncObjectToBlobReadAdapter",
+    "AsyncObjectToBlobReadWriteAdapter",
     # Facades
     "BlobIO",
     "ObjectIO",

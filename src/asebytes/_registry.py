@@ -176,4 +176,19 @@ def get_blob_backend_cls(path: str, *, readonly: bool | None = None):
             if writable is not None:
                 return getattr(mod, writable)
             return getattr(mod, read_only)
-    raise KeyError(f"No blob backend registered for '{path}'")
+    # --- Fallback: wrap object backend with ObjectToBlobAdapter ---
+    try:
+        obj_cls = get_backend_cls(path, readonly=readonly)
+    except KeyError:
+        raise KeyError(f"No blob backend registered for '{path}'")
+
+    from ._adapters import ObjectToBlobReadAdapter, ObjectToBlobReadWriteAdapter
+
+    if readonly is True:
+        def _make_read_adapter(*args, **kwargs):
+            return ObjectToBlobReadAdapter(obj_cls(*args, **kwargs))
+        return _make_read_adapter
+
+    def _make_readwrite_adapter(*args, **kwargs):
+        return ObjectToBlobReadWriteAdapter(obj_cls(*args, **kwargs))
+    return _make_readwrite_adapter
