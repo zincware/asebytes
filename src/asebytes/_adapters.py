@@ -130,6 +130,22 @@ class BlobToObjectReadWriteAdapter(BlobToObjectReadAdapter, ReadWriteBackend[str
     def update(self, index: int, data: dict[str, Any]) -> None:
         self._store.update(index, _serialize_row(data))
 
+    def clear(self) -> None:
+        self._store.clear()
+
+    def remove(self) -> None:
+        self._store.remove()
+
+    def drop_keys(
+        self,
+        keys: list[str],
+        indices: list[int] | None = None,
+    ) -> None:
+        self._store.drop_keys(
+            [k.encode() for k in keys],
+            indices=indices,
+        )
+
 
 # ── ObjectToBlob read adapter ────────────────────────────────────────────
 
