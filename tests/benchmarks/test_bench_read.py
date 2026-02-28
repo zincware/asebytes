@@ -61,7 +61,7 @@ def test_read_trajectory_asebytes_mongodb(benchmark, bench_mongodb):
 
     results = benchmark(fn)
     assert len(results) == len(bench_mongodb.frames)
-    bench_mongodb.cleanup()
+
 
 
 @skip_no_redis
@@ -74,7 +74,7 @@ def test_read_trajectory_asebytes_redis(benchmark, bench_redis):
 
     results = benchmark(fn)
     assert len(results) == len(bench_redis.frames)
-    bench_redis.cleanup()
+
 
 
 @pytest.mark.benchmark(group="read_trajectory")
@@ -179,7 +179,7 @@ def test_read_single_asebytes_mongodb(benchmark, bench_mongodb):
 
     results = benchmark(fn)
     assert len(results) == n
-    bench_mongodb.cleanup()
+
 
 
 @skip_no_redis
@@ -193,7 +193,7 @@ def test_read_single_asebytes_redis(benchmark, bench_redis):
 
     results = benchmark(fn)
     assert len(results) == n
-    bench_redis.cleanup()
+
 
 
 @pytest.mark.benchmark(group="read_single")

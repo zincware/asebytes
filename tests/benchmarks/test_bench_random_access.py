@@ -73,7 +73,7 @@ def test_random_trajectory_asebytes_mongodb(benchmark, bench_mongodb):
 
     results = benchmark(fn)
     assert len(results) == n
-    bench_mongodb.cleanup()
+
 
 
 @skip_no_redis
@@ -88,7 +88,7 @@ def test_random_trajectory_asebytes_redis(benchmark, bench_redis):
 
     results = benchmark(fn)
     assert len(results) == n
-    bench_redis.cleanup()
+
 
 
 @pytest.mark.benchmark(group="random_trajectory")
@@ -194,7 +194,7 @@ def test_random_single_asebytes_mongodb(benchmark, bench_mongodb):
 
     results = benchmark(fn)
     assert len(results) == n
-    bench_mongodb.cleanup()
+
 
 
 @skip_no_redis
@@ -209,7 +209,7 @@ def test_random_single_asebytes_redis(benchmark, bench_redis):
 
     results = benchmark(fn)
     assert len(results) == n
-    bench_redis.cleanup()
+
 
 
 @pytest.mark.benchmark(group="random_single")

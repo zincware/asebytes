@@ -1,7 +1,7 @@
 """Benchmark property access: positions (single/bulk) and energy column.
 
-read_positions_single:      loop ObjectIO[i]["positions"] — per-row property read
-read_positions_trajectory:  ObjectIO["positions"].to_list() — bulk property read
+read_positions_single:      loop ObjectIO[i]["arrays.positions"] — per-row property read
+read_positions_trajectory:  ObjectIO["arrays.positions"].to_list() — bulk property read
 column_energy:              ObjectIO["calc.energy"].to_list() — scalar column access
 
 All property benchmarks use ObjectIO (not ASEIO) to measure raw I/O
@@ -29,7 +29,7 @@ def test_read_positions_trajectory_asebytes_lmdb(benchmark, bench_lmdb):
     db = bench_lmdb.objectio
 
     def fn():
-        return db["positions"].to_list()
+        return db["arrays.positions"].to_list()
 
     results = benchmark(fn)
     assert len(results) == len(bench_lmdb.frames)
@@ -40,7 +40,7 @@ def test_read_positions_trajectory_asebytes_zarr(benchmark, bench_zarr):
     db = bench_zarr.objectio
 
     def fn():
-        return db["positions"].to_list()
+        return db["arrays.positions"].to_list()
 
     results = benchmark(fn)
     assert len(results) == len(bench_zarr.frames)
@@ -51,7 +51,7 @@ def test_read_positions_trajectory_asebytes_h5md(benchmark, bench_h5md):
     db = bench_h5md.objectio
 
     def fn():
-        return db["positions"].to_list()
+        return db["arrays.positions"].to_list()
 
     results = benchmark(fn)
     assert len(results) == len(bench_h5md.frames)
@@ -63,11 +63,11 @@ def test_read_positions_trajectory_asebytes_mongodb(benchmark, bench_mongodb):
     db = bench_mongodb.objectio
 
     def fn():
-        return db["positions"].to_list()
+        return db["arrays.positions"].to_list()
 
     results = benchmark(fn)
     assert len(results) == len(bench_mongodb.frames)
-    bench_mongodb.cleanup()
+
 
 
 @skip_no_redis
@@ -76,11 +76,11 @@ def test_read_positions_trajectory_asebytes_redis(benchmark, bench_redis):
     db = bench_redis.objectio
 
     def fn():
-        return db["positions"].to_list()
+        return db["arrays.positions"].to_list()
 
     results = benchmark(fn)
     assert len(results) == len(bench_redis.frames)
-    bench_redis.cleanup()
+
 
 
 @pytest.mark.benchmark(group="read_positions_trajectory")
@@ -130,7 +130,7 @@ def test_read_positions_single_asebytes_lmdb(benchmark, bench_lmdb):
     n = len(db)
 
     def fn():
-        return [db[i]["positions"] for i in range(n)]
+        return [db[i]["arrays.positions"] for i in range(n)]
 
     results = benchmark(fn)
     assert len(results) == n
@@ -142,7 +142,7 @@ def test_read_positions_single_asebytes_zarr(benchmark, bench_zarr):
     n = len(db)
 
     def fn():
-        return [db[i]["positions"] for i in range(n)]
+        return [db[i]["arrays.positions"] for i in range(n)]
 
     results = benchmark(fn)
     assert len(results) == n
@@ -154,7 +154,7 @@ def test_read_positions_single_asebytes_h5md(benchmark, bench_h5md):
     n = len(db)
 
     def fn():
-        return [db[i]["positions"] for i in range(n)]
+        return [db[i]["arrays.positions"] for i in range(n)]
 
     results = benchmark(fn)
     assert len(results) == n
@@ -167,11 +167,11 @@ def test_read_positions_single_asebytes_mongodb(benchmark, bench_mongodb):
     n = len(db)
 
     def fn():
-        return [db[i]["positions"] for i in range(n)]
+        return [db[i]["arrays.positions"] for i in range(n)]
 
     results = benchmark(fn)
     assert len(results) == n
-    bench_mongodb.cleanup()
+
 
 
 @skip_no_redis
@@ -181,11 +181,11 @@ def test_read_positions_single_asebytes_redis(benchmark, bench_redis):
     n = len(db)
 
     def fn():
-        return [db[i]["positions"] for i in range(n)]
+        return [db[i]["arrays.positions"] for i in range(n)]
 
     results = benchmark(fn)
     assert len(results) == n
-    bench_redis.cleanup()
+
 
 
 @pytest.mark.benchmark(group="read_positions_single")
@@ -279,7 +279,7 @@ def test_column_energy_asebytes_mongodb(benchmark, bench_mongodb):
 
     results = benchmark(fn)
     assert len(results) == len(bench_mongodb.frames)
-    bench_mongodb.cleanup()
+
 
 
 @skip_no_redis
@@ -292,7 +292,7 @@ def test_column_energy_asebytes_redis(benchmark, bench_redis):
 
     results = benchmark(fn)
     assert len(results) == len(bench_redis.frames)
-    bench_redis.cleanup()
+
 
 
 @pytest.mark.benchmark(group="column_energy")

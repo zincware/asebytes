@@ -104,12 +104,6 @@ class BenchDB:
     ase_db: Any = None
     znh5md_path: Any = None
     extxyz_path: Any = None
-    # Cleanup callback
-    _cleanup: Any = None
-
-    def cleanup(self):
-        if self._cleanup:
-            self._cleanup()
 
 
 # ---------------------------------------------------------------------------
@@ -159,13 +153,8 @@ def bench_mongodb(dataset):
     aseio = ASEIO(uri)
     aseio.extend(frames)
     objectio = ObjectIO(uri)
-    return BenchDB(
-        aseio=aseio,
-        objectio=objectio,
-        frames=frames,
-        name=name,
-        _cleanup=aseio.remove,
-    )
+    yield BenchDB(aseio=aseio, objectio=objectio, frames=frames, name=name)
+    aseio.remove()
 
 
 @pytest.fixture
@@ -176,13 +165,8 @@ def bench_redis(dataset):
     aseio = ASEIO(uri)
     aseio.extend(frames)
     objectio = ObjectIO(uri)
-    return BenchDB(
-        aseio=aseio,
-        objectio=objectio,
-        frames=frames,
-        name=name,
-        _cleanup=aseio.remove,
-    )
+    yield BenchDB(aseio=aseio, objectio=objectio, frames=frames, name=name)
+    aseio.remove()
 
 
 # ---------------------------------------------------------------------------

@@ -64,7 +64,7 @@ def test_update_property_trajectory_asebytes_mongodb(benchmark, bench_mongodb):
         db["calc.energy"][:].set(new_energies)
 
     benchmark(fn)
-    bench_mongodb.cleanup()
+
 
 
 @skip_no_redis
@@ -78,7 +78,7 @@ def test_update_property_trajectory_asebytes_redis(benchmark, bench_redis):
         db["calc.energy"][:].set(new_energies)
 
     benchmark(fn)
-    bench_redis.cleanup()
+
 
 
 @pytest.mark.benchmark(group="update_property_trajectory")
@@ -88,9 +88,9 @@ def test_update_property_trajectory_aselmdb(benchmark, bench_aselmdb):
     new_energies = [float(i) * 0.01 for i in range(n)]
 
     def fn():
-        # aselmdb uses 1-based IDs
+        # aselmdb uses 1-based IDs; use custom key (energy is reserved)
         for i, e in enumerate(new_energies, 1):
-            db.update(i, energy=e)
+            db.update(i, custom_energy=e)
 
     benchmark(fn)
 
@@ -102,8 +102,8 @@ def test_update_property_trajectory_sqlite(benchmark, bench_sqlite):
     new_energies = [float(i) * 0.01 for i in range(n)]
 
     def fn():
-        # sqlite uses 1-based IDs
+        # sqlite uses 1-based IDs; use custom key (energy is reserved)
         for i, e in enumerate(new_energies, 1):
-            db.update(i, energy=e)
+            db.update(i, custom_energy=e)
 
     benchmark(fn)
