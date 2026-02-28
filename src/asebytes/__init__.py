@@ -19,6 +19,9 @@ from ._async_backends import (
     AsyncObjectReadBackend,
     AsyncObjectReadWriteBackend,
     SyncToAsyncAdapter,
+    SyncToAsyncReadAdapter,
+    SyncToAsyncReadWriteAdapter,
+    sync_to_async,
 )
 
 # Facades
@@ -61,6 +64,9 @@ __all__ = [
     "AsyncObjectReadBackend",
     "AsyncObjectReadWriteBackend",
     "SyncToAsyncAdapter",
+    "SyncToAsyncReadAdapter",
+    "SyncToAsyncReadWriteAdapter",
+    "sync_to_async",
     # Facades
     "BlobIO",
     "ObjectIO",

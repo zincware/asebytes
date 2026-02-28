@@ -37,7 +37,7 @@ class AsyncObjectIO:
     ):
         if isinstance(backend, str):
             from ._registry import get_backend_cls, parse_uri
-            from ._async_backends import SyncToAsyncAdapter
+            from ._async_backends import sync_to_async
 
             scheme, _remainder = parse_uri(backend)
             cls = get_backend_cls(backend, readonly=readonly)
@@ -45,7 +45,7 @@ class AsyncObjectIO:
                 sync_backend = cls.from_uri(backend, **kwargs)
             else:
                 sync_backend = cls(backend, **kwargs)
-            self._backend: AsyncReadBackend[str, Any] = SyncToAsyncAdapter(sync_backend)
+            self._backend: AsyncReadBackend[str, Any] = sync_to_async(sync_backend)
         else:
             self._backend = backend
 

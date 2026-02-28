@@ -37,11 +37,11 @@ class AsyncBlobIO:
     ):
         if isinstance(backend, str):
             from ._registry import get_blob_backend_cls
-            from ._async_backends import SyncToAsyncAdapter
+            from ._async_backends import sync_to_async
 
             cls = get_blob_backend_cls(backend, readonly=readonly)
             sync_backend = cls(backend, **kwargs)
-            self._backend: AsyncReadBackend[bytes, bytes] = SyncToAsyncAdapter(sync_backend)
+            self._backend: AsyncReadBackend[bytes, bytes] = sync_to_async(sync_backend)
         else:
             self._backend = backend
 

@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from typing import Any, Generic, TypeVar
 
-from ._backends import ReadWriteBackend
+from ._backends import ReadBackend, ReadWriteBackend
 
 K = TypeVar("K")
 V = TypeVar("V")
@@ -126,17 +126,16 @@ class AsyncReadWriteBackend(AsyncReadBackend[K, V], ABC):
         raise NotImplementedError
 
 
-# ── Sync-to-async adapter ────────────────────────────────────────────────
+# ── Sync-to-async adapters ──────────────────────────────────────────────
 
 
-class SyncToAsyncAdapter(AsyncReadWriteBackend[K, V]):
-    """Wraps a sync ReadWriteBackend[K,V] → AsyncReadWriteBackend[K,V].
+class SyncToAsyncReadAdapter(AsyncReadBackend[K, V]):
+    """Wraps a sync ReadBackend[K,V] -> AsyncReadBackend[K,V].
 
-    Uses asyncio.to_thread for all calls. Preserves backend overrides
-    (e.g., if backend has optimized get_many, adapter calls it via to_thread).
+    Uses asyncio.to_thread for all calls.
     """
 
-    def __init__(self, backend: ReadWriteBackend[K, V]):
+    def __init__(self, backend: ReadBackend[K, V]):
         self._backend = backend
 
     async def len(self) -> int:
@@ -153,6 +152,16 @@ class SyncToAsyncAdapter(AsyncReadWriteBackend[K, V]):
 
     async def keys(self, index):
         return await asyncio.to_thread(self._backend.keys, index)
+
+
+class SyncToAsyncReadWriteAdapter(SyncToAsyncReadAdapter[K, V], AsyncReadWriteBackend[K, V]):
+    """Wraps a sync ReadWriteBackend[K,V] -> AsyncReadWriteBackend[K,V].
+
+    Inherits all read methods from SyncToAsyncReadAdapter.
+    """
+
+    def __init__(self, backend: ReadWriteBackend[K, V]):
+        super().__init__(backend)
 
     async def set(self, index, value):
         return await asyncio.to_thread(self._backend.set, index, value)
@@ -186,6 +195,17 @@ class SyncToAsyncAdapter(AsyncReadWriteBackend[K, V]):
 
     async def remove(self):
         return await asyncio.to_thread(self._backend.remove)
+
+
+def sync_to_async(backend: ReadBackend[K, V]) -> AsyncReadBackend[K, V]:
+    """Wrap a sync backend as an async backend, choosing the right adapter."""
+    if isinstance(backend, ReadWriteBackend):
+        return SyncToAsyncReadWriteAdapter(backend)
+    return SyncToAsyncReadAdapter(backend)
+
+
+# Backward-compat alias
+SyncToAsyncAdapter = SyncToAsyncReadWriteAdapter
 
 
 # ── Type aliases ─────────────────────────────────────────────────────────
