@@ -453,3 +453,290 @@ def test_from_uri_with_db_and_prefix():
         assert b._prefix == prefix
     finally:
         b.remove()
+
+
+# ======================================================================
+# Async backend tests
+# ======================================================================
+
+from asebytes._async_backends import AsyncReadBackend, AsyncReadWriteBackend
+
+
+@pytest.fixture
+async def async_backend():
+    from asebytes.redis import AsyncRedisBlobBackend
+
+    prefix = f"test_async_{uuid.uuid4().hex[:8]}"
+    b = AsyncRedisBlobBackend(url=REDIS_URI, prefix=prefix)
+    yield b
+    await b.remove()
+
+
+@pytest.mark.anyio
+class TestAsyncRedisBlobBackend:
+    async def test_is_async_writable_backend(self, async_backend):
+        assert isinstance(async_backend, AsyncReadWriteBackend)
+        assert isinstance(async_backend, AsyncReadBackend)
+
+    async def test_empty_len(self, async_backend):
+        assert await async_backend.len() == 0
+
+    async def test_extend_and_get(self, async_backend, sample_row):
+        await async_backend.extend([sample_row])
+        assert await async_backend.len() == 1
+        row = await async_backend.get(0)
+        assert row == sample_row
+
+    async def test_extend_returns_new_length(self, async_backend, sample_row):
+        length = await async_backend.extend([sample_row, sample_row])
+        assert length == 2
+        length2 = await async_backend.extend([sample_row])
+        assert length2 == 3
+
+    async def test_extend_empty_returns_current_length(self, async_backend):
+        length = await async_backend.extend([])
+        assert length == 0
+
+    async def test_extend_multiple(self, async_backend, sample_row):
+        await async_backend.extend([sample_row, sample_row, sample_row])
+        assert await async_backend.len() == 3
+        for i in range(3):
+            assert await async_backend.get(i) == sample_row
+
+    async def test_get_with_keys(self, async_backend, sample_row):
+        await async_backend.extend([sample_row])
+        row = await async_backend.get(0, keys=[b"energy", b"smiles"])
+        assert b"energy" in row
+        assert b"smiles" in row
+        assert b"numbers" not in row
+
+    async def test_get_negative_index(self, async_backend, sample_row):
+        await async_backend.extend([sample_row, {b"x": b"1"}])
+        assert await async_backend.get(-1) == {b"x": b"1"}
+        assert await async_backend.get(-2) == sample_row
+
+    async def test_get_out_of_bounds_empty(self, async_backend):
+        with pytest.raises(IndexError):
+            await async_backend.get(0)
+
+    async def test_get_out_of_bounds_positive(self, async_backend, sample_row):
+        await async_backend.extend([sample_row])
+        with pytest.raises(IndexError):
+            await async_backend.get(1)
+
+    async def test_get_out_of_bounds_negative(self, async_backend, sample_row):
+        await async_backend.extend([sample_row])
+        with pytest.raises(IndexError):
+            await async_backend.get(-2)
+
+    async def test_set_overwrites(self, async_backend, sample_row):
+        await async_backend.extend([sample_row])
+        new_row = {b"energy": b"-99.0"}
+        await async_backend.set(0, new_row)
+        assert await async_backend.get(0) == new_row
+
+    async def test_set_out_of_bounds(self, async_backend, sample_row):
+        await async_backend.extend([sample_row])
+        with pytest.raises(IndexError):
+            await async_backend.set(1, sample_row)
+
+    async def test_set_none_placeholder(self, async_backend, sample_row):
+        await async_backend.extend([sample_row])
+        await async_backend.set(0, None)
+        assert await async_backend.get(0) is None
+        assert await async_backend.len() == 1
+
+    async def test_delete(self, async_backend):
+        row_a = {b"v": b"a"}
+        row_b = {b"v": b"b"}
+        row_c = {b"v": b"c"}
+        await async_backend.extend([row_a, row_b, row_c])
+        await async_backend.delete(1)
+        assert await async_backend.len() == 2
+        assert await async_backend.get(0) == row_a
+        assert await async_backend.get(1) == row_c
+
+    async def test_delete_first(self, async_backend):
+        row_a = {b"v": b"a"}
+        row_b = {b"v": b"b"}
+        await async_backend.extend([row_a, row_b])
+        await async_backend.delete(0)
+        assert await async_backend.len() == 1
+        assert await async_backend.get(0) == row_b
+
+    async def test_delete_last(self, async_backend):
+        row_a = {b"v": b"a"}
+        row_b = {b"v": b"b"}
+        await async_backend.extend([row_a, row_b])
+        await async_backend.delete(1)
+        assert await async_backend.len() == 1
+        assert await async_backend.get(0) == row_a
+
+    async def test_insert_at_beginning(self, async_backend):
+        await async_backend.extend([{b"v": b"a"}, {b"v": b"b"}])
+        await async_backend.insert(0, {b"v": b"new"})
+        assert await async_backend.len() == 3
+        assert await async_backend.get(0) == {b"v": b"new"}
+        assert await async_backend.get(1) == {b"v": b"a"}
+        assert await async_backend.get(2) == {b"v": b"b"}
+
+    async def test_insert_at_end(self, async_backend):
+        await async_backend.extend([{b"v": b"a"}])
+        await async_backend.insert(1, {b"v": b"b"})
+        assert await async_backend.len() == 2
+        assert await async_backend.get(0) == {b"v": b"a"}
+        assert await async_backend.get(1) == {b"v": b"b"}
+
+    async def test_insert_in_middle(self, async_backend):
+        await async_backend.extend([{b"v": b"a"}, {b"v": b"c"}])
+        await async_backend.insert(1, {b"v": b"b"})
+        assert await async_backend.len() == 3
+        assert await async_backend.get(0) == {b"v": b"a"}
+        assert await async_backend.get(1) == {b"v": b"b"}
+        assert await async_backend.get(2) == {b"v": b"c"}
+
+    async def test_insert_none(self, async_backend):
+        await async_backend.extend([{b"v": b"a"}])
+        await async_backend.insert(0, None)
+        assert await async_backend.len() == 2
+        assert await async_backend.get(0) is None
+        assert await async_backend.get(1) == {b"v": b"a"}
+
+    async def test_extend_with_none_placeholders(self, async_backend, sample_row):
+        await async_backend.extend([sample_row, None, sample_row])
+        assert await async_backend.len() == 3
+        assert await async_backend.get(0) == sample_row
+        assert await async_backend.get(1) is None
+        assert await async_backend.get(2) == sample_row
+
+    async def test_get_many(self, async_backend):
+        rows = [{b"i": str(i).encode()} for i in range(5)]
+        await async_backend.extend(rows)
+        result = await async_backend.get_many([1, 3])
+        assert len(result) == 2
+        assert result[0] == {b"i": b"1"}
+        assert result[1] == {b"i": b"3"}
+
+    async def test_get_many_with_keys(self, async_backend, sample_row):
+        await async_backend.extend([sample_row, sample_row])
+        result = await async_backend.get_many([0, 1], keys=[b"energy"])
+        assert all(b"energy" in r for r in result)
+        assert all(b"smiles" not in r for r in result)
+
+    async def test_get_column(self, async_backend):
+        rows = [{b"val": str(i).encode(), b"other": b"x"} for i in range(4)]
+        await async_backend.extend(rows)
+        col = await async_backend.get_column(b"val")
+        assert col == [b"0", b"1", b"2", b"3"]
+
+    async def test_get_column_with_indices(self, async_backend):
+        rows = [{b"val": str(i).encode()} for i in range(5)]
+        await async_backend.extend(rows)
+        col = await async_backend.get_column(b"val", indices=[0, 2, 4])
+        assert col == [b"0", b"2", b"4"]
+
+    async def test_get_column_with_none_rows(self, async_backend):
+        await async_backend.extend([{b"val": b"a"}, None, {b"val": b"c"}])
+        col = await async_backend.get_column(b"val")
+        assert col == [b"a", None, b"c"]
+
+    async def test_keys(self, async_backend, sample_row):
+        await async_backend.extend([sample_row])
+        k = await async_backend.keys(0)
+        assert set(k) == set(sample_row.keys())
+
+    async def test_keys_none_row(self, async_backend):
+        await async_backend.extend([None])
+        assert await async_backend.keys(0) == []
+
+    async def test_update_partial(self, async_backend, sample_row):
+        await async_backend.extend([sample_row])
+        await async_backend.update(0, {b"energy": b"-42.0"})
+        row = await async_backend.get(0)
+        assert row[b"energy"] == b"-42.0"
+        assert row[b"smiles"] == b"O"  # unchanged
+
+    async def test_update_adds_new_key(self, async_backend):
+        await async_backend.extend([{b"a": b"1"}])
+        await async_backend.update(0, {b"b": b"2"})
+        row = await async_backend.get(0)
+        assert row == {b"a": b"1", b"b": b"2"}
+
+    async def test_drop_keys(self, async_backend, sample_row):
+        await async_backend.extend([sample_row, sample_row])
+        await async_backend.drop_keys([b"smiles"])
+        row0 = await async_backend.get(0)
+        row1 = await async_backend.get(1)
+        assert b"smiles" not in row0
+        assert b"smiles" not in row1
+        assert b"energy" in row0
+
+    async def test_drop_keys_with_indices(self, async_backend, sample_row):
+        await async_backend.extend([sample_row, sample_row])
+        await async_backend.drop_keys([b"smiles"], indices=[0])
+        assert b"smiles" not in (await async_backend.get(0))
+        assert b"smiles" in (await async_backend.get(1))  # untouched
+
+    async def test_clear(self, async_backend, sample_row):
+        await async_backend.extend([sample_row, sample_row])
+        assert await async_backend.len() == 2
+        await async_backend.clear()
+        assert await async_backend.len() == 0
+
+    async def test_clear_then_extend(self, async_backend, sample_row):
+        await async_backend.extend([sample_row])
+        await async_backend.clear()
+        assert await async_backend.len() == 0
+        await async_backend.extend([sample_row, sample_row])
+        assert await async_backend.len() == 2
+        assert await async_backend.get(0) == sample_row
+        assert await async_backend.get(1) == sample_row
+
+    async def test_remove(self, async_backend, sample_row):
+        await async_backend.extend([sample_row, sample_row])
+        prefix = async_backend._prefix
+        import redis.asyncio as aioredis
+
+        r = aioredis.from_url(REDIS_URI)
+        # Verify keys exist before remove
+        assert await r.exists(f"{prefix}:sort_keys") == 1
+        await async_backend.remove()
+        # All prefix keys should be gone
+        cursor, keys = await r.scan(match=f"{prefix}:*")
+        remaining = list(keys)
+        while cursor:
+            cursor, keys = await r.scan(cursor=cursor, match=f"{prefix}:*")
+            remaining.extend(keys)
+        assert len(remaining) == 0
+        await r.aclose()
+
+    async def test_from_uri_basic(self):
+        from asebytes.redis import AsyncRedisBlobBackend
+
+        prefix = f"test_async_{uuid.uuid4().hex[:8]}"
+        b = AsyncRedisBlobBackend.from_uri(f"redis://localhost:6379/0/{prefix}")
+        try:
+            assert await b.len() == 0
+            await b.extend([{b"k": b"v"}])
+            assert await b.len() == 1
+        finally:
+            await b.remove()
+
+    async def test_from_uri_default_prefix(self):
+        from asebytes.redis import AsyncRedisBlobBackend
+
+        b = AsyncRedisBlobBackend.from_uri("redis://localhost:6379")
+        try:
+            assert b._prefix == "default"
+        finally:
+            await b.remove()
+
+    async def test_from_uri_with_db_and_prefix(self):
+        from asebytes.redis import AsyncRedisBlobBackend
+
+        prefix = f"test_async_{uuid.uuid4().hex[:8]}"
+        b = AsyncRedisBlobBackend.from_uri(f"redis://localhost:6379/0/{prefix}")
+        try:
+            assert b._prefix == prefix
+        finally:
+            await b.remove()
