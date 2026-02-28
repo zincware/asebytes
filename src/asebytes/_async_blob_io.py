@@ -15,7 +15,7 @@ from ._async_views import (
     AsyncRowView,
     AsyncSingleRowView,
 )
-from ._async_object_io import _DeferredSliceRowView
+from ._async_views import _DeferredSliceRowView
 
 
 class AsyncBlobIO:

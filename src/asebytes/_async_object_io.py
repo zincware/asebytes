@@ -13,6 +13,7 @@ from ._async_views import (
     AsyncColumnView,
     AsyncRowView,
     AsyncSingleRowView,
+    _DeferredSliceRowView,
 )
 
 
@@ -206,74 +207,3 @@ class AsyncObjectIO:
 
     def __repr__(self) -> str:
         return f"AsyncObjectIO(backend={self._backend!r})"
-
-
-class _DeferredSliceRowView(AsyncRowView[dict[str, Any] | None]):
-    """AsyncRowView that resolves a slice lazily via len()."""
-
-    def __init__(self, parent, slc: slice, *, column_view_cls=None):
-        super().__init__(parent, [], contiguous=True, column_view_cls=column_view_cls)
-        self._slice = slc
-        self._resolved = False
-
-    async def _ensure_resolved(self) -> None:
-        if not self._resolved:
-            n = await self._parent.len()
-            self._indices = list(range(n))[self._slice]
-            self._resolved = True
-
-    def __getitem__(self, key):
-        # For str/bytes column keys, return a deferred column view that
-        # resolves the slice lazily rather than using self._indices (which
-        # is [] before resolution).
-        if isinstance(key, (str, bytes)):
-            from ._async_views import _DeferredSliceColumnView
-            cv_cls = self._column_view_cls or AsyncColumnView
-            if cv_cls is AsyncColumnView:
-                return _DeferredSliceColumnView(self._parent, key, self._slice)
-            # For subclassed column views (e.g. AsyncASEColumnView), fall
-            # through to parent which will use the column_view_cls.
-        if isinstance(key, list) and key and isinstance(key[0], (str, bytes)):
-            from ._async_views import _DeferredSliceColumnView
-            cv_cls = self._column_view_cls or AsyncColumnView
-            if cv_cls is AsyncColumnView:
-                return _DeferredSliceColumnView(self._parent, key, self._slice)
-        return super().__getitem__(key)
-
-    def __len__(self) -> int:
-        if not self._resolved:
-            raise TypeError(
-                "len() not available until slice is resolved. "
-                "Use 'to_list()' or 'async for' first."
-            )
-        return len(self._indices)
-
-    async def to_list(self) -> list[Any]:
-        await self._ensure_resolved()
-        return await super().to_list()
-
-    async def __aiter__(self):
-        await self._ensure_resolved()
-        async for item in super().__aiter__():
-            yield item
-
-    async def chunked(self, chunk_size: int = 1000):
-        await self._ensure_resolved()
-        async for item in super().chunked(chunk_size):
-            yield item
-
-    async def delete(self) -> None:
-        await self._ensure_resolved()
-        await super().delete()
-
-    async def set(self, data: list[Any]) -> None:
-        await self._ensure_resolved()
-        await super().set(data)
-
-    async def update(self, data: dict) -> None:
-        await self._ensure_resolved()
-        await super().update(data)
-
-    async def drop(self, keys: list[str]) -> None:
-        await self._ensure_resolved()
-        await super().drop(keys)

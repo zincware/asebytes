@@ -17,6 +17,7 @@ from ._async_views import (
     AsyncRowView,
     AsyncSingleRowView,
     AsyncViewParent,
+    _DeferredSliceRowView,
 )
 
 
@@ -139,7 +140,7 @@ class AsyncASEIO:
             # the backend level.
             return AsyncSingleRowView(self, index)
         if isinstance(index, slice):
-            return _DeferredSliceRowView(self, index, column_view_cls=AsyncASEColumnView)
+            return _ASEIODeferredSliceRowView(self, index, column_view_cls=AsyncASEColumnView)
         if isinstance(index, str):
             return AsyncASEColumnView(self, index)
         if isinstance(index, list):
@@ -347,75 +348,16 @@ class _DeferredSubColumnFromSlice:
                 yield item
 
 
-class _DeferredSliceRowView(AsyncRowView[ase.Atoms | None]):
-    """AsyncRowView that resolves a slice lazily via len().
-
-    When __getitem__ receives a slice, we can't call len() synchronously
-    on an async object. This subclass stores the raw slice and resolves
-    it to concrete indices on first await / aiter.
-    """
-
-    def __init__(self, parent: AsyncASEIO, slc: slice, *, column_view_cls=None):
-        # Initialize with empty indices — will be resolved lazily
-        super().__init__(parent, [], contiguous=True, column_view_cls=column_view_cls)
-        self._slice = slc
-        self._resolved = False
-
-    async def _ensure_resolved(self) -> None:
-        if not self._resolved:
-            n = await self._parent.len()
-            self._indices = list(range(n))[self._slice]
-            self._resolved = True
-
-    def __len__(self) -> int:
-        if not self._resolved:
-            raise TypeError(
-                "len() not available until slice is resolved. "
-                "Use 'to_list()' or 'async for' first."
-            )
-        return len(self._indices)
-
-    async def to_list(self) -> list[Any]:
-        await self._ensure_resolved()
-        return await super().to_list()
-
-    async def __aiter__(self):
-        await self._ensure_resolved()
-        async for item in super().__aiter__():
-            yield item
-
-    async def chunked(self, chunk_size: int = 1000):
-        await self._ensure_resolved()
-        async for item in super().chunked(chunk_size):
-            yield item
-
-    async def delete(self) -> None:
-        await self._ensure_resolved()
-        await super().delete()
-
-    async def set(self, data: list[Any]) -> None:
-        await self._ensure_resolved()
-        await super().set(data)
-
-    async def update(self, data: dict) -> None:
-        await self._ensure_resolved()
-        await super().update(data)
-
-    async def drop(self, keys: list[str]) -> None:
-        await self._ensure_resolved()
-        await super().drop(keys)
+class _ASEIODeferredSliceRowView(_DeferredSliceRowView[ase.Atoms | None]):
+    """ASEIO variant that defers column access to _DeferredColumnFromSlice."""
 
     def __getitem__(self, key):
-        # For column access (str/list[str]), we need resolved indices.
-        # Since __getitem__ is sync, we create views that defer too.
         if isinstance(key, str):
             return _DeferredColumnFromSlice(self, key)
         if isinstance(key, list) and key and isinstance(key[0], str):
             return _DeferredColumnFromSlice(self, key)
-        # For int/slice/list[int], delegate to parent (may need resolution)
         if self._resolved:
             return super().__getitem__(key)
-        # For unresolved int/slice, we can't sub-select yet
         raise TypeError(
             "Cannot sub-select by int/slice from unresolved slice. "
             "Use 'to_list()' or 'async for' first, or index by column key."
