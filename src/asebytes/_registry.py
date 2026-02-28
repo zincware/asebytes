@@ -230,31 +230,7 @@ def get_async_backend_cls(path: str, *, readonly: bool | None = None):
             return getattr(mod, writable)
         return getattr(mod, read_only)
 
-    # Check async blob URI registry
-    if scheme is not None and scheme in _ASYNC_BLOB_URI_REGISTRY:
-        module_path, writable, read_only = _ASYNC_BLOB_URI_REGISTRY[scheme]
-        try:
-            mod = importlib.import_module(module_path)
-        except ImportError:
-            hint = _EXTRAS_HINT.get(module_path, module_path)
-            raise ImportError(
-                f"Backend '{module_path}' requires additional dependencies. "
-                f"Install them with: pip install asebytes[{hint}]"
-            ) from None
-        if readonly is True:
-            return getattr(mod, read_only)
-        if readonly is False:
-            if writable is None:
-                raise TypeError(
-                    f"Backend for '{path}' is read-only, "
-                    "no writable variant available"
-                )
-            return getattr(mod, writable)
-        if writable is not None:
-            return getattr(mod, writable)
-        return getattr(mod, read_only)
-
-    # Fall back to sync registry
+    # Fall back to sync registry (which handles blob-to-object adapter wrapping)
     return get_backend_cls(path, readonly=readonly)
 
 
@@ -346,3 +322,37 @@ def get_blob_backend_cls(path: str, *, readonly: bool | None = None):
     def _make_readwrite_adapter(*args, **kwargs):
         return ObjectToBlobReadWriteAdapter(obj_cls(*args, **kwargs))
     return _make_readwrite_adapter
+
+
+def get_async_blob_backend_cls(path: str, *, readonly: bool | None = None):
+    """Resolve a path/URI to an async blob-level backend class.
+
+    Checks _ASYNC_BLOB_URI_REGISTRY first for native async blob backends.
+    Falls back to get_blob_backend_cls (sync blob registry).
+    """
+    scheme, _remainder = parse_uri(path)
+    if scheme is not None and scheme in _ASYNC_BLOB_URI_REGISTRY:
+        module_path, writable, read_only = _ASYNC_BLOB_URI_REGISTRY[scheme]
+        try:
+            mod = importlib.import_module(module_path)
+        except ImportError:
+            hint = _EXTRAS_HINT.get(module_path, module_path)
+            raise ImportError(
+                f"Backend '{module_path}' requires additional dependencies. "
+                f"Install them with: pip install asebytes[{hint}]"
+            ) from None
+        if readonly is True:
+            return getattr(mod, read_only)
+        if readonly is False:
+            if writable is None:
+                raise TypeError(
+                    f"Backend for '{path}' is read-only, "
+                    "no writable variant available"
+                )
+            return getattr(mod, writable)
+        if writable is not None:
+            return getattr(mod, writable)
+        return getattr(mod, read_only)
+
+    # Fall back to sync blob registry
+    return get_blob_backend_cls(path, readonly=readonly)
