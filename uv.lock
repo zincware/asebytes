@@ -216,6 +216,9 @@ lmdb = [
 mongodb = [
     { name = "pymongo" },
 ]
+redis = [
+    { name = "redis" },
+]
 zarr = [
     { name = "zarr" },
 ]
@@ -224,7 +227,7 @@ zarr = [
 dev = [
     { name = "anyio" },
     { name = "ase-db-backends" },
-    { name = "asebytes", extra = ["h5md", "hf", "lmdb", "mongodb", "zarr"] },
+    { name = "asebytes", extra = ["h5md", "hf", "lmdb", "mongodb", "redis", "zarr"] },
     { name = "ipykernel" },
     { name = "matplotlib" },
     { name = "molify" },
@@ -243,10 +246,11 @@ requires-dist = [
     { name = "msgpack", specifier = ">=1.1.2" },
     { name = "msgpack-numpy", specifier = ">=0.4.8" },
     { name = "pymongo", marker = "extra == 'mongodb'", specifier = ">=4.13" },
+    { name = "redis", marker = "extra == 'redis'", specifier = ">=5.0" },
     { name = "typing-extensions", specifier = ">=4.5.0" },
     { name = "zarr", marker = "extra == 'zarr'", specifier = ">=3.0" },
 ]
-provides-extras = ["lmdb", "hf", "h5md", "zarr", "mongodb"]
+provides-extras = ["lmdb", "hf", "h5md", "zarr", "mongodb", "redis"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -256,6 +260,7 @@ dev = [
     { name = "asebytes", extras = ["hf"] },
     { name = "asebytes", extras = ["lmdb"] },
     { name = "asebytes", extras = ["mongodb"] },
+    { name = "asebytes", extras = ["redis"] },
     { name = "asebytes", extras = ["zarr"] },
     { name = "ipykernel", specifier = ">=7.1.0" },
     { name = "matplotlib", specifier = ">=3.10.7" },
@@ -273,6 +278,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/4a/e7/82da0a03e7ba5141f05cce0d302e6eed121ae055e0456ca228bf693984bc/asttokens-3.0.0.tar.gz", hash = "sha256:0dcd8baa8d62b0c1d118b399b2ddba3c4aff271d0d7a9e0d4c1681c79035bbc7", size = 61978, upload-time = "2024-11-30T04:30:14.439Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/25/8a/c46dcc25341b5bce5472c718902eb3d38600a903b14fa6aeecef3f21a46f/asttokens-3.0.0-py3-none-any.whl", hash = "sha256:e3078351a059199dd5138cb1c706e6430c05eff2ff136af5eb4790f9d28932e2", size = 26918, upload-time = "2024-11-30T04:30:10.946Z" },
+]
+
+[[package]]
+name = "async-timeout"
+version = "5.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a5/ae/136395dfbfe00dfc94da3f3e136d0b13f394cba8f4841120e34226265780/async_timeout-5.0.1.tar.gz", hash = "sha256:d9321a7a3d5a6a5e187e824d2fa0793ce379a202935782d555d6e9d2735677d3", size = 9274, upload-time = "2024-11-06T16:41:39.6Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fe/ba/e2081de779ca30d473f21f5b30e0e737c438205440784c7dfc81efc2b029/async_timeout-5.0.1-py3-none-any.whl", hash = "sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c", size = 6233, upload-time = "2024-11-06T16:41:37.9Z" },
 ]
 
 [[package]]
@@ -2490,6 +2504,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ab/80/b9f990de716344e7c09dafaadc1c7397d15e78c02ecb984a2408ca2b3970/rdkit-2025.9.1-cp314-cp314-manylinux_2_28_aarch64.whl", hash = "sha256:3fe0a66acd4065cc379f0d46c9b7c89b3822642a44683311bd269093edbab967", size = 34676950, upload-time = "2025-10-06T09:05:29.88Z" },
     { url = "https://files.pythonhosted.org/packages/fe/76/e1acd4a03f31cf323bd4899062ae954df029d06b1f8794bb1a03dbbf9f5c/rdkit-2025.9.1-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:1d6c0f30f206067648f567e62e294d98a55bf40c550684f3da54ea061305f5b5", size = 36174898, upload-time = "2025-10-06T09:05:34.096Z" },
     { url = "https://files.pythonhosted.org/packages/d5/0f/39b8fc050830146a011ed86b7c5c738b30fd22fb0532e91984ceef6d00a8/rdkit-2025.9.1-cp314-cp314-win_amd64.whl", hash = "sha256:5393ef7c40c7552d54f569057a4914159b0cd1a634f110e5a884659550f1ff0b", size = 24057571, upload-time = "2025-10-06T09:05:37.368Z" },
+]
+
+[[package]]
+name = "redis"
+version = "7.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "async-timeout", marker = "python_full_version < '3.11.3'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e9/31/1476f206482dd9bc53fdbbe9f6fbd5e05d153f18e54667ce839df331f2e6/redis-7.2.1.tar.gz", hash = "sha256:6163c1a47ee2d9d01221d8456bc1c75ab953cbda18cfbc15e7140e9ba16ca3a5", size = 4906735, upload-time = "2026-02-25T20:05:18.171Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ca/98/1dd1a5c060916cf21d15e67b7d6a7078e26e2605d5c37cbc9f4f5454c478/redis-7.2.1-py3-none-any.whl", hash = "sha256:49e231fbc8df2001436ae5252b3f0f3dc930430239bfeb6da4c7ee92b16e5d33", size = 396057, upload-time = "2026-02-25T20:05:16.533Z" },
 ]
 
 [[package]]

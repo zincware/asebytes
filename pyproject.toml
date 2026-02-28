@@ -33,6 +33,7 @@ dev = [
     "asebytes[zarr]",
     "asebytes[h5md]",
     "asebytes[mongodb]",
+    "asebytes[redis]",
     "anyio>=4.0",
 ]
 
@@ -56,6 +57,9 @@ zarr = [
 ]
 mongodb = [
     "pymongo>=4.13",
+]
+redis = [
+    "redis>=5.0",
 ]
 
 [tool.pytest.ini_options]
