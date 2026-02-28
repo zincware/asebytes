@@ -190,7 +190,7 @@ class ColumnView:
     def __init__(
         self,
         parent: ViewParent[Any],
-        keys: str | list[str],
+        keys: str | bytes | list[str] | list[bytes],
         indices: range | list[int] | None = None,
     ):
         self._parent = parent
