@@ -135,6 +135,24 @@ class ReadWriteBackend(ReadBackend[K, V], ABC):
         for i, row in enumerate(data):
             self.set(start + i, row)
 
+    def update_many(self, start: int, data: list[dict[K, V]]) -> None:
+        """Partial-merge contiguous rows [start, start+len(data)).
+
+        Override for backends where batch partial updates are cheaper than
+        individual update() calls (e.g. single LMDB transaction, Redis pipeline).
+        """
+        for i, d in enumerate(data):
+            self.update(start + i, d)
+
+    def set_column(self, key: K, start: int, values: list[V]) -> None:
+        """Write a single key across contiguous rows [start, start+len(values)).
+
+        Override for columnar backends (Zarr, H5MD) or network backends
+        (Redis, MongoDB) where batch writes are cheaper.
+        """
+        for i, v in enumerate(values):
+            self.update(start + i, {key: v})
+
     def reserve(self, count: int) -> None:
         """Append count placeholder (None) entries. Default: extend."""
         self.extend([None] * count)
