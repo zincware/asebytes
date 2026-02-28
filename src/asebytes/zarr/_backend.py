@@ -104,7 +104,7 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         return tuple(max(1, c) for c in chunks)
 
     # ------------------------------------------------------------------
-    # ReadableBackend
+    # ReadBackend
     # ------------------------------------------------------------------
 
     def __len__(self) -> int:
@@ -221,7 +221,7 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         return result
 
     # ------------------------------------------------------------------
-    # WritableBackend (append-only)
+    # ReadWriteBackend (append-only)
     # ------------------------------------------------------------------
 
     def extend(self, data: list[dict[str, Any] | None]) -> None:

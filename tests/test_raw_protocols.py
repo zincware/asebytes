@@ -1,7 +1,7 @@
 """Tests for ReadBackend / ReadWriteBackend ABCs.
 
 These are bytes-level protocols (dict[bytes, bytes] | None) that
-BlobIO and AsyncBytesIO delegate to.
+BlobIO and AsyncBlobIO delegate to.
 """
 
 from __future__ import annotations

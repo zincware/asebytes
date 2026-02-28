@@ -203,7 +203,7 @@ class TestAsyncBlobIOStringPath:
         assert row[b"x"] == b"42"
 
 
-# ── Async: AsyncBlobIO from string path (migrated from AsyncBytesIO) ───
+# ── Async: AsyncBlobIO from string path ──────────────────────────────────
 
 
 class TestAsyncBlobIOStringPathMigrated:

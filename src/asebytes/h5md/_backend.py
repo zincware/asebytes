@@ -219,7 +219,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
             self._box_cache["pbc"] = ("boundary", box_grp.attrs["boundary"])
 
     # ------------------------------------------------------------------
-    # ReadableBackend
+    # ReadBackend
     # ------------------------------------------------------------------
 
     def __len__(self) -> int:
@@ -402,7 +402,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         return result
 
     # ------------------------------------------------------------------
-    # WritableBackend (append-only)
+    # ReadWriteBackend (append-only)
     # ------------------------------------------------------------------
 
     def extend(self, data: list[dict[str, Any]]) -> None:

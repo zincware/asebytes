@@ -193,7 +193,7 @@ class HuggingFaceBackend(ReadBackend[str, Any]):
         # Should not reach here
         raise IndexError(index)  # pragma: no cover
 
-    # ── ReadableBackend interface ─────────────────────────────────────────
+    # ── ReadBackend interface ──────────────────────────────────────────────
 
     def __len__(self) -> int:
         if self._length is None:

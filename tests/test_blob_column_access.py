@@ -135,7 +135,7 @@ class TestAsyncBlobIOColumnAccess:
         assert result == b"alice"
 
 
-# ── AsyncBlobIO column access (migrated from AsyncBytesIO) ──────────────
+# ── AsyncBlobIO column access ────────────────────────────────────────────
 
 
 class TestAsyncBlobIOColumnAccessMigrated:
