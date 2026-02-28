@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
 import numpy as np
@@ -158,6 +159,12 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         # Batch fetch
         docs = {doc["_id"]: doc for doc in self._col.find({"_id": {"$in": sks}}, proj)}
         return [self._doc_to_row(docs.get(sk)) for sk in sks]
+
+    def iter_rows(
+        self, indices: list[int], keys: list[str] | None = None
+    ) -> Iterator[dict[str, Any] | None]:
+        """Yield rows one at a time, backed by a batched get_many."""
+        yield from self.get_many(indices, keys)
 
     def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
         self._ensure_cache()

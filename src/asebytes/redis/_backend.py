@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
 import redis as redis_mod
@@ -246,6 +247,12 @@ class RedisBlobBackend(ReadWriteBackend[bytes, bytes]):
             else:
                 results.append(val)
         return results
+
+    def iter_rows(
+        self, indices: list[int], keys: list[bytes] | None = None
+    ) -> Iterator[dict[bytes, bytes] | None]:
+        """Yield rows one at a time, backed by a pipelined get_many."""
+        yield from self.get_many(indices, keys)
 
     def keys(self, index: int) -> list[bytes]:
         result = self._call_lua("keys", [index])

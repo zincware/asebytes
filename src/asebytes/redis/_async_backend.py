@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Any
 
 import redis.asyncio as aioredis
@@ -242,6 +243,13 @@ class AsyncRedisBlobBackend(AsyncReadWriteBackend[bytes, bytes]):
             else:
                 results.append(val)
         return results
+
+    async def iter_rows(
+        self, indices: list[int], keys: list[bytes] | None = None
+    ) -> AsyncIterator[dict[bytes, bytes] | None]:
+        """Yield rows one at a time, backed by a pipelined get_many."""
+        for row in await self.get_many(indices, keys):
+            yield row
 
     async def keys(self, index: int) -> list[bytes]:
         result = await self._call_lua("keys", [index])
