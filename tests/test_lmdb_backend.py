@@ -137,3 +137,26 @@ def test_readonly_mode(tmp_path, sample_row):
     assert len(rb) == 1
     row = rb.get(0)
     assert row["calc.energy"] == pytest.approx(-10.5)
+
+
+def test_lmdb_object_backend_uses_adapter(backend):
+    from asebytes._adapters import BlobToObjectReadWriteAdapter
+
+    assert isinstance(backend, BlobToObjectReadWriteAdapter)
+
+
+def test_lmdb_object_read_backend_uses_adapter(tmp_path, sample_row):
+    from asebytes._adapters import BlobToObjectReadAdapter
+    from asebytes.lmdb import LMDBObjectReadBackend
+
+    # Write some data first
+    path = str(tmp_path / "read_adapter.lmdb")
+    wb = LMDBObjectBackend(path)
+    wb.set(0, sample_row)
+    del wb
+
+    rb = LMDBObjectReadBackend(path)
+    assert isinstance(rb, BlobToObjectReadAdapter)
+    assert len(rb) == 1
+    row = rb.get(0)
+    assert row["calc.energy"] == pytest.approx(-10.5)

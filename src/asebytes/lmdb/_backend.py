@@ -5,15 +5,24 @@ from typing import Any
 
 import msgpack
 import msgpack_numpy as m
+
 from ._blob_backend import LMDBBlobBackend
-from .._backends import ReadBackend, ReadWriteBackend
+from .._adapters import (
+    BlobToObjectReadAdapter,
+    BlobToObjectReadWriteAdapter,
+    _deserialize_row,
+)
 
 
-class LMDBObjectReadBackend(ReadBackend[str, Any]):
+class LMDBObjectReadBackend(BlobToObjectReadAdapter):
     """Read-only LMDB storage backend using msgpack serialization.
 
     Wraps LMDBBlobBackend for LMDB operations, converting between
     dict[str, Any] (logical) and dict[bytes, bytes] (storage).
+
+    Inherits generic ser/de logic from BlobToObjectReadAdapter and
+    overrides iter_rows, get_many, get_column to use single-transaction
+    LMDB reads via get_with_txn for efficiency.
 
     Parameters
     ----------
@@ -34,35 +43,24 @@ class LMDBObjectReadBackend(ReadBackend[str, Any]):
         map_size: int = 10737418240,
         **lmdb_kwargs,
     ):
-        self._store = LMDBBlobBackend(file, prefix, map_size, readonly=True, **lmdb_kwargs)
+        super().__init__(LMDBBlobBackend(file, prefix, map_size, readonly=True, **lmdb_kwargs))
 
     @property
     def env(self):
         """Expose the LMDB environment for configuration inspection."""
         return self._store.env
 
-    def _deserialize_row(self, raw: dict[bytes, bytes]) -> dict[str, Any]:
-        return {
-            k.decode(): msgpack.unpackb(v, object_hook=m.decode)
-            for k, v in raw.items()
-        }
-
-    def __len__(self) -> int:
-        return len(self._store)
-
     def _check_index(self, index: int) -> None:
         if index < 0 or index >= len(self._store):
             raise IndexError(index)
+
+    # -- LMDB-specific overrides -------------------------------------------
 
     def get(
         self, index: int, keys: list[str] | None = None
     ) -> dict[str, Any] | None:
         self._check_index(index)
-        byte_keys = [k.encode() for k in keys] if keys is not None else None
-        raw = self._store.get(index, keys=byte_keys)
-        if raw is None:
-            return None
-        return self._deserialize_row(raw)
+        return super().get(index, keys)
 
     def iter_rows(
         self, indices: list[int], keys: list[str] | None = None
@@ -72,7 +70,7 @@ class LMDBObjectReadBackend(ReadBackend[str, Any]):
         with self._store.env.begin() as txn:
             for i in indices:
                 raw = self._store.get_with_txn(txn, i, byte_keys)
-                yield None if raw is None else self._deserialize_row(raw)
+                yield None if raw is None else _deserialize_row(raw)
 
     def get_many(
         self, indices: list[int], keys: list[str] | None = None
@@ -81,7 +79,7 @@ class LMDBObjectReadBackend(ReadBackend[str, Any]):
         with self._store.env.begin() as txn:
             return [
                 None if (raw := self._store.get_with_txn(txn, i, byte_keys)) is None
-                else self._deserialize_row(raw)
+                else _deserialize_row(raw)
                 for i in indices
             ]
 
@@ -101,10 +99,12 @@ class LMDBObjectReadBackend(ReadBackend[str, Any]):
             ]
 
 
-class LMDBObjectBackend(LMDBObjectReadBackend, ReadWriteBackend[str, Any]):
+class LMDBObjectBackend(BlobToObjectReadWriteAdapter):
     """Read-write LMDB storage backend using msgpack serialization.
 
-    Extends LMDBObjectReadBackend with write operations.
+    Inherits generic ser/de and CRUD logic from BlobToObjectReadWriteAdapter
+    and overrides iter_rows, get_many, get_column for single-transaction
+    efficiency, plus update for optimised partial writes.
 
     Parameters
     ----------
@@ -128,34 +128,62 @@ class LMDBObjectBackend(LMDBObjectReadBackend, ReadWriteBackend[str, Any]):
         readonly: bool = False,
         **lmdb_kwargs,
     ):
-        self._store = LMDBBlobBackend(file, prefix, map_size, readonly, **lmdb_kwargs)
+        super().__init__(LMDBBlobBackend(file, prefix, map_size, readonly, **lmdb_kwargs))
 
-    def _serialize_row(self, data: dict[str, Any]) -> dict[bytes, bytes]:
-        return {
-            k.encode(): msgpack.packb(v, default=m.encode)
-            for k, v in data.items()
-        }
+    @property
+    def env(self):
+        """Expose the LMDB environment for configuration inspection."""
+        return self._store.env
 
-    def set(self, index: int, data: dict[str, Any] | None) -> None:
-        if data is None:
-            self._store.set(index, None)
-        else:
-            self._store.set(index, self._serialize_row(data))
+    def _check_index(self, index: int) -> None:
+        if index < 0 or index >= len(self._store):
+            raise IndexError(index)
 
-    def insert(self, index: int, data: dict[str, Any] | None) -> None:
-        if data is None:
-            self._store.insert(index, None)
-        else:
-            self._store.insert(index, self._serialize_row(data))
+    # -- LMDB-specific overrides -------------------------------------------
 
-    def delete(self, index: int) -> None:
-        self._store.delete(index)
+    def get(
+        self, index: int, keys: list[str] | None = None
+    ) -> dict[str, Any] | None:
+        self._check_index(index)
+        return super().get(index, keys)
 
-    def extend(self, data: list[dict[str, Any] | None]) -> None:
-        self._store.extend([
-            self._serialize_row(d) if d is not None else None
-            for d in data
-        ])
+    def iter_rows(
+        self, indices: list[int], keys: list[str] | None = None
+    ) -> Iterator[dict[str, Any] | None]:
+        """Stream rows within a single LMDB read transaction."""
+        byte_keys = [k.encode() for k in keys] if keys is not None else None
+        with self._store.env.begin() as txn:
+            for i in indices:
+                raw = self._store.get_with_txn(txn, i, byte_keys)
+                yield None if raw is None else _deserialize_row(raw)
+
+    def get_many(
+        self, indices: list[int], keys: list[str] | None = None
+    ) -> list[dict[str, Any] | None]:
+        byte_keys = [k.encode() for k in keys] if keys is not None else None
+        with self._store.env.begin() as txn:
+            return [
+                None if (raw := self._store.get_with_txn(txn, i, byte_keys)) is None
+                else _deserialize_row(raw)
+                for i in indices
+            ]
+
+    def get_column(
+        self, key: str, indices: list[int] | None = None
+    ) -> list[Any]:
+        if indices is None:
+            indices = list(range(len(self)))
+        byte_key = key.encode()
+        with self._store.env.begin() as txn:
+            return [
+                msgpack.unpackb(
+                    self._store.get_with_txn(txn, i, [byte_key])[byte_key],
+                    object_hook=m.decode,
+                )
+                for i in indices
+            ]
+
+    # -- Optimised partial update ------------------------------------------
 
     def update(self, index: int, data: dict[str, Any]) -> None:
         """Optimized partial update -- only serializes and writes changed keys."""
