@@ -114,6 +114,22 @@ class AsyncReadWriteBackend(AsyncReadBackend[K, V], ABC):
         for i, row in enumerate(data):
             await self.set(start + i, row)
 
+    async def update_many(self, start: int, data: list[dict[K, V]]) -> None:
+        """Partial-merge contiguous rows [start, start+len(data)).
+
+        Override for backends where batch partial updates are cheaper.
+        """
+        for i, d in enumerate(data):
+            await self.update(start + i, d)
+
+    async def set_column(self, key: K, start: int, values: list[V]) -> None:
+        """Write a single key across contiguous rows [start, start+len(values)).
+
+        Override for columnar or network backends where batch writes are cheaper.
+        """
+        for i, v in enumerate(values):
+            await self.update(start + i, {key: v})
+
     async def reserve(self, count: int) -> None:
         await self.extend([None] * count)
 
@@ -191,6 +207,12 @@ class SyncToAsyncReadWriteAdapter(SyncToAsyncReadAdapter[K, V], AsyncReadWriteBa
 
     async def set_many(self, start, data):
         return await asyncio.to_thread(self._backend.set_many, start, data)
+
+    async def update_many(self, start, data):
+        return await asyncio.to_thread(self._backend.update_many, start, data)
+
+    async def set_column(self, key, start, values):
+        return await asyncio.to_thread(self._backend.set_column, key, start, values)
 
     async def reserve(self, count):
         return await asyncio.to_thread(self._backend.reserve, count)
