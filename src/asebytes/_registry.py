@@ -28,6 +28,7 @@ _URI_REGISTRY: dict[str, tuple[str, str | None, str]] = {
     "colabfit": ("asebytes.hf._backend", None, "HuggingFaceBackend"),
     "optimade": ("asebytes.hf._backend", None, "HuggingFaceBackend"),
     "mongodb": ("asebytes.mongodb._backend", "MongoObjectBackend", "MongoObjectBackend"),
+    "memory": ("asebytes.memory._backend", "MemoryObjectBackend", "MemoryObjectBackend"),
 }
 
 _EXTRAS_HINT: dict[str, str] = {
@@ -186,12 +187,24 @@ def get_blob_backend_cls(path: str, *, readonly: bool | None = None):
                 return getattr(mod, writable)
             return getattr(mod, read_only)
     # --- Fallback: wrap object backend with ObjectToBlobAdapter ---
+    scheme, _remainder = parse_uri(path)
     try:
         obj_cls = get_backend_cls(path, readonly=readonly)
     except KeyError:
         raise KeyError(f"No blob backend registered for '{path}'")
 
     from ._adapters import ObjectToBlobReadAdapter, ObjectToBlobReadWriteAdapter
+
+    if scheme is not None:
+        # URI-based backend: use from_uri to instantiate
+        if readonly is True:
+            def _make_read_adapter(*args, **kwargs):
+                return ObjectToBlobReadAdapter(obj_cls.from_uri(*args, **kwargs))
+            return _make_read_adapter
+
+        def _make_readwrite_adapter(*args, **kwargs):
+            return ObjectToBlobReadWriteAdapter(obj_cls.from_uri(*args, **kwargs))
+        return _make_readwrite_adapter
 
     if readonly is True:
         def _make_read_adapter(*args, **kwargs):

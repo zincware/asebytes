@@ -59,6 +59,7 @@ from ._async_views import (
 from .decode import decode
 from .encode import encode
 from .ase import ASEReadOnlyBackend
+from .memory import MemoryObjectBackend
 from .metadata import get_metadata
 
 __all__ = [
@@ -114,6 +115,7 @@ __all__ = [
     "AsyncViewParent",
     # Built-in backends
     "ASEReadOnlyBackend",
+    "MemoryObjectBackend",
 ]
 
 try:

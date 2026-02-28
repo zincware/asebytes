@@ -35,10 +35,14 @@ class BlobIO(MutableSequence):
         **kwargs: Any,
     ):
         if isinstance(backend, str):
-            from ._registry import get_blob_backend_cls
+            from ._registry import get_blob_backend_cls, parse_uri
 
+            scheme, _remainder = parse_uri(backend)
             cls = get_blob_backend_cls(backend, readonly=readonly)
-            self._backend: ReadBackend[bytes, bytes] = cls(backend, **kwargs)
+            if scheme is not None and hasattr(cls, "from_uri"):
+                self._backend: ReadBackend[bytes, bytes] = cls.from_uri(backend, **kwargs)
+            else:
+                self._backend = cls(backend, **kwargs)
         else:
             self._backend = backend
 
