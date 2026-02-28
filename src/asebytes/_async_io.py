@@ -193,6 +193,59 @@ class AsyncASEIO:
             raise TypeError("Backend is read-only")
         await self._backend.reserve(count)
 
+    _VALID_PREFIXES = ("arrays.", "info.", "calc.")
+    _VALID_TOP_LEVEL = ("cell", "pbc", "constraints")
+
+    def _validate_keys(self, data: dict[str, Any]) -> None:
+        for key in data:
+            if key in self._VALID_TOP_LEVEL:
+                continue
+            if any(key.startswith(p) for p in self._VALID_PREFIXES):
+                continue
+            raise ValueError(
+                f"Invalid key {key!r}. Keys must start with "
+                f"{', '.join(self._VALID_PREFIXES)} or be one of "
+                f"{', '.join(self._VALID_TOP_LEVEL)}."
+            )
+
+    async def update(
+        self,
+        index: int,
+        data: dict[str, Any] | None = None,
+        *,
+        info: dict[str, Any] | None = None,
+        arrays: dict[str, Any] | None = None,
+        calc: dict[str, Any] | None = None,
+    ) -> None:
+        """Partial update: merge *data* into existing row at *index*.
+
+        Flat-dict API::
+
+            await db.update(i, {"calc.energy": -10.5, "info.tag": "done"})
+
+        Keyword API::
+
+            await db.update(i, info={"tag": "done"}, calc={"energy": -10.5})
+        """
+        if not isinstance(self._backend, AsyncReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        flat_data: dict[str, Any] = {}
+        if data is not None:
+            flat_data.update(data)
+        if info:
+            for k, v in info.items():
+                flat_data[f"info.{k}"] = v
+        if arrays:
+            for k, v in arrays.items():
+                flat_data[f"arrays.{k}"] = v
+        if calc:
+            for k, v in calc.items():
+                flat_data[f"calc.{k}"] = v
+        if not flat_data:
+            return
+        self._validate_keys(flat_data)
+        await self._backend.update(index, flat_data)
+
     # -- Async iteration ---------------------------------------------------
 
     async def __aiter__(self):

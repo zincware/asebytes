@@ -182,6 +182,12 @@ class AsyncObjectIO:
             raise TypeError("Backend is read-only")
         await self._backend.reserve(count)
 
+    async def update(self, index: int, data: dict[str, Any]) -> None:
+        """Partial update: merge *data* into existing row at *index*."""
+        if not isinstance(self._backend, AsyncReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        await self._backend.update(index, data)
+
     # -- Async iteration ---------------------------------------------------
 
     async def __aiter__(self):
