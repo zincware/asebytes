@@ -86,6 +86,11 @@ class BlobIO(MutableSequence):
             raise TypeError("Backend is read-only")
         self._backend.delete_many(start, stop)
 
+    def _drop_keys(self, keys: list[bytes], indices: list[int]) -> None:
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.drop_keys(keys, indices)
+
     def _build_result(self, row: Any) -> dict[bytes, bytes]:
         """Identity transform -- returns raw dict[bytes, bytes] as-is."""
         return row
@@ -112,6 +117,10 @@ class BlobIO(MutableSequence):
         index: int | slice | str | bytes | list[int] | list[str] | list[bytes],
     ) -> dict[bytes, bytes] | RowView[dict[bytes, bytes]] | ColumnView:
         if isinstance(index, int):
+            if index < 0:
+                index += len(self)
+            if index < 0:
+                raise IndexError(index)
             return self._backend.get(index)
         if isinstance(index, slice):
             indices = range(len(self))[index]
@@ -122,7 +131,14 @@ class BlobIO(MutableSequence):
             if not index:
                 return RowView(self, [])
             if isinstance(index[0], int):
-                return RowView(self, index)
+                n = len(self)
+                normalized = []
+                for i in index:
+                    idx = i + n if i < 0 else i
+                    if idx < 0 or idx >= n:
+                        raise IndexError(i)
+                    normalized.append(idx)
+                return RowView(self, normalized)
             if isinstance(index[0], (bytes, str)):
                 return ColumnView(self, index, list(range(len(self))))
         raise TypeError(f"Unsupported index type: {type(index)}")

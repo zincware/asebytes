@@ -147,6 +147,11 @@ class ASEIO(MutableSequence):
             raise TypeError("Backend is read-only")
         self._backend.delete_many(start, stop)
 
+    def _drop_keys(self, keys: list[str], indices: list[int]) -> None:
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.drop_keys(keys, indices)
+
     def _build_result(self, row: dict[str, Any]) -> ase.Atoms:
         return dict_to_atoms(row)
 
@@ -257,15 +262,21 @@ class ASEIO(MutableSequence):
         return len(self._backend)
 
     def __iter__(self) -> Iterator[ase.Atoms]:
-        # Explicit IndexError sentinel — avoids len() which list() calls
-        # for pre-allocation. Works for backends with unknown length.
-        i = 0
-        while True:
-            try:
+        try:
+            n = len(self)
+        except TypeError:
+            # Backend with unknown length (e.g. file-based ASE backend);
+            # fall back to index-probing.
+            i = 0
+            while True:
+                try:
+                    yield self[i]
+                    i += 1
+                except IndexError:
+                    return
+        else:
+            for i in range(n):
                 yield self[i]
-                i += 1
-            except IndexError:
-                return
 
     _VALID_PREFIXES = ("arrays.", "info.", "calc.")
     _VALID_TOP_LEVEL = ("cell", "pbc", "constraints")

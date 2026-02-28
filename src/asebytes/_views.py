@@ -20,6 +20,7 @@ class ViewParent(Protocol[R]):
     def _update_row(self, index: int, data: dict[str, Any]) -> None: ...
     def _delete_row(self, index: int) -> None: ...
     def _delete_rows(self, start: int, stop: int) -> None: ...
+    def _drop_keys(self, keys: list, indices: list[int]) -> None: ...
 
 
 def _sub_select(
@@ -162,6 +163,10 @@ class RowView(Generic[R]):
                     "Non-contiguous delete is ambiguous due to index shifting."
                 )
         self._parent._delete_rows(self._indices[0], self._indices[-1] + 1)
+
+    def drop(self, keys: list) -> None:
+        """Remove specified keys from all rows in this view."""
+        self._parent._drop_keys(keys, self._indices)
 
     def __repr__(self) -> str:
         return f"RowView(len={len(self)})"

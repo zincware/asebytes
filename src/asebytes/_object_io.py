@@ -91,6 +91,11 @@ class ObjectIO(MutableSequence):
             raise TypeError("Backend is read-only")
         self._backend.delete_many(start, stop)
 
+    def _drop_keys(self, keys: list[str], indices: list[int]) -> None:
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.drop_keys(keys, indices)
+
     def _build_result(self, row: dict[str, Any]) -> dict[str, Any]:
         """Identity transform -- returns dict as-is.
 
@@ -202,10 +207,5 @@ class ObjectIO(MutableSequence):
         return len(self._backend)
 
     def __iter__(self) -> Iterator[dict[str, Any]]:
-        i = 0
-        while True:
-            try:
-                yield self[i]
-                i += 1
-            except IndexError:
-                return
+        for i in range(len(self)):
+            yield self[i]
