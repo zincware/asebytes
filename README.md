@@ -191,6 +191,7 @@ URI schemes for remote/streaming sources:
 |--------|--------|---------|
 | `memory://` | In-memory (no persistence) | `ObjectIO("memory://")` |
 | `mongodb://` | MongoDB | `ObjectIO("mongodb://host:port/db/collection")` |
+| `redis://` | Redis | `ObjectIO("redis://host:port/prefix")` |
 | `hf://` | HuggingFace Datasets | `ASEIO("hf://user/dataset", ...)` |
 | `colabfit://` | ColabFit datasets | `ASEIO("colabfit://mlearn_Cu_train", ...)` |
 | `optimade://` | OPTIMADE datasets | `ASEIO("optimade://LeMaterial/LeMat-Bulk", ...)` |
@@ -390,7 +391,7 @@ db = AsyncObjectIO(async_backend)
 
 ## Benchmarks
 
-1000 frames each on two datasets — ethanol conformers (small molecules, fixed size) and [LeMat-Traj](https://huggingface.co/datasets/LeMaterial/LeMat-Traj) (periodic structures, variable atom counts). All frames include energy, forces, and stress. Compared against aselmdb, znh5md, extxyz, and SQLite.
+1000 frames each on two datasets — ethanol conformers (small molecules, fixed size) and [LeMat-Traj](https://huggingface.co/datasets/LeMaterial/LeMat-Traj) (periodic structures, variable atom counts). All frames include energy, forces, and stress. Compared against aselmdb, znh5md, extxyz, and SQLite. Log scale — lower is better.
 
 ```python
 # LeMat-Traj benchmark data
@@ -400,16 +401,23 @@ lemat = list(ASEIO("optimade://LeMaterial/LeMat-Traj", split="train", name="comp
 > **Note:** HDF5 performance is heavily influenced by compression and chunking settings. Both asebytes H5MD and znh5md use gzip compression by default, which reduces file size at the cost of read/write speed. The Zarr backend uses Blosc/LZ4 compression, which achieves compact file sizes with faster decompression than gzip.
 
 ### Write
-![Write Performance](docs/benchmark_write.png)
+![Write Trajectory](docs/benchmark_write_trajectory.png)
+![Write Single](docs/benchmark_write_single.png)
 
-### Sequential Read
-![Read Performance](docs/benchmark_read.png)
+### Read
+![Read Trajectory](docs/benchmark_read_trajectory.png)
+![Read Single](docs/benchmark_read_single.png)
 
 ### Random Access
-![Random Access Performance](docs/benchmark_random_access.png)
+![Random Trajectory](docs/benchmark_random_trajectory.png)
+![Random Single](docs/benchmark_random_single.png)
+
+### Property Access
+![Read Positions Trajectory](docs/benchmark_read_positions_trajectory.png)
+![Read Positions Single](docs/benchmark_read_positions_single.png)
 
 ### Column Access
-![Column Access Performance](docs/benchmark_column_access.png)
+![Column Energy](docs/benchmark_column_energy.png)
 
-### File Size
-![File Size](docs/benchmark_file_size.png)
+### Update
+![Update Property Trajectory](docs/benchmark_update_property_trajectory.png)
