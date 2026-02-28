@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any, overload
 
 import ase
+import numpy as np
 
 from ._async_backends import AsyncReadBackend, AsyncReadWriteBackend
 from ._async_views import (
@@ -16,7 +17,6 @@ from ._async_views import (
     AsyncColumnView,
     AsyncRowView,
     AsyncSingleRowView,
-    AsyncViewParent,
     _DeferredSliceRowView,
 )
 
@@ -215,7 +215,7 @@ class AsyncASEIO:
         data: dict[str, Any] | None = None,
         *,
         info: dict[str, Any] | None = None,
-        arrays: dict[str, Any] | None = None,
+        arrays: dict[str, np.ndarray] | None = None,
         calc: dict[str, Any] | None = None,
     ) -> None:
         """Partial update: merge *data* into existing row at *index*.

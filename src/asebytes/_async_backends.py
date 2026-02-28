@@ -153,6 +153,11 @@ class SyncToAsyncReadAdapter(AsyncReadBackend[K, V]):
     async def keys(self, index):
         return await asyncio.to_thread(self._backend.keys, index)
 
+    async def iter_rows(self, indices, keys=None):
+        rows = await asyncio.to_thread(list, self._backend.iter_rows(indices, keys))
+        for row in rows:
+            yield row
+
 
 class SyncToAsyncReadWriteAdapter(SyncToAsyncReadAdapter[K, V], AsyncReadWriteBackend[K, V]):
     """Wraps a sync ReadWriteBackend[K,V] -> AsyncReadWriteBackend[K,V].

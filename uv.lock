@@ -222,9 +222,9 @@ zarr = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "anyio" },
     { name = "ase-db-backends" },
-    { name = "asebytes", extra = ["hf", "lmdb", "zarr"] },
-    { name = "h5py" },
+    { name = "asebytes", extra = ["h5md", "hf", "lmdb", "mongodb", "zarr"] },
     { name = "ipykernel" },
     { name = "matplotlib" },
     { name = "molify" },
@@ -250,11 +250,13 @@ provides-extras = ["lmdb", "hf", "h5md", "zarr", "mongodb"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "anyio", specifier = ">=4.0" },
     { name = "ase-db-backends", specifier = ">=0.10.0" },
+    { name = "asebytes", extras = ["h5md"] },
     { name = "asebytes", extras = ["hf"] },
     { name = "asebytes", extras = ["lmdb"] },
+    { name = "asebytes", extras = ["mongodb"] },
     { name = "asebytes", extras = ["zarr"] },
-    { name = "h5py", specifier = ">=3.15.1" },
     { name = "ipykernel", specifier = ">=7.1.0" },
     { name = "matplotlib", specifier = ">=3.10.7" },
     { name = "molify", specifier = ">=0.0.1a0" },

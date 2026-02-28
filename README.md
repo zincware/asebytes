@@ -27,7 +27,7 @@ from asebytes import AsyncASEIO
 
 async def main():
     db = AsyncASEIO("data.lmdb")
-    await db.aextend(atoms_list)
+    await db.extend(atoms_list)
     atoms = await db[0]
     async for atoms in db:
         process(atoms)
@@ -58,7 +58,7 @@ atoms = db[0]                  # ase.Atoms
 
 # Async
 db = AsyncASEIO("atoms.lmdb")
-await db.aextend(atoms_list)
+await db.extend(atoms_list)
 atoms = await db[0]            # ase.Atoms
 await db[0].update({"calc.energy": -10.5})
 ```
@@ -78,7 +78,7 @@ row = db[0]  # {"arrays.numbers": [29], "calc.energy": -3.5}
 
 # Async
 db = AsyncObjectIO("records.lmdb")
-await db.aextend([{"arrays.numbers": [29], "calc.energy": -3.5}])
+await db.extend([{"arrays.numbers": [29], "calc.energy": -3.5}])
 row = await db[0]
 ```
 
@@ -94,7 +94,7 @@ row = db[0]                    # {b"key": b"value"}
 
 # Async
 db = AsyncBlobIO("blobs.lmdb")
-await db.aextend([{b"key": b"value"}])
+await db.extend([{b"key": b"value"}])
 row = await db[0]
 ```
 
@@ -179,7 +179,7 @@ Backend is auto-detected from the file extension:
 
 | Extension | Backend | Install extra |
 |-----------|---------|---------------|
-| `*.lmdb` | `LMDBBackend` / `LMDBObjectBackend` / `LMDBBlobBackend` | `asebytes[lmdb]` |
+| `*.lmdb` | `LMDBObjectBackend` / `LMDBBlobBackend` | `asebytes[lmdb]` |
 | `*.zarr` | `ZarrBackend` | `asebytes[zarr]` |
 | `*.h5` / `*.h5md` | `H5MDBackend` | `asebytes[h5md]` |
 | `*.xyz` / `*.extxyz` / `*.traj` | `ASEReadOnlyBackend` | *(none)* |
@@ -301,6 +301,59 @@ from asebytes import atoms_to_dict, dict_to_atoms
 d = atoms_to_dict(atoms)   # Atoms → flat dict
 atoms = dict_to_atoms(d)   # flat dict → Atoms
 ```
+
+## Facade API Reference
+
+All three tiers share the same method names. Async facades use `await` instead of direct calls.
+
+| Method | BlobIO / ObjectIO / ASEIO | AsyncBlobIO / AsyncObjectIO / AsyncASEIO |
+|--------|---------------------------|------------------------------------------|
+| Read one row | `db[i]` | `await db[i]` |
+| Read with key filter | `db.get(i, keys=[...])` | `await db.get(i, keys=[...])` |
+| List keys at index | `db.keys(i)` | `await db.keys(i)` |
+| Append rows | `db.extend([...])` | `await db.extend([...])` |
+| Insert at position | `db.insert(i, row)` | `await db.insert(i, row)` |
+| Overwrite row | `db[i] = row` | `await db[i].set(row)` |
+| Partial update | `db.update(i, {...})` | `await db.update(i, {...})` |
+| Delete row | `del db[i]` | `await db[i].delete()` |
+| Drop columns | `db.drop(keys=[...])` | `await db.drop(keys=[...])` |
+| Pre-allocate slots | `db.reserve(n)` | `await db.reserve(n)` |
+| Clear all rows | `db.clear()` | `await db.clear()` |
+| Remove container | `db.remove()` | `await db.remove()` |
+| Length | `len(db)` | `await db.len()` |
+| Iterate | `for row in db:` | `async for row in db:` |
+| Context manager | `with db:` | `async with db:` |
+
+`ASEIO` / `AsyncASEIO` additionally support keyword-style updates:
+
+```python
+db.update(i, info={"tag": "done"}, calc={"energy": -10.5})
+```
+
+## Backend Adapters
+
+Adapters convert between blob-level (`dict[bytes, bytes]`) and object-level (`dict[str, Any]`) backends:
+
+| Adapter | Wraps | Exposes |
+|---------|-------|---------|
+| `BlobToObjectReadAdapter` | `ReadBackend[bytes, bytes]` | `ReadBackend[str, Any]` |
+| `BlobToObjectReadWriteAdapter` | `ReadWriteBackend[bytes, bytes]` | `ReadWriteBackend[str, Any]` |
+| `ObjectToBlobReadAdapter` | `ReadBackend[str, Any]` | `ReadBackend[bytes, bytes]` |
+| `ObjectToBlobReadWriteAdapter` | `ReadWriteBackend[str, Any]` | `ReadWriteBackend[bytes, bytes]` |
+
+Async variants (`AsyncBlobToObjectReadAdapter`, etc.) mirror the same pattern for async backends.
+
+```python
+from asebytes import BlobToObjectReadWriteAdapter, ObjectIO
+from asebytes import LMDBBlobBackend
+
+# Use a blob backend through the ObjectIO facade
+blob_backend = LMDBBlobBackend("data.lmdb")
+object_backend = BlobToObjectReadWriteAdapter(blob_backend)
+db = ObjectIO(object_backend)
+```
+
+The registry uses these adapters automatically — e.g., `BlobIO("data.lmdb")` wraps the object backend as a blob backend via `ObjectToBlobReadWriteAdapter` when no native blob backend is registered.
 
 ## Custom Backends
 

@@ -205,3 +205,12 @@ class BlobIO(MutableSequence):
     def __iter__(self) -> Iterator[dict[bytes, bytes]]:
         for i in range(len(self)):
             yield self[i]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+
+    def __repr__(self) -> str:
+        return f"BlobIO(backend={self._backend!r})"

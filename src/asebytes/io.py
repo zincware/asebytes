@@ -9,7 +9,7 @@ import numpy as np
 
 from ._convert import atoms_to_dict, dict_to_atoms
 from ._backends import ReadBackend, ReadWriteBackend
-from ._views import ASEColumnView, ColumnView, RowView
+from ._views import ASEColumnView, RowView
 
 
 class ASEIO(MutableSequence):
@@ -277,6 +277,15 @@ class ASEIO(MutableSequence):
         else:
             for i in range(n):
                 yield self[i]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+
+    def __repr__(self) -> str:
+        return f"ASEIO(backend={self._backend!r})"
 
     _VALID_PREFIXES = ("arrays.", "info.", "calc.")
     _VALID_TOP_LEVEL = ("cell", "pbc", "constraints")
