@@ -154,13 +154,13 @@ class AsyncASEIO:
 
     # ── Top-level async write methods ─────────────────────────────────
 
-    async def extend(self, data: list[Any]) -> int:
+    async def extend(self, data: list[ase.Atoms]) -> int:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
         from ._convert import atoms_to_dict
 
-        data = [atoms_to_dict(v) if isinstance(v, ase.Atoms) else v for v in data]
-        return await self._backend.extend(data)
+        data_list = [atoms_to_dict(atoms) for atoms in data]
+        return await self._backend.extend(data_list)
 
     async def insert(self, index: int, data: Any) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):

@@ -10,7 +10,9 @@ from __future__ import annotations
 from typing import Any
 
 import ase
+import numpy as np
 import pytest
+from ase.calculators.singlepoint import SinglePointCalculator
 
 from asebytes._async_io import AsyncASEIO
 from asebytes._async_backends import SyncToAsyncAdapter
@@ -55,8 +57,9 @@ class MemoryBackend(ReadWriteBackend):
     def delete(self, index: int) -> None:
         del self._rows[index]
 
-    def extend(self, data: list[dict[str, Any] | None]) -> None:
+    def extend(self, data: list[dict[str, Any] | None]) -> int:
         self._rows.extend(data)
+        return len(self._rows)
 
 
 def _make_row(i: int) -> dict[str, Any]:
@@ -70,6 +73,21 @@ def _make_row(i: int) -> dict[str, Any]:
         "calc.forces": [[0.0, 0.0, float(i)], [0.0, 0.0, float(-i)]],
         "info.tag": f"mol_{i}",
     }
+
+
+def _make_atoms(i: int) -> ase.Atoms:
+    """Create a test Atoms object matching _make_row(i) structure."""
+    atoms = ase.Atoms(
+        numbers=[1, 2],
+        positions=[[0.0, 0.0, float(i)], [1.0, 0.0, float(i)]],
+        cell=[[10.0, 0, 0], [0, 10.0, 0], [0, 0, 10.0]],
+        pbc=[True, True, True],
+    )
+    atoms.info["tag"] = f"mol_{i}"
+    forces = np.array([[0.0, 0.0, float(i)], [0.0, 0.0, float(-i)]])
+    calc = SinglePointCalculator(atoms, energy=float(-i), forces=forces)
+    atoms.calc = calc
+    return atoms
 
 
 @pytest.fixture
@@ -159,9 +177,10 @@ class TestLength:
 class TestWriteOps:
     @pytest.mark.anyio
     async def test_extend(self, db, backend):
-        new_rows = [_make_row(100), _make_row(101)]
-        await db.extend(new_rows)
+        new_atoms = [_make_atoms(100), _make_atoms(101)]
+        result = await db.extend(new_atoms)
         assert len(backend._rows) == 12
+        assert result == 12
 
     @pytest.mark.anyio
     async def test_set_single(self, db, backend):
@@ -308,8 +327,9 @@ class TestColumnAccess:
 
 class TestPlaceholders:
     @pytest.mark.anyio
-    async def test_extend_none(self, db, backend):
-        await db.extend([None, None, None])
+    async def test_reserve_none_placeholders(self, db, backend):
+        """reserve() adds None placeholders (extend requires ase.Atoms)."""
+        await db.reserve(3)
         assert len(backend._rows) == 13
         assert backend._rows[10] is None
 
