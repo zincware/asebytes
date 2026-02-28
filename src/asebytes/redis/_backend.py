@@ -214,9 +214,7 @@ class RedisBlobBackend(ReadWriteBackend[bytes, bytes]):
                 if not exists:
                     results.append(None)
                 else:
-                    results.append(
-                        {k: v for k, v in zip(keys, vals) if v is not None}
-                    )
+                    results.append({k: v for k, v in zip(keys, vals) if v is not None})
         else:
             for hgetall_result in raw:
                 if not hgetall_result:
@@ -225,9 +223,7 @@ class RedisBlobBackend(ReadWriteBackend[bytes, bytes]):
                     results.append(hgetall_result)
         return results
 
-    def get_column(
-        self, key: bytes, indices: list[int] | None = None
-    ) -> list[Any]:
+    def get_column(self, key: bytes, indices: list[int] | None = None) -> list[Any]:
         if indices is None:
             indices = list(range(len(self)))
         sks = self._resolve_indices(indices)
@@ -354,9 +350,7 @@ class RedisBlobBackend(ReadWriteBackend[bytes, bytes]):
             pipe.hset(self._row_key(sk), key, value)
         pipe.execute()
 
-    def drop_keys(
-        self, keys: list[bytes], indices: list[int] | None = None
-    ) -> None:
+    def drop_keys(self, keys: list[bytes], indices: list[int] | None = None) -> None:
         if indices is None:
             indices = list(range(len(self)))
         sks = self._resolve_indices(indices)
@@ -387,3 +381,13 @@ class RedisBlobBackend(ReadWriteBackend[bytes, bytes]):
                 self._r.delete(*keys)
             if cursor == 0:
                 break
+
+    def close(self) -> None:
+        """Close the Redis connection."""
+        self._r.close()
+
+    def __enter__(self) -> RedisBlobBackend:
+        return self
+
+    def __exit__(self, *args) -> None:
+        self.close()

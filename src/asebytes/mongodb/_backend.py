@@ -83,7 +83,9 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
             collection = "default"
             connection_uri = uri
 
-        return cls(uri=connection_uri, database=database, collection=collection, **kwargs)
+        return cls(
+            uri=connection_uri, database=database, collection=collection, **kwargs
+        )
 
     # ------------------------------------------------------------------
     # Cache management
@@ -142,9 +144,7 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         self._ensure_cache()
         return self._count
 
-    def get(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any] | None:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any] | None:
         self._ensure_cache()
         sk = self._resolve_sort_key(index)
         doc = self._col.find_one({"_id": sk}, self._projection(keys))
@@ -222,7 +222,7 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
             return self._count if self._count is not None else len(self)
         self._ensure_cache()
         meta = self._col.find_one({"_id": META_ID})
-        next_sk = meta["next_sort_key"] if meta else 0
+        next_sk = meta.get("next_sort_key", 0) if meta else 0
         new_sks = list(range(next_sk, next_sk + len(values)))
 
         docs = [self._row_to_doc(sk, v) for sk, v in zip(new_sks, values)]
@@ -249,7 +249,7 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
             index = n
 
         meta = self._col.find_one({"_id": META_ID})
-        next_sk = meta["next_sort_key"] if meta else 0
+        next_sk = meta.get("next_sort_key", 0) if meta else 0
 
         self._col.insert_one(self._row_to_doc(next_sk, value))
 
@@ -279,6 +279,7 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         if not data:
             return
         from pymongo import UpdateOne
+
         self._ensure_cache()
         ops = []
         for i, row_data in enumerate(data):
@@ -294,17 +295,18 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         if not values:
             return
         from pymongo import UpdateOne
+
         self._ensure_cache()
         ops = []
         for i, value in enumerate(values):
             sk = self._resolve_sort_key(start + i)
-            ops.append(UpdateOne({"_id": sk}, {"$set": {f"data.{key}": _bson_safe(value)}}))
+            ops.append(
+                UpdateOne({"_id": sk}, {"$set": {f"data.{key}": _bson_safe(value)}})
+            )
         if ops:
             self._col.bulk_write(ops, ordered=False)
 
-    def drop_keys(
-        self, keys: list[str], indices: list[int] | None = None
-    ) -> None:
+    def drop_keys(self, keys: list[str], indices: list[int] | None = None) -> None:
         unset_fields = {f"data.{k}": "" for k in keys}
         if indices is None:
             self._col.update_many(
@@ -331,3 +333,13 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
     def remove(self) -> None:
         self._col.drop()
         self._invalidate_cache()
+
+    def close(self) -> None:
+        """Close the MongoDB client connection."""
+        self._client.close()
+
+    def __enter__(self) -> MongoObjectBackend:
+        return self
+
+    def __exit__(self, *args) -> None:
+        self.close()

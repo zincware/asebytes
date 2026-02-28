@@ -55,10 +55,7 @@ class AsyncBlobToObjectReadAdapter(AsyncReadBackend[str, Any]):
     ) -> list[dict[str, Any] | None]:
         byte_keys = [k.encode() for k in keys] if keys is not None else None
         raw_rows = await self._store.get_many(indices, byte_keys)
-        return [
-            None if row is None else _deserialize_row(row)
-            for row in raw_rows
-        ]
+        return [None if row is None else _deserialize_row(row) for row in raw_rows]
 
     async def iter_rows(
         self, indices: list[int], keys: list[str] | None = None
@@ -108,10 +105,9 @@ class AsyncBlobToObjectReadWriteAdapter(
         await self._store.delete(index)
 
     async def extend(self, values: list[dict[str, Any] | None]) -> int:
-        return await self._store.extend([
-            _serialize_row(v) if v is not None else None
-            for v in values
-        ])
+        return await self._store.extend(
+            [_serialize_row(v) if v is not None else None for v in values]
+        )
 
     async def insert(self, index: int, value: dict[str, Any] | None) -> None:
         if value is None:
@@ -121,6 +117,32 @@ class AsyncBlobToObjectReadWriteAdapter(
 
     async def update(self, index: int, data: dict[str, Any]) -> None:
         await self._store.update(index, _serialize_row(data))
+
+    async def update_many(self, start: int, data: list[dict[str, Any]]) -> None:
+        await self._store.update_many(start, [_serialize_row(d) for d in data])
+
+    async def set_column(self, key: str, start: int, values: list[Any]) -> None:
+        await self._store.set_column(
+            key.encode(),
+            start,
+            [msgpack.packb(v, default=m.encode) for v in values],
+        )
+
+    async def clear(self) -> None:
+        await self._store.clear()
+
+    async def remove(self) -> None:
+        await self._store.remove()
+
+    async def drop_keys(
+        self,
+        keys: list[str],
+        indices: list[int] | None = None,
+    ) -> None:
+        await self._store.drop_keys(
+            [k.encode() for k in keys],
+            indices=indices,
+        )
 
 
 # ── AsyncObjectToBlob read adapter ───────────────────────────────────────
@@ -153,10 +175,7 @@ class AsyncObjectToBlobReadAdapter(AsyncReadBackend[bytes, bytes]):
     ) -> list[dict[bytes, bytes] | None]:
         str_keys = [k.decode() for k in keys] if keys is not None else None
         rows = await self._store.get_many(indices, str_keys)
-        return [
-            None if row is None else _serialize_row(row)
-            for row in rows
-        ]
+        return [None if row is None else _serialize_row(row) for row in rows]
 
     async def iter_rows(
         self, indices: list[int], keys: list[bytes] | None = None
@@ -168,7 +187,9 @@ class AsyncObjectToBlobReadAdapter(AsyncReadBackend[bytes, bytes]):
             else:
                 yield _serialize_row(row)
 
-    async def get_column(self, key: bytes, indices: list[int] | None = None) -> list[bytes]:
+    async def get_column(
+        self, key: bytes, indices: list[int] | None = None
+    ) -> list[bytes]:
         str_key = key.decode()
         col = await self._store.get_column(str_key, indices)
         return [msgpack.packb(v, default=m.encode) for v in col]
@@ -206,10 +227,9 @@ class AsyncObjectToBlobReadWriteAdapter(
         await self._store.delete(index)
 
     async def extend(self, values: list[dict[bytes, bytes] | None]) -> int:
-        return await self._store.extend([
-            _deserialize_row(v) if v is not None else None
-            for v in values
-        ])
+        return await self._store.extend(
+            [_deserialize_row(v) if v is not None else None for v in values]
+        )
 
     async def insert(self, index: int, value: dict[bytes, bytes] | None) -> None:
         if value is None:
@@ -219,3 +239,29 @@ class AsyncObjectToBlobReadWriteAdapter(
 
     async def update(self, index: int, data: dict[bytes, bytes]) -> None:
         await self._store.update(index, _deserialize_row(data))
+
+    async def update_many(self, start: int, data: list[dict[bytes, bytes]]) -> None:
+        await self._store.update_many(start, [_deserialize_row(d) for d in data])
+
+    async def set_column(self, key: bytes, start: int, values: list[bytes]) -> None:
+        await self._store.set_column(
+            key.decode(),
+            start,
+            [msgpack.unpackb(v, object_hook=m.decode) for v in values],
+        )
+
+    async def clear(self) -> None:
+        await self._store.clear()
+
+    async def remove(self) -> None:
+        await self._store.remove()
+
+    async def drop_keys(
+        self,
+        keys: list[bytes],
+        indices: list[int] | None = None,
+    ) -> None:
+        await self._store.drop_keys(
+            [k.decode() for k in keys],
+            indices=indices,
+        )

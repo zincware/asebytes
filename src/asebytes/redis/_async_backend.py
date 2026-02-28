@@ -210,9 +210,7 @@ class AsyncRedisBlobBackend(AsyncReadWriteBackend[bytes, bytes]):
                 if not exists:
                     results.append(None)
                 else:
-                    results.append(
-                        {k: v for k, v in zip(keys, vals) if v is not None}
-                    )
+                    results.append({k: v for k, v in zip(keys, vals) if v is not None})
         else:
             for hgetall_result in raw:
                 if not hgetall_result:
@@ -374,10 +372,18 @@ class AsyncRedisBlobBackend(AsyncReadWriteBackend[bytes, bytes]):
         cursor = 0
         pattern = f"{self._prefix}:*"
         while True:
-            cursor, keys = await self._r.scan(
-                cursor=cursor, match=pattern, count=200
-            )
+            cursor, keys = await self._r.scan(cursor=cursor, match=pattern, count=200)
             if keys:
                 await self._r.delete(*keys)
             if cursor == 0:
                 break
+
+    async def aclose(self) -> None:
+        """Close the async Redis connection."""
+        await self._r.aclose()
+
+    async def __aenter__(self) -> AsyncRedisBlobBackend:
+        return self
+
+    async def __aexit__(self, *args) -> None:
+        await self.aclose()

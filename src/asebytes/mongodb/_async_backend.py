@@ -64,7 +64,9 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
             collection = "default"
             connection_uri = uri
 
-        return cls(uri=connection_uri, database=database, collection=collection, **kwargs)
+        return cls(
+            uri=connection_uri, database=database, collection=collection, **kwargs
+        )
 
     # ------------------------------------------------------------------
     # Cache management
@@ -149,9 +151,7 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         for row in await self.get_many(indices, keys):
             yield row
 
-    async def get_column(
-        self, key: str, indices: list[int] | None = None
-    ) -> list[Any]:
+    async def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
         await self._ensure_cache()
         if indices is None:
             indices = list(range(self._count))
@@ -209,7 +209,7 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
             return self._count if self._count is not None else await self.len()
         await self._ensure_cache()
         meta = await self._col.find_one({"_id": META_ID})
-        next_sk = meta["next_sort_key"] if meta else 0
+        next_sk = meta.get("next_sort_key", 0) if meta else 0
         new_sks = list(range(next_sk, next_sk + len(values)))
 
         docs = [self._row_to_doc(sk, v) for sk, v in zip(new_sks, values)]
@@ -239,7 +239,7 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
             index = n
 
         meta = await self._col.find_one({"_id": META_ID})
-        next_sk = meta["next_sort_key"] if meta else 0
+        next_sk = meta.get("next_sort_key", 0) if meta else 0
 
         await self._col.insert_one(self._row_to_doc(next_sk, value))
 
@@ -269,6 +269,7 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         if not data:
             return
         from pymongo import UpdateOne
+
         await self._ensure_cache()
         ops = []
         for i, row_data in enumerate(data):
@@ -284,11 +285,14 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         if not values:
             return
         from pymongo import UpdateOne
+
         await self._ensure_cache()
         ops = []
         for i, value in enumerate(values):
             sk = self._resolve_sort_key(start + i)
-            ops.append(UpdateOne({"_id": sk}, {"$set": {f"data.{key}": _bson_safe(value)}}))
+            ops.append(
+                UpdateOne({"_id": sk}, {"$set": {f"data.{key}": _bson_safe(value)}})
+            )
         if ops:
             await self._col.bulk_write(ops, ordered=False)
 
@@ -321,3 +325,13 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
     async def remove(self) -> None:
         await self._col.drop()
         self._invalidate_cache()
+
+    def close(self) -> None:
+        """Close the MongoDB client connection."""
+        self._client.close()
+
+    async def __aenter__(self) -> AsyncMongoObjectBackend:
+        return self
+
+    async def __aexit__(self, *args) -> None:
+        self.close()
