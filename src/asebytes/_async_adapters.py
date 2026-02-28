@@ -107,8 +107,8 @@ class AsyncBlobToObjectReadWriteAdapter(
     async def delete(self, index: int) -> None:
         await self._store.delete(index)
 
-    async def extend(self, values: list[dict[str, Any] | None]) -> None:
-        await self._store.extend([
+    async def extend(self, values: list[dict[str, Any] | None]) -> int:
+        return await self._store.extend([
             _serialize_row(v) if v is not None else None
             for v in values
         ])
@@ -205,8 +205,8 @@ class AsyncObjectToBlobReadWriteAdapter(
     async def delete(self, index: int) -> None:
         await self._store.delete(index)
 
-    async def extend(self, values: list[dict[bytes, bytes] | None]) -> None:
-        await self._store.extend([
+    async def extend(self, values: list[dict[bytes, bytes] | None]) -> int:
+        return await self._store.extend([
             _deserialize_row(v) if v is not None else None
             for v in values
         ])

@@ -147,10 +147,10 @@ class AsyncObjectIO:
 
     # -- Top-level async write methods -------------------------------------
 
-    async def extend(self, data: list[Any]) -> None:
+    async def extend(self, data: list[Any]) -> int:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
-        await self._backend.extend(data)
+        return await self._backend.extend(data)
 
     async def insert(self, index: int, data: Any) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):

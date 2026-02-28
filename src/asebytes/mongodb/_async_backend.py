@@ -192,9 +192,9 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
             },
         )
 
-    async def extend(self, values: list[dict[str, Any] | None]) -> None:
+    async def extend(self, values: list[dict[str, Any] | None]) -> int:
         if not values:
-            return
+            return self._count
         await self._ensure_cache()
         meta = await self._col.find_one({"_id": META_ID})
         next_sk = meta["next_sort_key"] if meta else 0
@@ -216,6 +216,7 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
             },
             upsert=True,
         )
+        return self._count
 
     async def insert(self, index: int, value: dict[str, Any] | None) -> None:
         await self._ensure_cache()

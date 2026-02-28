@@ -440,10 +440,10 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
 
         self._invalidate_cache()
 
-    def extend(self, values: list[dict[bytes, bytes] | None]) -> None:
+    def extend(self, values: list[dict[bytes, bytes] | None]) -> int:
         """Efficiently extend with multiple items using bulk operations."""
         if not values:
-            return
+            return len(self)
 
         with self.env.begin(write=True) as txn:
             self._ensure_cache(txn)
@@ -528,6 +528,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
             self._set_count(txn, current_count + n)
 
         self._invalidate_cache()
+        return current_count + n
 
     def update(self, index: int, data: dict[bytes, bytes]) -> None:
         """Optimized partial update -- only writes changed keys."""

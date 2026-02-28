@@ -138,10 +138,10 @@ class AsyncBlobIO:
 
     # -- Top-level async methods -------------------------------------------
 
-    async def extend(self, data: list[dict[bytes, bytes] | None]) -> None:
+    async def extend(self, data: list[dict[bytes, bytes] | None]) -> int:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
-        await self._backend.extend(data)
+        return await self._backend.extend(data)
 
     async def insert(self, index: int, data: dict[bytes, bytes] | None) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):

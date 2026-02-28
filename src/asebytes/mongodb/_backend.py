@@ -195,9 +195,9 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
             },
         )
 
-    def extend(self, values: list[dict[str, Any] | None]) -> None:
+    def extend(self, values: list[dict[str, Any] | None]) -> int:
         if not values:
-            return
+            return self._count
         self._ensure_cache()
         meta = self._col.find_one({"_id": META_ID})
         next_sk = meta["next_sort_key"] if meta else 0
@@ -216,6 +216,7 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
             },
             upsert=True,
         )
+        return self._count
 
     def insert(self, index: int, value: dict[str, Any] | None) -> None:
         self._ensure_cache()

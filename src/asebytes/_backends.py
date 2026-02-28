@@ -85,8 +85,11 @@ class ReadWriteBackend(ReadBackend[K, V], ABC):
         ...
 
     @abstractmethod
-    def extend(self, values: list[dict[K, V] | None]) -> None:
-        """Append multiple rows efficiently (bulk operation)."""
+    def extend(self, values: list[dict[K, V] | None]) -> int:
+        """Append multiple rows efficiently (bulk operation).
+
+        Returns the new total length after the extend.
+        """
         ...
 
     @abstractmethod

@@ -217,12 +217,12 @@ class ASEIO(MutableSequence):
         data = atoms_to_dict(value)
         self._backend.insert(index, data)
 
-    def extend(self, values: list[ase.Atoms]) -> None:
+    def extend(self, values: list[ase.Atoms]) -> int:
         """Efficiently extend with multiple Atoms objects using bulk operations."""
         if not isinstance(self._backend, ReadWriteBackend):
             raise TypeError("Backend is read-only")
         data_list = [atoms_to_dict(atoms) for atoms in values]
-        self._backend.extend(data_list)
+        return self._backend.extend(data_list)
 
     def get(
         self, index: int, keys: list[str] | None = None

@@ -404,9 +404,9 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
     # ReadWriteBackend (append-only)
     # ------------------------------------------------------------------
 
-    def extend(self, data: list[dict[str, Any]]) -> None:
+    def extend(self, data: list[dict[str, Any]]) -> int:
         if not data:
-            return
+            return self._n_frames
 
         if self._n_frames == 0 and "h5md" not in self._file:
             self._init_h5md()
@@ -455,6 +455,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         self._max_atoms = max_atoms
         self._n_frames += n_new
         self._discover()  # Rebuild dataset cache for new/extended datasets
+        return self._n_frames
 
     def set(self, index: int, data: dict[str, Any]) -> None:
         index = self._check_index(index)

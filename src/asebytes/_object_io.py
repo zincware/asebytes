@@ -162,10 +162,10 @@ class ObjectIO(MutableSequence):
             raise TypeError("Backend is read-only")
         self._backend.insert(index, value)
 
-    def extend(self, values) -> None:
+    def extend(self, values) -> int:
         if not isinstance(self._backend, ReadWriteBackend):
             raise TypeError("Backend is read-only")
-        self._backend.extend(list(values))
+        return self._backend.extend(list(values))
 
     def get(
         self, index: int, keys: list[str] | None = None

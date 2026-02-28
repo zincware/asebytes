@@ -224,9 +224,9 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
     # ReadWriteBackend (append-only)
     # ------------------------------------------------------------------
 
-    def extend(self, data: list[dict[str, Any] | None]) -> None:
+    def extend(self, data: list[dict[str, Any] | None]) -> int:
         if not data:
-            return
+            return self._n_frames
 
         n_new = len(data)
         all_keys = sorted({k for row in data if row is not None for k in row})
@@ -263,6 +263,7 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         self._n_frames += n_new
         self._update_attrs(all_keys)
         self._discover()
+        return self._n_frames
 
     def set(self, index: int, data: dict[str, Any] | None) -> None:
         index = self._check_index(index)

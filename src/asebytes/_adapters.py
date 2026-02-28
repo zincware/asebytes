@@ -115,8 +115,8 @@ class BlobToObjectReadWriteAdapter(BlobToObjectReadAdapter, ReadWriteBackend[str
     def delete(self, index: int) -> None:
         self._store.delete(index)
 
-    def extend(self, values: list[dict[str, Any] | None]) -> None:
-        self._store.extend([
+    def extend(self, values: list[dict[str, Any] | None]) -> int:
+        return self._store.extend([
             _serialize_row(v) if v is not None else None
             for v in values
         ])
@@ -211,8 +211,8 @@ class ObjectToBlobReadWriteAdapter(ObjectToBlobReadAdapter, ReadWriteBackend[byt
     def delete(self, index: int) -> None:
         self._store.delete(index)
 
-    def extend(self, values: list[dict[bytes, bytes] | None]) -> None:
-        self._store.extend([
+    def extend(self, values: list[dict[bytes, bytes] | None]) -> int:
+        return self._store.extend([
             _deserialize_row(v) if v is not None else None
             for v in values
         ])
