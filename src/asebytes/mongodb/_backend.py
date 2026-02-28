@@ -2,11 +2,24 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 from pymongo import MongoClient
 
 from .._backends import ReadWriteBackend
 
 META_ID = "__meta__"
+
+
+def _bson_safe(value: Any) -> Any:
+    """Convert a value to a BSON-serialisable form.
+
+    numpy arrays → list, numpy scalars → Python scalar.
+    """
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
 
 
 class MongoObjectBackend(ReadWriteBackend[str, Any]):
@@ -111,6 +124,8 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         return dict(data)
 
     def _row_to_doc(self, sort_key: int, data: dict[str, Any] | None) -> dict:
+        if data is not None:
+            data = {k: _bson_safe(v) for k, v in data.items()}
         return {"_id": sort_key, "data": data}
 
     def _projection(self, keys: list[str] | None) -> dict | None:
@@ -250,7 +265,7 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
             return
         self._ensure_cache()
         sk = self._resolve_sort_key(index)
-        update_fields = {f"data.{k}": v for k, v in data.items()}
+        update_fields = {f"data.{k}": _bson_safe(v) for k, v in data.items()}
         self._col.update_one({"_id": sk}, {"$set": update_fields})
 
     def drop_keys(

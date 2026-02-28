@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 from pymongo import AsyncMongoClient
 
 from .._async_backends import AsyncReadWriteBackend
+from ._backend import _bson_safe
 
 META_ID = "__meta__"
 
@@ -103,6 +105,8 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         return dict(data)
 
     def _row_to_doc(self, sort_key: int, data: dict[str, Any] | None) -> dict:
+        if data is not None:
+            data = {k: _bson_safe(v) for k, v in data.items()}
         return {"_id": sort_key, "data": data}
 
     def _projection(self, keys: list[str] | None) -> dict | None:
@@ -250,7 +254,7 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
             return
         await self._ensure_cache()
         sk = self._resolve_sort_key(index)
-        update_fields = {f"data.{k}": v for k, v in data.items()}
+        update_fields = {f"data.{k}": _bson_safe(v) for k, v in data.items()}
         await self._col.update_one({"_id": sk}, {"$set": update_fields})
 
     async def drop_keys(

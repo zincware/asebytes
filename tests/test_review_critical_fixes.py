@@ -201,3 +201,112 @@ async def test_async_column_view_len_with_explicit_indices_works():
     col_view = db[[0, 1]]["x"]
     assert len(col_view) == 2
     assert bool(col_view)
+
+
+# ---------------------------------------------------------------------------
+# Bug 6: ObjectIO("mongodb://...") fails with numpy array data
+# ---------------------------------------------------------------------------
+
+
+@_skip_no_mongo
+def test_objectio_mongodb_with_numpy_arrays():
+    """ObjectIO with mongodb:// URI must handle numpy arrays in data.
+
+    atoms_to_dict() produces numpy arrays for positions, numbers, forces, etc.
+    These must be serializable by the MongoDB backend. Plain MongoObjectBackend
+    with pymongo BSON cannot encode numpy arrays, so the facade must handle
+    serialization (e.g. via an adapter or in the backend itself).
+    """
+    import numpy as np
+    from asebytes import ObjectIO
+
+    col_name = f"test_{uuid.uuid4().hex[:8]}"
+    after_scheme = MONGO_URI.split("://", 1)[1]
+    uri = f"mongodb://{after_scheme}/asebytes_test/{col_name}"
+
+    db = ObjectIO(uri)
+    try:
+        row = {
+            "arrays.positions": np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
+            "arrays.numbers": np.array([1, 8]),
+            "calc.energy": -10.5,
+            "calc.forces": np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]),
+            "cell": np.zeros((3, 3)),
+            "pbc": np.array([False, False, False]),
+        }
+        db.extend([row])
+        assert len(db) == 1
+
+        # Read back and verify numpy arrays round-trip correctly
+        result = db[0]
+        assert result["calc.energy"] == pytest.approx(-10.5)
+        assert isinstance(result["arrays.positions"], (list, np.ndarray))
+        if isinstance(result["arrays.positions"], np.ndarray):
+            np.testing.assert_array_almost_equal(
+                result["arrays.positions"],
+                np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
+            )
+    finally:
+        db.remove()
+
+
+@_skip_no_mongo
+def test_aseio_mongodb_roundtrip():
+    """ASEIO with mongodb:// URI must roundtrip ase.Atoms objects.
+
+    This is the end-to-end test: create Atoms with calculator results,
+    store via ASEIO("mongodb://..."), read back, verify.
+    """
+    import numpy as np
+    from asebytes import ASEIO
+    import ase.calculators.singlepoint
+
+    col_name = f"test_{uuid.uuid4().hex[:8]}"
+    after_scheme = MONGO_URI.split("://", 1)[1]
+    uri = f"mongodb://{after_scheme}/asebytes_test/{col_name}"
+
+    db = ASEIO(uri)
+    try:
+        atoms = ase.Atoms("H2O", positions=[[0, 0, 0], [0, 0, 1], [1, 0, 0]])
+        atoms.calc = ase.calculators.singlepoint.SinglePointCalculator(
+            atoms, energy=-10.5, forces=[[0, 0, 0]] * 3
+        )
+        db.extend([atoms])
+        assert len(db) == 1
+
+        result = db[0]
+        assert isinstance(result, ase.Atoms)
+        assert result.calc.results["energy"] == pytest.approx(-10.5)
+        np.testing.assert_array_almost_equal(
+            result.get_positions(),
+            np.array([[0, 0, 0], [0, 0, 1], [1, 0, 0]], dtype=float),
+        )
+    finally:
+        db.remove()
+
+
+@_skip_no_mongo
+@pytest.mark.anyio
+async def test_async_objectio_mongodb_with_numpy_arrays():
+    """AsyncObjectIO with mongodb:// URI must handle numpy arrays."""
+    import numpy as np
+    from asebytes import AsyncObjectIO
+
+    col_name = f"test_{uuid.uuid4().hex[:8]}"
+    after_scheme = MONGO_URI.split("://", 1)[1]
+    uri = f"mongodb://{after_scheme}/asebytes_test/{col_name}"
+
+    db = AsyncObjectIO(uri)
+    try:
+        row = {
+            "arrays.positions": np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
+            "arrays.numbers": np.array([1, 8]),
+            "calc.energy": -10.5,
+        }
+        await db.extend([row])
+        assert await db.len() == 1
+
+        result = await db[0]
+        assert result["calc.energy"] == pytest.approx(-10.5)
+    finally:
+        await db.remove()
