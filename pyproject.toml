@@ -1,6 +1,6 @@
 [project]
 name = "asebytes"
-version = "0.2.1"
+version = "0.3.0"
 description = "Fast binary serialization and storage for ASE Atoms."
 authors = [
     { name = "Fabian Zills", email = "fzills@icp.uni-stuttgart.de" },
