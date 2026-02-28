@@ -22,12 +22,12 @@ _BLOB_BACKEND_REGISTRY: dict[str, tuple[str, str | None, str]] = {
     "*.lmdb": ("asebytes.lmdb", "LMDBBlobBackend", "LMDBBlobBackend"),
 }
 
-# URI scheme -> (module_path, readonly_cls_name)
-# URI-based backends are always read-only.
-_URI_REGISTRY: dict[str, tuple[str, str]] = {
-    "hf": ("asebytes.hf._backend", "HuggingFaceBackend"),
-    "colabfit": ("asebytes.hf._backend", "HuggingFaceBackend"),
-    "optimade": ("asebytes.hf._backend", "HuggingFaceBackend"),
+# URI scheme -> (module_path, writable_cls_name | None, readonly_cls_name)
+_URI_REGISTRY: dict[str, tuple[str, str | None, str]] = {
+    "hf": ("asebytes.hf._backend", None, "HuggingFaceBackend"),
+    "colabfit": ("asebytes.hf._backend", None, "HuggingFaceBackend"),
+    "optimade": ("asebytes.hf._backend", None, "HuggingFaceBackend"),
+    "mongodb": ("asebytes.mongodb._backend", "MongoObjectBackend", "MongoObjectBackend"),
 }
 
 _EXTRAS_HINT: dict[str, str] = {
@@ -38,6 +38,8 @@ _EXTRAS_HINT: dict[str, str] = {
     "asebytes.h5md._backend": "h5md",
     "asebytes.zarr": "zarr",
     "asebytes.zarr._backend": "zarr",
+    "asebytes.mongodb": "mongodb",
+    "asebytes.mongodb._backend": "mongodb",
 }
 
 
@@ -97,12 +99,7 @@ def get_backend_cls(path: str, *, readonly: bool | None = None):
     # --- URI-based lookup (checked first) ---
     scheme, _remainder = parse_uri(path)
     if scheme is not None:
-        module_path, cls_name = _URI_REGISTRY[scheme]
-        if readonly is False:
-            raise TypeError(
-                f"Backend for '{path}' is read-only, "
-                "no writable variant available"
-            )
+        module_path, writable, read_only = _URI_REGISTRY[scheme]
         try:
             mod = importlib.import_module(module_path)
         except ImportError:
@@ -111,7 +108,19 @@ def get_backend_cls(path: str, *, readonly: bool | None = None):
                 f"Backend '{module_path}' requires additional dependencies. "
                 f"Install them with: pip install asebytes[{hint}]"
             ) from None
-        return getattr(mod, cls_name)
+        if readonly is True:
+            return getattr(mod, read_only)
+        if readonly is False:
+            if writable is None:
+                raise TypeError(
+                    f"Backend for '{path}' is read-only, "
+                    "no writable variant available"
+                )
+            return getattr(mod, writable)
+        # readonly is None — auto-detect
+        if writable is not None:
+            return getattr(mod, writable)
+        return getattr(mod, read_only)
 
     # --- Glob-based lookup ---
     for pattern, (module_path, writable, read_only) in _BACKEND_REGISTRY.items():

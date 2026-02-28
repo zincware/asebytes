@@ -52,6 +52,9 @@ h5md = [
 zarr = [
     "zarr>=3.0",
 ]
+mongodb = [
+    "pymongo>=4.13",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

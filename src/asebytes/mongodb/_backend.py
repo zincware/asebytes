@@ -1,0 +1,283 @@
+from __future__ import annotations
+
+from typing import Any
+
+from pymongo import MongoClient
+
+from .._backends import ReadWriteBackend
+
+META_ID = "__meta__"
+
+
+class MongoObjectBackend(ReadWriteBackend[str, Any]):
+    """MongoDB-backed read-write backend for object dictionaries.
+
+    Uses a sort-key array in a metadata document for O(1) positional access.
+    Each row is a separate document with ``_id`` = sort_key (int) and a
+    ``data`` subdocument holding the field values.
+
+    Parameters
+    ----------
+    uri : str
+        MongoDB connection URI.
+    database : str
+        Database name.
+    collection : str
+        Collection name (one collection = one dataset).
+    """
+
+    def __init__(
+        self,
+        uri: str = "mongodb://localhost:27017",
+        database: str = "asebytes",
+        collection: str = "default",
+    ):
+        self._client = MongoClient(uri)
+        self._col = self._client[database][collection]
+        self._sort_keys: list[int] | None = None
+        self._count: int | None = None
+
+    @classmethod
+    def from_uri(cls, uri: str, **kwargs) -> MongoObjectBackend:
+        """Construct from a URI like ``mongodb://host:port/database/collection``.
+
+        The path after the host is split into database and collection.
+        If only a database is given, collection defaults to ``"default"``.
+        """
+        if "://" not in uri:
+            raise ValueError(f"Invalid URI: {uri!r}")
+        # Extract path from URI: mongodb://host:port/database/collection
+        _, after_scheme = uri.split("://", 1)
+        # Split host from path
+        if "/" in after_scheme:
+            host_part, path_part = after_scheme.split("/", 1)
+        else:
+            host_part, path_part = after_scheme, ""
+
+        parts = [p for p in path_part.split("/") if p]
+        if len(parts) >= 2:
+            database = parts[0]
+            collection = parts[1]
+            # Rebuild connection URI without database/collection path
+            connection_uri = uri.split("://")[0] + "://" + host_part
+        elif len(parts) == 1:
+            database = parts[0]
+            collection = "default"
+            connection_uri = uri.split("://")[0] + "://" + host_part
+        else:
+            database = "asebytes"
+            collection = "default"
+            connection_uri = uri
+
+        return cls(uri=connection_uri, database=database, collection=collection, **kwargs)
+
+    # ------------------------------------------------------------------
+    # Cache management
+    # ------------------------------------------------------------------
+
+    def _invalidate_cache(self) -> None:
+        self._sort_keys = None
+        self._count = None
+
+    def _ensure_cache(self) -> None:
+        if self._sort_keys is not None:
+            return
+        meta = self._col.find_one({"_id": META_ID})
+        if meta is None:
+            self._sort_keys = []
+            self._count = 0
+        else:
+            self._sort_keys = meta.get("sort_keys", [])
+            self._count = meta.get("count", len(self._sort_keys))
+
+    def _resolve_sort_key(self, index: int) -> int:
+        n = len(self._sort_keys)
+        if index < 0:
+            index += n
+        if index < 0 or index >= n:
+            raise IndexError(index)
+        return self._sort_keys[index]
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _doc_to_row(self, doc: dict | None) -> dict[str, Any] | None:
+        if doc is None:
+            return None
+        data = doc.get("data")
+        if data is None:
+            return None
+        return dict(data)
+
+    def _row_to_doc(self, sort_key: int, data: dict[str, Any] | None) -> dict:
+        return {"_id": sort_key, "data": data}
+
+    def _projection(self, keys: list[str] | None) -> dict | None:
+        if keys is None:
+            return None
+        return {f"data.{k}": 1 for k in keys}
+
+    # ------------------------------------------------------------------
+    # ReadBackend implementation
+    # ------------------------------------------------------------------
+
+    def __len__(self) -> int:
+        self._ensure_cache()
+        return self._count
+
+    def get(
+        self, index: int, keys: list[str] | None = None
+    ) -> dict[str, Any] | None:
+        self._ensure_cache()
+        sk = self._resolve_sort_key(index)
+        doc = self._col.find_one({"_id": sk}, self._projection(keys))
+        return self._doc_to_row(doc)
+
+    def get_many(
+        self, indices: list[int], keys: list[str] | None = None
+    ) -> list[dict[str, Any] | None]:
+        self._ensure_cache()
+        sks = [self._resolve_sort_key(i) for i in indices]
+        proj = self._projection(keys)
+        # Batch fetch
+        docs = {doc["_id"]: doc for doc in self._col.find({"_id": {"$in": sks}}, proj)}
+        return [self._doc_to_row(docs.get(sk)) for sk in sks]
+
+    def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
+        self._ensure_cache()
+        if indices is None:
+            indices = list(range(self._count))
+        sks = [self._resolve_sort_key(i) for i in indices]
+        proj = {f"data.{key}": 1}
+        docs = {doc["_id"]: doc for doc in self._col.find({"_id": {"$in": sks}}, proj)}
+        results = []
+        for sk in sks:
+            doc = docs.get(sk)
+            if doc is not None and doc.get("data") is not None:
+                results.append(doc["data"].get(key))
+            else:
+                results.append(None)
+        return results
+
+    # ------------------------------------------------------------------
+    # ReadWriteBackend implementation
+    # ------------------------------------------------------------------
+
+    def set(self, index: int, data: dict[str, Any] | None) -> None:
+        self._ensure_cache()
+        n = len(self._sort_keys)
+        if index < 0:
+            index += n
+        if index < 0 or index >= n:
+            raise IndexError(index)
+        sk = self._sort_keys[index]
+        self._col.replace_one({"_id": sk}, self._row_to_doc(sk, data), upsert=True)
+        self._invalidate_cache()
+
+    def delete(self, index: int) -> None:
+        self._ensure_cache()
+        sk = self._resolve_sort_key(index)
+        # Normalize negative index for array position
+        n = len(self._sort_keys)
+        pos = index if index >= 0 else index + n
+        self._col.delete_one({"_id": sk})
+        # Remove from sort_keys array and decrement count
+        self._sort_keys.pop(pos)
+        self._count -= 1
+        self._col.update_one(
+            {"_id": META_ID},
+            {
+                "$set": {
+                    "sort_keys": self._sort_keys,
+                    "count": self._count,
+                },
+            },
+        )
+
+    def extend(self, values: list[dict[str, Any] | None]) -> None:
+        if not values:
+            return
+        self._ensure_cache()
+        meta = self._col.find_one({"_id": META_ID})
+        next_sk = meta["next_sort_key"] if meta else 0
+        new_sks = list(range(next_sk, next_sk + len(values)))
+
+        docs = [self._row_to_doc(sk, v) for sk, v in zip(new_sks, values)]
+        self._col.insert_many(docs)
+
+        self._sort_keys.extend(new_sks)
+        self._count += len(values)
+        self._col.update_one(
+            {"_id": META_ID},
+            {
+                "$push": {"sort_keys": {"$each": new_sks}},
+                "$set": {"count": self._count, "next_sort_key": next_sk + len(values)},
+            },
+            upsert=True,
+        )
+
+    def insert(self, index: int, value: dict[str, Any] | None) -> None:
+        self._ensure_cache()
+        n = len(self._sort_keys)
+        if index < 0:
+            index = 0
+        if index > n:
+            index = n
+
+        meta = self._col.find_one({"_id": META_ID})
+        next_sk = meta["next_sort_key"] if meta else 0
+
+        self._col.insert_one(self._row_to_doc(next_sk, value))
+
+        self._sort_keys.insert(index, next_sk)
+        self._count += 1
+        self._col.update_one(
+            {"_id": META_ID},
+            {
+                "$set": {
+                    "sort_keys": self._sort_keys,
+                    "count": self._count,
+                    "next_sort_key": next_sk + 1,
+                },
+            },
+            upsert=True,
+        )
+
+    def update(self, index: int, data: dict[str, Any]) -> None:
+        if not data:
+            return
+        self._ensure_cache()
+        sk = self._resolve_sort_key(index)
+        update_fields = {f"data.{k}": v for k, v in data.items()}
+        self._col.update_one({"_id": sk}, {"$set": update_fields})
+
+    def drop_keys(
+        self, keys: list[str], indices: list[int] | None = None
+    ) -> None:
+        unset_fields = {f"data.{k}": "" for k in keys}
+        if indices is None:
+            self._col.update_many(
+                {"_id": {"$ne": META_ID}},
+                {"$unset": unset_fields},
+            )
+        else:
+            self._ensure_cache()
+            sks = [self._resolve_sort_key(i) for i in indices]
+            self._col.update_many(
+                {"_id": {"$in": sks}},
+                {"$unset": unset_fields},
+            )
+
+    def clear(self) -> None:
+        self._col.delete_many({"_id": {"$ne": META_ID}})
+        self._col.update_one(
+            {"_id": META_ID},
+            {"$set": {"sort_keys": [], "count": 0, "next_sort_key": 0}},
+            upsert=True,
+        )
+        self._invalidate_cache()
+
+    def remove(self) -> None:
+        self._col.drop()
+        self._invalidate_cache()

@@ -157,6 +157,13 @@ except ImportError:
 else:
     __all__ += ["ZarrBackend"]
 
+try:
+    from .mongodb import MongoObjectBackend, AsyncMongoObjectBackend
+except ImportError:
+    pass
+else:
+    __all__ += ["MongoObjectBackend", "AsyncMongoObjectBackend"]
+
 _OPTIONAL_ATTRS: dict[str, str] = {
     "LMDBBlobBackend": "lmdb",
     "LMDBObjectBackend": "lmdb",
@@ -167,6 +174,8 @@ _OPTIONAL_ATTRS: dict[str, str] = {
     "OPTIMADE": "hf",
     "H5MDBackend": "h5md",
     "ZarrBackend": "zarr",
+    "MongoObjectBackend": "mongodb",
+    "AsyncMongoObjectBackend": "mongodb",
 }
 
 

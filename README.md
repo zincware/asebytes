@@ -7,6 +7,7 @@ pip install asebytes[lmdb]      # LMDB backend (recommended)
 pip install asebytes[zarr]      # Zarr backend (fast compression)
 pip install asebytes[h5md]      # HDF5/H5MD backend
 pip install asebytes[hf]        # HuggingFace Datasets backend
+pip install asebytes[mongodb]   # MongoDB backend (shared remote storage)
 ```
 
 ## Quick Start
@@ -187,6 +188,7 @@ URI schemes for remote/streaming sources:
 
 | Scheme | Source | Example |
 |--------|--------|---------|
+| `mongodb://` | MongoDB | `ObjectIO("mongodb://host:port/db/collection")` |
 | `hf://` | HuggingFace Datasets | `ASEIO("hf://user/dataset", ...)` |
 | `colabfit://` | ColabFit datasets | `ASEIO("colabfit://mlearn_Cu_train", ...)` |
 | `optimade://` | OPTIMADE datasets | `ASEIO("optimade://LeMaterial/LeMat-Bulk", ...)` |
@@ -257,6 +259,31 @@ groups = H5MDBackend.list_groups("multi.h5")
 db = ASEIO("multi.h5", particles_group="solvent")
 ```
 
+## MongoDB
+
+Shared remote storage for multi-client access. Requires a running MongoDB instance (>= 4.4).
+
+```python
+# Sync
+db = ObjectIO("mongodb://user:pass@host:27017/mydb/mycollection")
+db.extend([{"energy": -3.5, "positions": [[0, 0, 0]]}])
+row = db[0]
+
+# Async (native, no wrapper)
+from asebytes import AsyncObjectIO
+from asebytes.mongodb import AsyncMongoObjectBackend
+
+backend = AsyncMongoObjectBackend(
+    uri="mongodb://user:pass@host:27017",
+    database="mydb",
+    collection="mycollection",
+)
+db = AsyncObjectIO(backend)
+row = await db[0]
+```
+
+Uses a sort-key array for O(1) positional access, with server-side field filtering via MongoDB projections — requesting specific keys (e.g. `db.get(0, keys=["energy"])`) only transfers those fields over the network.
+
 ## Key Convention
 
 All data follows a flat namespace:
@@ -284,7 +311,6 @@ from asebytes import ReadBackend
 
 class MyBackend(ReadBackend[str, object]):
     def __len__(self) -> int: ...
-    def schema(self) -> list[str]: ...
     def get(self, index: int, keys: list[str] | None = None) -> dict[str, object] | None: ...
 
 db = ObjectIO(MyBackend())
