@@ -8,6 +8,7 @@ pip install asebytes[zarr]      # Zarr backend (fast compression)
 pip install asebytes[h5md]      # HDF5/H5MD backend
 pip install asebytes[hf]        # HuggingFace Datasets backend
 pip install asebytes[mongodb]   # MongoDB backend (shared remote storage)
+# In-memory backend (MemoryObjectBackend) is built-in — no extras needed
 ```
 
 ## Quick Start
@@ -188,6 +189,7 @@ URI schemes for remote/streaming sources:
 
 | Scheme | Source | Example |
 |--------|--------|---------|
+| `memory://` | In-memory (no persistence) | `ObjectIO("memory://")` |
 | `mongodb://` | MongoDB | `ObjectIO("mongodb://host:port/db/collection")` |
 | `hf://` | HuggingFace Datasets | `ASEIO("hf://user/dataset", ...)` |
 | `colabfit://` | ColabFit datasets | `ASEIO("colabfit://mlearn_Cu_train", ...)` |
@@ -269,20 +271,28 @@ db = ObjectIO("mongodb://user:pass@host:27017/mydb/mycollection")
 db.extend([{"energy": -3.5, "positions": [[0, 0, 0]]}])
 row = db[0]
 
-# Async (native, no wrapper)
-from asebytes import AsyncObjectIO
-from asebytes.mongodb import AsyncMongoObjectBackend
-
-backend = AsyncMongoObjectBackend(
-    uri="mongodb://user:pass@host:27017",
-    database="mydb",
-    collection="mycollection",
-)
-db = AsyncObjectIO(backend)
+# Async — auto-dispatches to native AsyncMongoObjectBackend
+db = AsyncObjectIO("mongodb://user:pass@host:27017/mydb/mycollection")
 row = await db[0]
 ```
 
 Uses a sort-key array for O(1) positional access, with server-side field filtering via MongoDB projections — requesting specific keys (e.g. `db.get(0, keys=["energy"])`) only transfers those fields over the network.
+
+## In-Memory Backend
+
+`MemoryObjectBackend` stores data in a plain Python list — no persistence, no dependencies. Useful for testing, ephemeral storage, and prototyping.
+
+```python
+from asebytes import ObjectIO, ASEIO
+
+db = ObjectIO("memory://")
+db.extend([{"a": 1}, {"a": 2}])
+assert len(db) == 2
+
+# Works with all facades
+db = ASEIO("memory://")
+db.extend(atoms_list)
+```
 
 ## Key Convention
 
@@ -311,7 +321,7 @@ All three tiers share the same method names. Async facades use `await` instead o
 | Read one row | `db[i]` | `await db[i]` |
 | Read with key filter | `db.get(i, keys=[...])` | `await db.get(i, keys=[...])` |
 | List keys at index | `db.keys(i)` | `await db.keys(i)` |
-| Append rows | `db.extend([...])` | `await db.extend([...])` |
+| Append rows | `n = db.extend([...])` | `n = await db.extend([...])` |
 | Insert at position | `db.insert(i, row)` | `await db.insert(i, row)` |
 | Overwrite row | `db[i] = row` | `await db[i].set(row)` |
 | Partial update | `db.update(i, {...})` | `await db.update(i, {...})` |
