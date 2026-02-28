@@ -197,7 +197,7 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
 
     def extend(self, values: list[dict[str, Any] | None]) -> int:
         if not values:
-            return self._count
+            return self._count if self._count is not None else len(self)
         self._ensure_cache()
         meta = self._col.find_one({"_id": META_ID})
         next_sk = meta["next_sort_key"] if meta else 0

@@ -49,7 +49,11 @@ class ReadBackend(Generic[K, V], ABC):
         """Read a single column across rows. Default: extracts from get."""
         if indices is None:
             indices = list(range(len(self)))
-        return [self.get(i, [key])[key] for i in indices]
+        results = []
+        for i in indices:
+            row = self.get(i, [key])
+            results.append(row[key] if row is not None else None)
+        return results
 
     def keys(self, index: int) -> list[K]:
         """Return keys present at index WITHOUT loading values.

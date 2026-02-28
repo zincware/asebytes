@@ -42,7 +42,7 @@ class AsyncObjectIO:
 
             scheme, _remainder = parse_uri(backend)
             cls = get_async_backend_cls(backend, readonly=readonly)
-            if scheme is not None:
+            if scheme is not None and hasattr(cls, "from_uri"):
                 inst = cls.from_uri(backend, **kwargs)
             else:
                 inst = cls(backend, **kwargs)

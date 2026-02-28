@@ -42,7 +42,10 @@ class AsyncBlobIO:
             scheme, _remainder = parse_uri(backend)
             if scheme is not None:
                 cls = get_async_backend_cls(backend, readonly=readonly)
-                inst = cls.from_uri(backend, **kwargs)
+                if hasattr(cls, "from_uri"):
+                    inst = cls.from_uri(backend, **kwargs)
+                else:
+                    inst = cls(backend, **kwargs)
             else:
                 cls = get_blob_backend_cls(backend, readonly=readonly)
                 inst = cls(backend, **kwargs)

@@ -46,7 +46,7 @@ class AsyncASEIO:
 
             scheme, _remainder = parse_uri(backend)
             cls = get_async_backend_cls(backend, readonly=readonly)
-            if scheme is not None:
+            if scheme is not None and hasattr(cls, "from_uri"):
                 inst = cls.from_uri(backend, **kwargs)
             else:
                 inst = cls(backend, **kwargs)
@@ -165,10 +165,15 @@ class AsyncASEIO:
         data_list = [atoms_to_dict(atoms) for atoms in data]
         return await self._backend.extend(data_list)
 
-    async def insert(self, index: int, data: Any) -> None:
+    async def insert(self, index: int, value: ase.Atoms | None) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
             raise TypeError("Backend is read-only")
-        await self._backend.insert(index, data)
+        if value is None:
+            await self._backend.insert(index, None)
+        else:
+            from ._convert import atoms_to_dict
+
+            await self._backend.insert(index, atoms_to_dict(value))
 
     async def get(
         self, index: int, keys: list[str] | None = None

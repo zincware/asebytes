@@ -40,7 +40,7 @@ class ObjectIO(MutableSequence):
 
             scheme, _remainder = parse_uri(backend)
             cls = get_backend_cls(backend, readonly=readonly)
-            if scheme is not None:
+            if scheme is not None and hasattr(cls, "from_uri"):
                 self._backend: ReadBackend[str, Any] = cls.from_uri(backend, **kwargs)
             else:
                 self._backend = cls(backend, **kwargs)

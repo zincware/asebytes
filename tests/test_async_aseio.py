@@ -199,8 +199,12 @@ class TestWriteOps:
 
     @pytest.mark.anyio
     async def test_insert(self, db, backend):
-        new_row = _make_row(55)
-        await db.insert(0, new_row)
+        import ase
+        atoms = ase.Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
+        atoms.calc = ase.calculators.singlepoint.SinglePointCalculator(
+            atoms, energy=-55.0,
+        )
+        await db.insert(0, atoms)
         assert len(backend._rows) == 11
         assert backend._rows[0]["calc.energy"] == -55.0
 

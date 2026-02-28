@@ -47,7 +47,7 @@ class ASEIO(MutableSequence):
 
             scheme, _remainder = parse_uri(backend)
             cls = get_backend_cls(backend, readonly=readonly)
-            if scheme is not None:
+            if scheme is not None and hasattr(cls, "from_uri"):
                 # URI-style: delegate to from_uri constructor
                 self._backend: ReadBackend[str, Any] = cls.from_uri(backend, **kwargs)
             else:
@@ -152,7 +152,9 @@ class ASEIO(MutableSequence):
             raise TypeError("Backend is read-only")
         self._backend.drop_keys(keys, indices)
 
-    def _build_result(self, row: dict[str, Any]) -> ase.Atoms:
+    def _build_result(self, row: dict[str, Any] | None) -> ase.Atoms | None:
+        if row is None:
+            return None
         return dict_to_atoms(row)
 
     # --- MutableSequence interface ---
@@ -211,11 +213,13 @@ class ASEIO(MutableSequence):
             raise TypeError("Backend is read-only")
         self._backend.delete(index)
 
-    def insert(self, index: int, value: ase.Atoms) -> None:
+    def insert(self, index: int, value: ase.Atoms | None) -> None:
         if not isinstance(self._backend, ReadWriteBackend):
             raise TypeError("Backend is read-only")
-        data = atoms_to_dict(value)
-        self._backend.insert(index, data)
+        if value is None:
+            self._backend.insert(index, None)
+        else:
+            self._backend.insert(index, atoms_to_dict(value))
 
     def extend(self, values: list[ase.Atoms]) -> int:
         """Efficiently extend with multiple Atoms objects using bulk operations."""
@@ -226,12 +230,15 @@ class ASEIO(MutableSequence):
 
     def get(
         self, index: int, keys: list[str] | None = None
-    ) -> ase.Atoms:
+    ) -> ase.Atoms | None:
         """Read a single row, optionally filtering to specific keys.
 
-        Returns an ase.Atoms object (applies dict_to_atoms conversion).
+        Returns an ase.Atoms object (applies dict_to_atoms conversion),
+        or None for reserved/placeholder rows.
         """
         row = self._read_row(index, keys)
+        if row is None:
+            return None
         return dict_to_atoms(row)
 
     def drop(self, *, keys: list[str]) -> None:

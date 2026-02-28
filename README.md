@@ -61,7 +61,7 @@ atoms = db[0]                  # ase.Atoms
 db = AsyncASEIO("atoms.lmdb")
 await db.extend(atoms_list)
 atoms = await db[0]            # ase.Atoms
-await db[0].update({"calc.energy": -10.5})
+await db.update(0, calc={"energy": -10.5})
 ```
 
 ### ObjectIO — plain dicts

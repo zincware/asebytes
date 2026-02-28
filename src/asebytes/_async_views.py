@@ -307,7 +307,13 @@ class AsyncColumnView:
     def _resolved_indices(self) -> list[int]:
         if self._indices is not None:
             return self._indices
-        return list(range(len(self._parent)))
+        try:
+            return list(range(len(self._parent)))
+        except TypeError:
+            raise TypeError(
+                "Cannot resolve indices synchronously on async column views. "
+                "Use _aresolved_indices() instead."
+            )
 
     async def _aresolved_indices(self) -> list[int]:
         """Async variant of _resolved_indices for parents without sync __len__."""
@@ -322,7 +328,13 @@ class AsyncColumnView:
     def __len__(self) -> int:
         if self._indices is not None:
             return len(self._indices)
-        return len(self._parent)
+        try:
+            return len(self._parent)
+        except TypeError:
+            raise TypeError(
+                "len() not available on async column views without explicit "
+                "indices. Use 'await col.to_list()' to materialize first."
+            )
 
     def __bool__(self) -> bool:
         return len(self) > 0
