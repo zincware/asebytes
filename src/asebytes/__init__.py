@@ -166,6 +166,13 @@ except ImportError:
 else:
     __all__ += ["MongoObjectBackend", "AsyncMongoObjectBackend"]
 
+try:
+    from .redis import RedisBlobBackend, AsyncRedisBlobBackend
+except ImportError:
+    pass
+else:
+    __all__ += ["RedisBlobBackend", "AsyncRedisBlobBackend"]
+
 _OPTIONAL_ATTRS: dict[str, str] = {
     "LMDBBlobBackend": "lmdb",
     "LMDBObjectBackend": "lmdb",
@@ -178,6 +185,8 @@ _OPTIONAL_ATTRS: dict[str, str] = {
     "ZarrBackend": "zarr",
     "MongoObjectBackend": "mongodb",
     "AsyncMongoObjectBackend": "mongodb",
+    "RedisBlobBackend": "redis",
+    "AsyncRedisBlobBackend": "redis",
 }
 
 
