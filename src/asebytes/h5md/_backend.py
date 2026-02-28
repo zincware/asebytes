@@ -150,27 +150,26 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         self._conn_cache: dict[str, tuple[str, Any]] = {}
 
         pgrp = f"particles/{self._grp_name}"
-        if pgrp not in self._file:
-            return
-        grp = self._file[pgrp]
-        if "species" in grp and isinstance(grp["species"], h5py.Group):
-            if "value" in grp["species"]:
-                ds = grp["species"]["value"]
-                self._n_frames = ds.shape[0]
-                if ds.ndim > 1:
-                    self._max_atoms = ds.shape[1]
+        if pgrp in self._file:
+            grp = self._file[pgrp]
+            if "species" in grp and isinstance(grp["species"], h5py.Group):
+                if "value" in grp["species"]:
+                    ds = grp["species"]["value"]
+                    self._n_frames = ds.shape[0]
+                    if ds.ndim > 1:
+                        self._max_atoms = ds.shape[1]
 
-        # Cache particle dataset references
-        for name in grp:
-            if name == "box":
-                self._cache_box(grp["box"])
-                continue
-            elem = grp[name]
-            if not isinstance(elem, h5py.Group) or "value" not in elem:
-                continue
-            key = self._h5_to_key(name, elem)
-            ds = elem["value"]
-            self._col_cache[key] = (ds, name, self._classify(ds, name))
+            # Cache particle dataset references
+            for name in grp:
+                if name == "box":
+                    self._cache_box(grp["box"])
+                    continue
+                elem = grp[name]
+                if not isinstance(elem, h5py.Group) or "value" not in elem:
+                    continue
+                key = self._h5_to_key(name, elem)
+                ds = elem["value"]
+                self._col_cache[key] = (ds, name, self._classify(ds, name))
 
         # Cache observable dataset references
         opath = f"observables/{self._grp_name}"
