@@ -186,6 +186,18 @@ class ObjectIO(MutableSequence):
             raise TypeError("Backend is read-only")
         self._backend.reserve(count)
 
+    def clear(self) -> None:
+        """Remove all rows but keep the container."""
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.clear()
+
+    def remove(self) -> None:
+        """Remove the entire container (backend-specific)."""
+        if not isinstance(self._backend, ReadWriteBackend):
+            raise TypeError("Backend is read-only")
+        self._backend.remove()
+
     def __len__(self) -> int:
         return len(self._backend)
 
