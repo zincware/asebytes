@@ -1,43 +1,61 @@
-"""Backend registry for mapping file patterns to backend classes."""
+"""Backend registry for mapping file patterns to backend classes.
+
+A single ``_REGISTRY`` list holds all backend entries.  The
+:func:`resolve_backend` function searches it by scheme or glob pattern,
+filtering by layer (blob / object) and async preference.
+
+The legacy helper functions :func:`get_backend_cls`,
+:func:`get_async_backend_cls`, :func:`get_blob_backend_cls`, and
+:func:`get_async_blob_backend_cls` are thin wrappers kept for backward
+compatibility.
+"""
 
 from __future__ import annotations
 
 import fnmatch
 import importlib
+from typing import Literal
 
-# pattern -> (module_path, writable_cls_name | None, readonly_cls_name)
-_BACKEND_REGISTRY: dict[str, tuple[str, str | None, str]] = {
-    "*.lmdb": ("asebytes.lmdb", "LMDBObjectBackend", "LMDBObjectReadBackend"),
-    "*.h5": ("asebytes.h5md", "H5MDBackend", "H5MDBackend"),
-    "*.h5md": ("asebytes.h5md", "H5MDBackend", "H5MDBackend"),
-    "*.zarr": ("asebytes.zarr", "ZarrBackend", "ZarrBackend"),
-    "*.traj": ("asebytes.ase", None, "ASEReadOnlyBackend"),
-    "*.xyz": ("asebytes.ase", None, "ASEReadOnlyBackend"),
-    "*.extxyz": ("asebytes.ase", None, "ASEReadOnlyBackend"),
-}
+# ---------------------------------------------------------------------------
+# Unified registry
+# ---------------------------------------------------------------------------
+# Each entry:
+#   (match_type, match_value, layer, module_path,
+#    writable_cls_name | None, readonly_cls_name, is_async_native)
 
-# Blob-level registry: pattern -> (module_path, writable_cls_name | None, readonly_cls_name)
-# Used by BlobIO / AsyncBlobIO for dict[bytes, bytes] backends.
-_BLOB_BACKEND_REGISTRY: dict[str, tuple[str, str | None, str]] = {
-    "*.lmdb": ("asebytes.lmdb", "LMDBBlobBackend", "LMDBBlobBackend"),
-}
+_REGISTRY: list[tuple[str, str, str, str, str | None, str, bool]] = [
+    # -- Object-level, pattern-based ----------------------------------------
+    ("pattern", "*.lmdb", "object", "asebytes.lmdb", "LMDBObjectBackend", "LMDBObjectReadBackend", False),
+    ("pattern", "*.h5", "object", "asebytes.h5md", "H5MDBackend", "H5MDBackend", False),
+    ("pattern", "*.h5md", "object", "asebytes.h5md", "H5MDBackend", "H5MDBackend", False),
+    ("pattern", "*.zarr", "object", "asebytes.zarr", "ZarrBackend", "ZarrBackend", False),
+    ("pattern", "*.traj", "object", "asebytes.ase", None, "ASEReadOnlyBackend", False),
+    ("pattern", "*.xyz", "object", "asebytes.ase", None, "ASEReadOnlyBackend", False),
+    ("pattern", "*.extxyz", "object", "asebytes.ase", None, "ASEReadOnlyBackend", False),
+    # -- Blob-level, pattern-based ------------------------------------------
+    ("pattern", "*.lmdb", "blob", "asebytes.lmdb", "LMDBBlobBackend", "LMDBBlobBackend", False),
+    # -- Object-level, scheme-based -----------------------------------------
+    ("scheme", "hf", "object", "asebytes.hf._backend", None, "HuggingFaceBackend", False),
+    ("scheme", "colabfit", "object", "asebytes.hf._backend", None, "HuggingFaceBackend", False),
+    ("scheme", "optimade", "object", "asebytes.hf._backend", None, "HuggingFaceBackend", False),
+    ("scheme", "mongodb", "object", "asebytes.mongodb._backend", "MongoObjectBackend", "MongoObjectBackend", False),
+    ("scheme", "memory", "object", "asebytes.memory._backend", "MemoryObjectBackend", "MemoryObjectBackend", False),
+    # -- Async object-level, scheme-based -----------------------------------
+    ("scheme", "mongodb", "object", "asebytes.mongodb._async_backend", "AsyncMongoObjectBackend", "AsyncMongoObjectBackend", True),
+    # -- Blob-level, scheme-based -------------------------------------------
+    ("scheme", "redis", "blob", "asebytes.redis._backend", "RedisBlobBackend", "RedisBlobBackend", False),
+    # -- Async blob-level, scheme-based -------------------------------------
+    ("scheme", "redis", "blob", "asebytes.redis._async_backend", "AsyncRedisBlobBackend", "AsyncRedisBlobBackend", True),
+]
 
-# URI scheme -> (module_path, writable_cls_name | None, readonly_cls_name)
-_URI_REGISTRY: dict[str, tuple[str, str | None, str]] = {
-    "hf": ("asebytes.hf._backend", None, "HuggingFaceBackend"),
-    "colabfit": ("asebytes.hf._backend", None, "HuggingFaceBackend"),
-    "optimade": ("asebytes.hf._backend", None, "HuggingFaceBackend"),
-    "mongodb": (
-        "asebytes.mongodb._backend",
-        "MongoObjectBackend",
-        "MongoObjectBackend",
-    ),
-    "memory": (
-        "asebytes.memory._backend",
-        "MemoryObjectBackend",
-        "MemoryObjectBackend",
-    ),
-}
+# Collect all known URI schemes from the registry for parse_uri().
+_KNOWN_SCHEMES: frozenset[str] = frozenset(
+    match_value for match_type, match_value, *_ in _REGISTRY if match_type == "scheme"
+)
+
+# ---------------------------------------------------------------------------
+# Extras hint for friendly ImportError messages
+# ---------------------------------------------------------------------------
 
 _EXTRAS_HINT: dict[str, str] = {
     "asebytes.lmdb": "lmdb",
@@ -54,28 +72,21 @@ _EXTRAS_HINT: dict[str, str] = {
     "asebytes.redis._async_backend": "redis",
 }
 
-# Async URI scheme -> native async backend class.
-# Checked first by get_async_backend_cls(); if no entry, falls back to sync.
-_ASYNC_URI_REGISTRY: dict[str, tuple[str, str | None, str]] = {
-    "mongodb": (
-        "asebytes.mongodb._async_backend",
-        "AsyncMongoObjectBackend",
-        "AsyncMongoObjectBackend",
-    ),
-}
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-# Blob-level URI scheme -> (module_path, writable_cls_name | None, readonly_cls_name)
-_BLOB_URI_REGISTRY: dict[str, tuple[str, str | None, str]] = {
-    "redis": ("asebytes.redis._backend", "RedisBlobBackend", "RedisBlobBackend"),
-}
 
-_ASYNC_BLOB_URI_REGISTRY: dict[str, tuple[str, str | None, str]] = {
-    "redis": (
-        "asebytes.redis._async_backend",
-        "AsyncRedisBlobBackend",
-        "AsyncRedisBlobBackend",
-    ),
-}
+def _import_module(module_path: str):
+    """Import *module_path*, raising a user-friendly error on failure."""
+    try:
+        return importlib.import_module(module_path)
+    except ImportError:
+        hint = _EXTRAS_HINT.get(module_path, module_path)
+        raise ImportError(
+            f"Backend '{module_path}' requires additional dependencies. "
+            f"Install them with: pip install asebytes[{hint}]"
+        ) from None
 
 
 def parse_uri(path: str) -> tuple[str | None, str]:
@@ -89,290 +100,298 @@ def parse_uri(path: str) -> tuple[str | None, str]:
     Returns
     -------
     tuple[str | None, str]
-        ``(scheme, remainder)`` when the scheme is registered in
-        ``_URI_REGISTRY``; ``(None, path)`` otherwise (including unknown
-        schemes and Windows drive-letter paths like ``C:\\...``).
+        ``(scheme, remainder)`` when the scheme is registered;
+        ``(None, path)`` otherwise (including unknown schemes and
+        Windows drive-letter paths like ``C:\\...``).
     """
     sep = "://"
     if sep not in path:
         return None, path
     scheme, remainder = path.split(sep, 1)
-    if (
-        scheme in _URI_REGISTRY
-        or scheme in _ASYNC_URI_REGISTRY
-        or scheme in _BLOB_URI_REGISTRY
-        or scheme in _ASYNC_BLOB_URI_REGISTRY
-    ):
+    if scheme in _KNOWN_SCHEMES:
         return scheme, remainder
     return None, path
 
 
-def get_backend_cls(path: str, *, readonly: bool | None = None):
-    """Resolve a file path or URI to a backend class.
+# ---------------------------------------------------------------------------
+# Core resolver
+# ---------------------------------------------------------------------------
 
-    URI schemes (e.g. ``hf://``, ``colabfit://``, ``optimade://``) are checked
-    first; if the path does not match a known URI it falls through to
-    glob-based pattern matching.
+
+def _pick_class(
+    entry: tuple[str, str, str, str, str | None, str, bool],
+    path: str,
+    writable: bool | None,
+):
+    """Import the module from *entry* and return the appropriate class."""
+    _, _, _, module_path, writable_cls_name, readonly_cls_name, _ = entry
+    mod = _import_module(module_path)
+
+    if writable is True:
+        if writable_cls_name is None:
+            raise TypeError(
+                f"Backend for '{path}' is read-only, no writable variant available"
+            )
+        return getattr(mod, writable_cls_name)
+    if writable is False:
+        return getattr(mod, readonly_cls_name)
+    # writable is None -- prefer writable if available
+    if writable_cls_name is not None:
+        return getattr(mod, writable_cls_name)
+    return getattr(mod, readonly_cls_name)
+
+
+def resolve_backend(
+    path_or_uri: str,
+    *,
+    layer: Literal["blob", "object"],
+    async_: bool = False,
+    writable: bool | None = None,
+    _allow_fallback: bool = True,
+) -> type:
+    """Resolve a path or URI to a backend class.
+
+    Resolution priority:
+
+    1. Match URI scheme first, then file pattern.
+    2. Filter by requested *layer* (``"blob"`` or ``"object"``).
+    3. If *async_* is ``True``, prefer ``is_async_native=True`` entries;
+       fall back to sync.
+    4. If *writable* is ``None``, prefer writable if available; if
+       ``False``, use read-only.
+    5. If no direct layer match, try cross-layer adapter wrapping
+       (blob <-> object).
 
     Parameters
     ----------
-    path : str
-        File path or URI to match against registered backends.
-    readonly : bool | None
-        If True, return the read-only backend class.
-        If False, return the writable backend class (raises TypeError if none).
-        If None (default), auto-detect: prefer writable if available, else
-        read-only.
+    path_or_uri : str
+        File path or URI string.
+    layer : ``"blob"`` | ``"object"``
+        Whether to look for a blob-level or object-level backend.
+    async_ : bool
+        If ``True``, prefer native async backends (fall back to sync).
+    writable : bool | None
+        ``True`` = require writable, ``False`` = require read-only,
+        ``None`` = prefer writable, accept read-only.
 
     Returns
     -------
     type
-        The matched backend class.
+        The resolved backend class (or adapter factory callable).
 
     Raises
     ------
-    KeyError
-        If no backend is registered for the given path.
+    ValueError
+        If no backend is registered for *path_or_uri*.
     TypeError
-        If a writable backend is explicitly requested but none is available.
+        If a writable backend is explicitly requested but none exists.
     """
-    # --- URI-based lookup (checked first) ---
-    scheme, _remainder = parse_uri(path)
-    if scheme is not None and scheme in _URI_REGISTRY:
-        module_path, writable, read_only = _URI_REGISTRY[scheme]
-        try:
-            mod = importlib.import_module(module_path)
-        except ImportError:
-            hint = _EXTRAS_HINT.get(module_path, module_path)
-            raise ImportError(
-                f"Backend '{module_path}' requires additional dependencies. "
-                f"Install them with: pip install asebytes[{hint}]"
-            ) from None
-        if readonly is True:
-            return getattr(mod, read_only)
-        if readonly is False:
-            if writable is None:
-                raise TypeError(
-                    f"Backend for '{path}' is read-only, no writable variant available"
-                )
-            return getattr(mod, writable)
-        # readonly is None — auto-detect
-        if writable is not None:
-            return getattr(mod, writable)
-        return getattr(mod, read_only)
+    scheme, _remainder = parse_uri(path_or_uri)
 
-    # --- Glob-based lookup ---
-    for pattern, (module_path, writable, read_only) in _BACKEND_REGISTRY.items():
-        if fnmatch.fnmatch(path, pattern):
-            try:
-                mod = importlib.import_module(module_path)
-            except ImportError:
-                hint = _EXTRAS_HINT.get(module_path, module_path)
-                raise ImportError(
-                    f"Backend '{module_path}' requires additional dependencies. "
-                    f"Install them with: pip install asebytes[{hint}]"
-                ) from None
-            if readonly is True:
-                return getattr(mod, read_only)
-            if readonly is False:
-                if writable is None:
-                    raise TypeError(
-                        f"Backend for '{path}' is read-only, "
-                        "no writable variant available"
-                    )
-                return getattr(mod, writable)
-            # readonly is None — auto-detect
-            if writable is not None:
-                return getattr(mod, writable)
-            return getattr(mod, read_only)
-    # --- Fallback: wrap blob URI backend with BlobToObjectAdapter ---
-    if scheme is not None and scheme in _BLOB_URI_REGISTRY:
+    # -- Collect direct candidates for the requested layer ------------------
+    candidates: list[tuple[str, str, str, str, str | None, str, bool]] = []
+    for entry in _REGISTRY:
+        match_type, match_value, entry_layer, *_ = entry
+
+        if entry_layer != layer:
+            continue
+
+        if match_type == "scheme":
+            if scheme != match_value:
+                continue
+        else:  # pattern
+            if scheme is not None:
+                continue  # don't match patterns for URIs
+            if not fnmatch.fnmatch(path_or_uri, match_value):
+                continue
+
+        candidates.append(entry)
+
+    # -- No direct match -> cross-layer adapter wrapping --------------------
+    if not candidates:
+        if _allow_fallback:
+            return _cross_layer_fallback(
+                path_or_uri,
+                scheme=scheme,
+                layer=layer,
+                async_=async_,
+                writable=writable,
+            )
+        raise ValueError(
+            f"No backend found for '{path_or_uri}' (layer={layer})"
+        )
+
+    # -- Filter by async preference -----------------------------------------
+    if async_:
+        async_candidates = [c for c in candidates if c[6]]
+        if async_candidates:
+            candidates = async_candidates
+        # else: fall back to sync candidates (caller wraps with SyncToAsyncAdapter)
+    else:
+        sync_candidates = [c for c in candidates if not c[6]]
+        if sync_candidates:
+            candidates = sync_candidates
+
+    # -- Pick the first match and resolve class -----------------------------
+    return _pick_class(candidates[0], path_or_uri, writable)
+
+
+# ---------------------------------------------------------------------------
+# Cross-layer adapter fallback
+# ---------------------------------------------------------------------------
+
+
+def _cross_layer_fallback(
+    path_or_uri: str,
+    *,
+    scheme: str | None,
+    layer: Literal["blob", "object"],
+    async_: bool,
+    writable: bool | None,
+):
+    """Wrap a backend from the *other* layer with an adapter.
+
+    Called when :func:`resolve_backend` found no direct match for the
+    requested *layer*.
+    """
+    other_layer: Literal["blob", "object"] = "blob" if layer == "object" else "object"
+
+    if layer == "object":
+        # Need object-level, but only blob-level exists -> BlobToObject adapter.
+        # Always resolve the other layer as sync because the adapter classes
+        # (BlobToObjectRead[Write]Adapter) are synchronous; the caller
+        # (e.g. AsyncObjectIO) wraps the resulting sync instance with
+        # sync_to_async at a higher level.
+        try:
+            blob_cls = resolve_backend(
+                path_or_uri, layer="blob", async_=False, writable=writable,
+                _allow_fallback=False,
+            )
+        except (ValueError, TypeError):
+            raise ValueError(
+                f"No backend found for '{path_or_uri}' (layer={layer})"
+            ) from None
+
         from ._adapters import BlobToObjectReadAdapter, BlobToObjectReadWriteAdapter
 
-        blob_cls = get_blob_backend_cls(path, readonly=readonly)
+        if writable is True or (writable is None and _supports_write(blob_cls)):
+            if scheme is not None:
+                def _make_rw(*args, **kwargs):
+                    return BlobToObjectReadWriteAdapter(
+                        blob_cls.from_uri(*args, **kwargs)
+                    )
+                return _make_rw
 
-        if readonly is True:
+            def _make_rw(*args, **kwargs):
+                return BlobToObjectReadWriteAdapter(blob_cls(*args, **kwargs))
+            return _make_rw
 
-            def _make_read_adapter(*args, **kwargs):
-                return BlobToObjectReadAdapter(blob_cls.from_uri(*args, **kwargs))
+        if scheme is not None:
+            def _make_ro(*args, **kwargs):
+                return BlobToObjectReadAdapter(
+                    blob_cls.from_uri(*args, **kwargs)
+                )
+            return _make_ro
 
-            return _make_read_adapter
+        def _make_ro(*args, **kwargs):
+            return BlobToObjectReadAdapter(blob_cls(*args, **kwargs))
+        return _make_ro
 
-        def _make_readwrite_adapter(*args, **kwargs):
-            return BlobToObjectReadWriteAdapter(blob_cls.from_uri(*args, **kwargs))
+    # layer == "blob": need blob-level, only object-level exists.
+    # Same as above: resolve as sync because the adapters are synchronous.
+    try:
+        obj_cls = resolve_backend(
+            path_or_uri, layer="object", async_=False, writable=writable,
+            _allow_fallback=False,
+        )
+    except (ValueError, TypeError):
+        raise ValueError(
+            f"No backend found for '{path_or_uri}' (layer={layer})"
+        ) from None
 
-        return _make_readwrite_adapter
+    from ._adapters import ObjectToBlobReadAdapter, ObjectToBlobReadWriteAdapter
 
-    raise KeyError(f"No backend registered for '{path}'")
+    use_read_adapter = writable is False or (
+        writable is None and not _supports_write(obj_cls)
+    )
+
+    if scheme is not None:
+        if use_read_adapter:
+            def _make_ro(*args, **kwargs):
+                return ObjectToBlobReadAdapter(obj_cls.from_uri(*args, **kwargs))
+            return _make_ro
+
+        def _make_rw(*args, **kwargs):
+            return ObjectToBlobReadWriteAdapter(obj_cls.from_uri(*args, **kwargs))
+        return _make_rw
+
+    if use_read_adapter:
+        def _make_ro(*args, **kwargs):
+            return ObjectToBlobReadAdapter(obj_cls(*args, **kwargs))
+        return _make_ro
+
+    def _make_rw(*args, **kwargs):
+        return ObjectToBlobReadWriteAdapter(obj_cls(*args, **kwargs))
+    return _make_rw
+
+
+def _supports_write(cls: type) -> bool:
+    """Return True if *cls* looks like a read-write backend."""
+    return hasattr(cls, "set") and hasattr(cls, "extend")
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible wrappers
+# ---------------------------------------------------------------------------
+
+
+def get_backend_cls(path: str, *, readonly: bool | None = None):
+    """Resolve a file path or URI to an object-level backend class.
+
+    Thin wrapper around :func:`resolve_backend` kept for backward
+    compatibility.
+    """
+    writable = None if readonly is None else (not readonly)
+    try:
+        return resolve_backend(path, layer="object", writable=writable)
+    except ValueError:
+        raise KeyError(f"No backend registered for '{path}'") from None
 
 
 def get_async_backend_cls(path: str, *, readonly: bool | None = None):
     """Resolve a path/URI to a backend class, preferring native async.
 
-    Checks _ASYNC_URI_REGISTRY first for URI schemes. If no async-specific
-    entry exists, falls back to get_backend_cls (sync registry). The caller
-    is responsible for wrapping sync backends with sync_to_async().
+    Thin wrapper around :func:`resolve_backend` kept for backward
+    compatibility.
     """
-    scheme, _remainder = parse_uri(path)
-    if scheme is not None and scheme in _ASYNC_URI_REGISTRY:
-        module_path, writable, read_only = _ASYNC_URI_REGISTRY[scheme]
-        try:
-            mod = importlib.import_module(module_path)
-        except ImportError:
-            hint = _EXTRAS_HINT.get(module_path, module_path)
-            raise ImportError(
-                f"Backend '{module_path}' requires additional dependencies. "
-                f"Install them with: pip install asebytes[{hint}]"
-            ) from None
-        if readonly is True:
-            return getattr(mod, read_only)
-        if readonly is False:
-            if writable is None:
-                raise TypeError(
-                    f"Backend for '{path}' is read-only, no writable variant available"
-                )
-            return getattr(mod, writable)
-        if writable is not None:
-            return getattr(mod, writable)
-        return getattr(mod, read_only)
-
-    # Fall back to sync registry (which handles blob-to-object adapter wrapping)
-    return get_backend_cls(path, readonly=readonly)
+    writable = None if readonly is None else (not readonly)
+    try:
+        return resolve_backend(path, layer="object", async_=True, writable=writable)
+    except ValueError:
+        raise KeyError(f"No backend registered for '{path}'") from None
 
 
 def get_blob_backend_cls(path: str, *, readonly: bool | None = None):
-    """Resolve a file path to a blob-level backend class.
+    """Resolve a file path or URI to a blob-level backend class.
 
-    Like :func:`get_backend_cls` but uses the blob-level registry
-    (``ReadBackend[bytes, bytes]``).  URI schemes are not supported for
-    blob-level backends.
-
-    Parameters
-    ----------
-    path : str
-        File path to match against registered blob backends.
-    readonly : bool | None
-        Same semantics as :func:`get_backend_cls`.
+    Thin wrapper around :func:`resolve_backend` kept for backward
+    compatibility.
     """
-    # --- Blob-level URI lookup ---
-    scheme, _remainder = parse_uri(path)
-    if scheme is not None and scheme in _BLOB_URI_REGISTRY:
-        module_path, writable, read_only = _BLOB_URI_REGISTRY[scheme]
-        try:
-            mod = importlib.import_module(module_path)
-        except ImportError:
-            hint = _EXTRAS_HINT.get(module_path, module_path)
-            raise ImportError(
-                f"Backend '{module_path}' requires additional dependencies. "
-                f"Install them with: pip install asebytes[{hint}]"
-            ) from None
-        if readonly is True:
-            return getattr(mod, read_only)
-        if readonly is False:
-            if writable is None:
-                raise TypeError(
-                    f"Backend for '{path}' is read-only, no writable variant available"
-                )
-            return getattr(mod, writable)
-        if writable is not None:
-            return getattr(mod, writable)
-        return getattr(mod, read_only)
-
-    for pattern, (module_path, writable, read_only) in _BLOB_BACKEND_REGISTRY.items():
-        if fnmatch.fnmatch(path, pattern):
-            try:
-                mod = importlib.import_module(module_path)
-            except ImportError:
-                hint = _EXTRAS_HINT.get(module_path, module_path)
-                raise ImportError(
-                    f"Backend '{module_path}' requires additional dependencies. "
-                    f"Install them with: pip install asebytes[{hint}]"
-                ) from None
-            if readonly is True:
-                return getattr(mod, read_only)
-            if readonly is False:
-                if writable is None:
-                    raise TypeError(
-                        f"Backend for '{path}' is read-only, "
-                        "no writable variant available"
-                    )
-                return getattr(mod, writable)
-            if writable is not None:
-                return getattr(mod, writable)
-            return getattr(mod, read_only)
-    # --- Fallback: wrap object backend with ObjectToBlobAdapter ---
+    writable = None if readonly is None else (not readonly)
     try:
-        obj_cls = get_backend_cls(path, readonly=readonly)
-    except KeyError as e:
-        raise KeyError(f"No blob backend registered for '{path}'") from e
-
-    from ._adapters import ObjectToBlobReadAdapter, ObjectToBlobReadWriteAdapter
-
-    # Determine whether the resolved object backend actually supports writes.
-    # When readonly is None (auto-detect), only wrap with the read-write adapter
-    # if the backend class exposes write methods.
-    def _supports_write(cls: type) -> bool:
-        return hasattr(cls, "set") and hasattr(cls, "extend")
-
-    use_read_adapter = readonly is True or (
-        readonly is None and not _supports_write(obj_cls)
-    )
-
-    if scheme is not None:
-        # URI-based backend: use from_uri to instantiate
-        if use_read_adapter:
-
-            def _make_read_adapter(*args, **kwargs):
-                return ObjectToBlobReadAdapter(obj_cls.from_uri(*args, **kwargs))
-
-            return _make_read_adapter
-
-        def _make_readwrite_adapter(*args, **kwargs):
-            return ObjectToBlobReadWriteAdapter(obj_cls.from_uri(*args, **kwargs))
-
-        return _make_readwrite_adapter
-
-    if use_read_adapter:
-
-        def _make_read_adapter(*args, **kwargs):
-            return ObjectToBlobReadAdapter(obj_cls(*args, **kwargs))
-
-        return _make_read_adapter
-
-    def _make_readwrite_adapter(*args, **kwargs):
-        return ObjectToBlobReadWriteAdapter(obj_cls(*args, **kwargs))
-
-    return _make_readwrite_adapter
+        return resolve_backend(path, layer="blob", writable=writable)
+    except ValueError:
+        raise KeyError(f"No blob backend registered for '{path}'") from None
 
 
 def get_async_blob_backend_cls(path: str, *, readonly: bool | None = None):
     """Resolve a path/URI to an async blob-level backend class.
 
-    Checks _ASYNC_BLOB_URI_REGISTRY first for native async blob backends.
-    Falls back to get_blob_backend_cls (sync blob registry).
+    Thin wrapper around :func:`resolve_backend` kept for backward
+    compatibility.
     """
-    scheme, _remainder = parse_uri(path)
-    if scheme is not None and scheme in _ASYNC_BLOB_URI_REGISTRY:
-        module_path, writable, read_only = _ASYNC_BLOB_URI_REGISTRY[scheme]
-        try:
-            mod = importlib.import_module(module_path)
-        except ImportError:
-            hint = _EXTRAS_HINT.get(module_path, module_path)
-            raise ImportError(
-                f"Backend '{module_path}' requires additional dependencies. "
-                f"Install them with: pip install asebytes[{hint}]"
-            ) from None
-        if readonly is True:
-            return getattr(mod, read_only)
-        if readonly is False:
-            if writable is None:
-                raise TypeError(
-                    f"Backend for '{path}' is read-only, no writable variant available"
-                )
-            return getattr(mod, writable)
-        if writable is not None:
-            return getattr(mod, writable)
-        return getattr(mod, read_only)
-
-    # Fall back to sync blob registry
-    return get_blob_backend_cls(path, readonly=readonly)
+    writable = None if readonly is None else (not readonly)
+    try:
+        return resolve_backend(path, layer="blob", async_=True, writable=writable)
+    except ValueError:
+        raise KeyError(f"No blob backend registered for '{path}'") from None
