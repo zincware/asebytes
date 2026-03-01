@@ -63,6 +63,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
         self._blocks: list[list[int]] | None = None
         self._schema_cache: list[bytes] | None = None
         self._block_sizes: list[int] | None = None
+        self._count_cache: int | None = None
 
     @staticmethod
     def list_groups(path: str, **kwargs) -> list[str]:
@@ -95,11 +96,15 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
         self._blocks = None
         self._schema_cache = None
         self._block_sizes = None
+        self._count_cache = None
 
     def _ensure_cache(self, txn) -> None:
-        """Load blocks + schema from LMDB if not already cached."""
+        """Load blocks + schema + count from LMDB if not already cached."""
         if self._blocks is not None:
             return
+
+        # Count
+        self._count_cache = self._get_count(txn)
 
         # Schema
         schema_bytes = txn.get(b"__schema__")
@@ -247,8 +252,11 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
     # ------------------------------------------------------------------
 
     def __len__(self) -> int:
+        if self._count_cache is not None:
+            return self._count_cache
         with self.env.begin() as txn:
-            return self._get_count(txn)
+            self._ensure_cache(txn)
+            return self._count_cache
 
     def get(self, index: int, keys: list[bytes] | None = None) -> dict[bytes, bytes]:
         """Get data at index, optionally filtering to specific keys."""

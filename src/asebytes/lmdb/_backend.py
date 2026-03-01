@@ -96,7 +96,11 @@ class LMDBObjectReadBackend(BlobToObjectReadAdapter):
         result = []
         with self._store.env.begin() as txn:
             for i in indices:
-                raw = self._store.get_with_txn(txn, i, None)  # Get all keys
+                try:
+                    raw = self._store.get_with_txn(txn, i, [byte_key])
+                except KeyError:
+                    result.append(None)
+                    continue
                 if raw is None or byte_key not in raw:
                     result.append(None)
                 else:
@@ -186,7 +190,11 @@ class LMDBObjectBackend(BlobToObjectReadWriteAdapter):
         result = []
         with self._store.env.begin() as txn:
             for i in indices:
-                raw = self._store.get_with_txn(txn, i, None)  # Get all keys
+                try:
+                    raw = self._store.get_with_txn(txn, i, [byte_key])
+                except KeyError:
+                    result.append(None)
+                    continue
                 if raw is None or byte_key not in raw:
                     result.append(None)
                 else:
