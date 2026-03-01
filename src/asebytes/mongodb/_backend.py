@@ -3,23 +3,38 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any
 
+import msgpack
+import msgpack_numpy as m
 import numpy as np
+from bson import Binary
 from pymongo import MongoClient
 
 from .._backends import ReadWriteBackend
 
 META_ID = "__meta__"
+DEFAULT_GROUP = "default"
 
 
 def _bson_safe(value: Any) -> Any:
     """Convert a value to a BSON-serialisable form.
 
-    numpy arrays → list, numpy scalars → Python scalar.
+    numpy arrays → Binary(msgpack) to preserve dtype/shape,
+    numpy scalars → Python scalar.
     """
     if isinstance(value, np.ndarray):
-        return value.tolist()
+        return Binary(msgpack.packb(value, default=m.encode))
     if isinstance(value, np.generic):
         return value.item()
+    return value
+
+
+def _bson_restore(value: Any) -> Any:
+    """Restore numpy arrays from BSON Binary msgpack blobs."""
+    if isinstance(value, (bytes, Binary)):
+        try:
+            return msgpack.unpackb(value, object_hook=m.decode)
+        except Exception:
+            return value
     return value
 
 
@@ -30,37 +45,52 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
     Each row is a separate document with ``_id`` = sort_key (int) and a
     ``data`` subdocument holding the field values.
 
+    Each group is stored in a separate MongoDB collection within the database.
+
     Parameters
     ----------
     uri : str
-        MongoDB connection URI.
+        MongoDB connection URI (e.g. ``mongodb://localhost:27017``).
+        Should NOT include database or collection in the path.
     database : str
         Database name.
-    collection : str
-        Collection name (one collection = one dataset).
+    group : str | None
+        Group name (maps to MongoDB collection). Defaults to ``"default"``.
     """
 
     def __init__(
         self,
         uri: str = "mongodb://localhost:27017",
         database: str = "asebytes",
-        collection: str = "default",
+        group: str | None = None,
     ):
         self._client = MongoClient(uri)
-        self._col = self._client[database][collection]
+        self.group = group if group is not None else DEFAULT_GROUP
+        self._col = self._client[database][self.group]
         self._sort_keys: list[int] | None = None
         self._count: int | None = None
 
     @classmethod
-    def from_uri(cls, uri: str, **kwargs) -> MongoObjectBackend:
-        """Construct from a URI like ``mongodb://host:port/database/collection``.
+    def from_uri(
+        cls, uri: str, group: str | None = None, **kwargs
+    ) -> MongoObjectBackend:
+        """Construct from a URI like ``mongodb://host:port/database``.
 
-        The path after the host is split into database and collection.
-        If only a database is given, collection defaults to ``"default"``.
+        The path after the host is the database name. Group (collection) is
+        passed separately via the ``group`` parameter.
+
+        Parameters
+        ----------
+        uri : str
+            MongoDB URI with database path (e.g. ``mongodb://host:port/mydb``).
+        group : str | None
+            Group name (maps to collection). Defaults to ``"default"``.
+        **kwargs
+            Additional arguments passed to the constructor.
         """
         if "://" not in uri:
             raise ValueError(f"Invalid URI: {uri!r}")
-        # Extract path from URI: mongodb://host:port/database/collection
+        # Extract path from URI: mongodb://host:port/database
         _, after_scheme = uri.split("://", 1)
         # Split host from path
         if "/" in after_scheme:
@@ -69,23 +99,55 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
             host_part, path_part = after_scheme, ""
 
         parts = [p for p in path_part.split("/") if p]
-        if len(parts) >= 2:
+        if len(parts) >= 1:
             database = parts[0]
-            collection = parts[1]
-            # Rebuild connection URI without database/collection path
-            connection_uri = uri.split("://")[0] + "://" + host_part
-        elif len(parts) == 1:
-            database = parts[0]
-            collection = "default"
+            # Rebuild connection URI without database path
             connection_uri = uri.split("://")[0] + "://" + host_part
         else:
             database = "asebytes"
-            collection = "default"
             connection_uri = uri
 
-        return cls(
-            uri=connection_uri, database=database, collection=collection, **kwargs
-        )
+        return cls(uri=connection_uri, database=database, group=group, **kwargs)
+
+    @staticmethod
+    def list_groups(
+        path: str = "mongodb://localhost:27017", database: str = "asebytes", **kwargs
+    ) -> list[str]:
+        """Return available group names (collections) in the given database.
+
+        The ``path`` may include a database path component
+        (e.g. ``mongodb://host:port/mydb``); if present, that database is
+        used instead of the *database* parameter.
+
+        Parameters
+        ----------
+        path : str
+            MongoDB connection URI (e.g. ``mongodb://localhost:27017``).
+        database : str
+            Database name to list collections from.
+        **kwargs
+            Unused, for API compatibility.
+
+        Returns
+        -------
+        list[str]
+            List of group names (collection names) in the database.
+        """
+        if "://" in path:
+            _, after_scheme = path.split("://", 1)
+            if "/" in after_scheme:
+                _, path_part = after_scheme.split("/", 1)
+                parts = [p for p in path_part.split("/") if p]
+                if parts:
+                    database = parts[0]
+
+        client = MongoClient(path)
+        try:
+            db = client[database]
+            collections = db.list_collection_names()
+            return sorted(collections)
+        finally:
+            client.close()
 
     # ------------------------------------------------------------------
     # Cache management
@@ -96,8 +158,6 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         self._count = None
 
     def _ensure_cache(self) -> None:
-        if self._sort_keys is not None:
-            return
         meta = self._col.find_one({"_id": META_ID})
         if meta is None:
             self._sort_keys = []
@@ -124,7 +184,7 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         data = doc.get("data")
         if data is None:
             return None
-        return dict(data)
+        return {k: _bson_restore(v) for k, v in data.items()}
 
     def _row_to_doc(self, sort_key: int, data: dict[str, Any] | None) -> dict:
         if data is not None:
@@ -177,7 +237,7 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         for sk in sks:
             doc = docs.get(sk)
             if doc is not None and doc.get("data") is not None:
-                results.append(doc["data"].get(key))
+                results.append(_bson_restore(doc["data"].get(key)))
             else:
                 results.append(None)
         return results
@@ -220,24 +280,28 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
     def extend(self, values: list[dict[str, Any] | None]) -> int:
         if not values:
             return self._count if self._count is not None else len(self)
-        self._ensure_cache()
-        meta = self._col.find_one({"_id": META_ID})
+        # Atomically reserve a range of sort keys via $inc
+        meta = self._col.find_one_and_update(
+            {"_id": META_ID},
+            {"$inc": {"next_sort_key": len(values)}},
+            upsert=True,
+            return_document=False,  # BEFORE the increment
+        )
         next_sk = meta.get("next_sort_key", 0) if meta else 0
         new_sks = list(range(next_sk, next_sk + len(values)))
 
         docs = [self._row_to_doc(sk, v) for sk, v in zip(new_sks, values)]
         self._col.insert_many(docs)
 
-        self._sort_keys.extend(new_sks)
-        self._count += len(values)
         self._col.update_one(
             {"_id": META_ID},
             {
                 "$push": {"sort_keys": {"$each": new_sks}},
-                "$set": {"count": self._count, "next_sort_key": next_sk + len(values)},
+                "$inc": {"count": len(values)},
             },
-            upsert=True,
         )
+        self._invalidate_cache()
+        self._ensure_cache()
         return self._count
 
     def insert(self, index: int, value: dict[str, Any] | None) -> None:
@@ -248,30 +312,34 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         if index > n:
             index = n
 
-        meta = self._col.find_one({"_id": META_ID})
+        # Atomically reserve one sort key via $inc
+        meta = self._col.find_one_and_update(
+            {"_id": META_ID},
+            {"$inc": {"next_sort_key": 1}},
+            upsert=True,
+            return_document=False,  # BEFORE the increment
+        )
         next_sk = meta.get("next_sort_key", 0) if meta else 0
 
         self._col.insert_one(self._row_to_doc(next_sk, value))
 
-        self._sort_keys.insert(index, next_sk)
-        self._count += 1
+        # Use atomic $push with $position and $inc for count
         self._col.update_one(
             {"_id": META_ID},
             {
-                "$set": {
-                    "sort_keys": self._sort_keys,
-                    "count": self._count,
-                    "next_sort_key": next_sk + 1,
-                },
+                "$push": {"sort_keys": {"$each": [next_sk], "$position": index}},
+                "$inc": {"count": 1},
             },
-            upsert=True,
         )
+        self._invalidate_cache()
 
     def update(self, index: int, data: dict[str, Any]) -> None:
         if not data:
             return
         self._ensure_cache()
         sk = self._resolve_sort_key(index)
+        # Materialize placeholder rows (data: null → data: {}) before $set
+        self._col.update_one({"_id": sk, "data": None}, {"$set": {"data": {}}})
         update_fields = {f"data.{k}": _bson_safe(v) for k, v in data.items()}
         self._col.update_one({"_id": sk}, {"$set": update_fields})
 
@@ -281,14 +349,20 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         from pymongo import UpdateOne
 
         self._ensure_cache()
+        sks = []
         ops = []
         for i, row_data in enumerate(data):
             if not row_data:
                 continue
             sk = self._resolve_sort_key(start + i)
+            sks.append(sk)
             update_fields = {f"data.{k}": _bson_safe(v) for k, v in row_data.items()}
             ops.append(UpdateOne({"_id": sk}, {"$set": update_fields}))
         if ops:
+            # Materialize placeholder rows before $set
+            self._col.update_many(
+                {"_id": {"$in": sks}, "data": None}, {"$set": {"data": {}}}
+            )
             self._col.bulk_write(ops, ordered=False)
 
     def set_column(self, key: str, start: int, values: list[Any]) -> None:
@@ -297,13 +371,19 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         from pymongo import UpdateOne
 
         self._ensure_cache()
+        sks = []
         ops = []
         for i, value in enumerate(values):
             sk = self._resolve_sort_key(start + i)
+            sks.append(sk)
             ops.append(
                 UpdateOne({"_id": sk}, {"$set": {f"data.{key}": _bson_safe(value)}})
             )
         if ops:
+            # Materialize placeholder rows before $set
+            self._col.update_many(
+                {"_id": {"$in": sks}, "data": None}, {"$set": {"data": {}}}
+            )
             self._col.bulk_write(ops, ordered=False)
 
     def drop_keys(self, keys: list[str], indices: list[int] | None = None) -> None:

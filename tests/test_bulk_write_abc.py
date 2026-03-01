@@ -1,4 +1,5 @@
 """Tests for update_many / set_column ABC defaults on ReadWriteBackend."""
+
 from __future__ import annotations
 from typing import Any
 
@@ -37,16 +38,22 @@ class InMemoryBackend(ReadWriteBackend[str, Any]):
     def insert(self, index, value):
         self._rows.insert(index, value)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 @pytest.fixture
 def backend():
-    return InMemoryBackend([
-        {"a": 1, "b": 10},
-        {"a": 2, "b": 20},
-        {"a": 3, "b": 30},
-        {"a": 4, "b": 40},
-        {"a": 5, "b": 50},
-    ])
+    return InMemoryBackend(
+        [
+            {"a": 1, "b": 10},
+            {"a": 2, "b": 20},
+            {"a": 3, "b": 30},
+            {"a": 4, "b": 40},
+            {"a": 5, "b": 50},
+        ]
+    )
 
 
 class TestUpdateMany:

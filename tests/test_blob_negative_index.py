@@ -42,6 +42,10 @@ class MemoryRW(ReadWriteBackend):
     def insert(self, index, value):
         self._data.insert(index, value)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 class TestBlobIONegativeIndex:
     def test_getitem_negative_one(self):

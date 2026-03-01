@@ -1,4 +1,5 @@
 """Tests for async update_many / set_column ABC defaults + SyncToAsync adapter."""
+
 from __future__ import annotations
 from typing import Any
 
@@ -36,6 +37,10 @@ class InMemoryBackend(ReadWriteBackend[str, Any]):
     def insert(self, index, value):
         self._rows.insert(index, value)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 class AsyncInMemoryBackend(AsyncReadWriteBackend[str, Any]):
     def __init__(self, rows):
@@ -64,6 +69,10 @@ class AsyncInMemoryBackend(AsyncReadWriteBackend[str, Any]):
 
     async def insert(self, index, value):
         self._rows.insert(index, value)
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
 
 
 ROWS = [

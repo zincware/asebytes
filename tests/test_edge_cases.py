@@ -251,26 +251,30 @@ def test_info_key_resembling_prefix_roundtrip():
 # =============================================================================
 
 
-def test_bytesio_with_empty_prefix(tmp_path):
-    """Test BlobIO with empty prefix (default behavior)."""
-    io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb"), prefix=b""))
+def test_bytesio_with_empty_group(tmp_path):
+    """Test BlobIO with empty group (default behavior)."""
+    io = asebytes.BlobIO(
+        asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb"), group="")
+    )
     io[0] = {b"test": b"data"}
     assert io[0] == {b"test": b"data"}
 
 
-def test_bytesio_with_custom_prefix(tmp_path):
-    """Test BlobIO with custom prefix."""
-    io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb"), prefix=b"myprefix/"))
+def test_bytesio_with_custom_group(tmp_path):
+    """Test BlobIO with custom group."""
+    io = asebytes.BlobIO(
+        asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb"), group="mygroup")
+    )
     io[0] = {b"test": b"data"}
     assert io[0] == {b"test": b"data"}
     assert len(io) == 1
 
 
-def test_bytesio_multiple_prefixes_isolated(tmp_path):
-    """Test that different prefixes create isolated namespaces."""
+def test_bytesio_multiple_groups_isolated(tmp_path):
+    """Test that different groups create isolated namespaces."""
     db_path = str(tmp_path / "test.lmdb")
-    io1 = asebytes.BlobIO(asebytes.LMDBBlobBackend(db_path, prefix=b"prefix1/"))
-    io2 = asebytes.BlobIO(asebytes.LMDBBlobBackend(db_path, prefix=b"prefix2/"))
+    io1 = asebytes.BlobIO(asebytes.LMDBBlobBackend(db_path, group="group1"))
+    io2 = asebytes.BlobIO(asebytes.LMDBBlobBackend(db_path, group="group2"))
 
     io1[0] = {b"test": b"data1"}
     io2[0] = {b"test": b"data2"}
@@ -370,17 +374,17 @@ def test_bytesio_get_with_empty_keys_list(tmp_path):
 # =============================================================================
 
 
-def test_aseio_with_empty_prefix(tmp_path):
-    """Test ASEIO with empty prefix."""
-    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"), prefix=b"")
+def test_aseio_with_empty_group(tmp_path):
+    """Test ASEIO with empty group."""
+    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"), group="")
     atoms = Atoms("H", positions=[[0, 0, 0]])
     io[0] = atoms
     assert io[0] == atoms
 
 
-def test_aseio_with_custom_prefix(tmp_path):
-    """Test ASEIO with custom prefix."""
-    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"), prefix=b"atoms/")
+def test_aseio_with_custom_group(tmp_path):
+    """Test ASEIO with custom group."""
+    io = asebytes.ASEIO(str(tmp_path / "test.lmdb"), group="atoms")
     atoms = Atoms("H", positions=[[0, 0, 0]])
     io[0] = atoms
     assert io[0] == atoms
@@ -420,11 +424,11 @@ def test_aseio_iteration_empty(tmp_path):
     assert result == []
 
 
-def test_aseio_multiple_prefixes_isolated(tmp_path):
-    """Test that different ASEIO prefixes create isolated namespaces."""
+def test_aseio_multiple_groups_isolated(tmp_path):
+    """Test that different ASEIO groups create isolated namespaces."""
     db_path = str(tmp_path / "test.lmdb")
-    io1 = asebytes.ASEIO(db_path, prefix=b"set1/")
-    io2 = asebytes.ASEIO(db_path, prefix=b"set2/")
+    io1 = asebytes.ASEIO(db_path, group="set1")
+    io2 = asebytes.ASEIO(db_path, group="set2")
 
     atoms1 = Atoms("H", positions=[[0, 0, 0]])
     atoms2 = Atoms("He", positions=[[1, 1, 1]])

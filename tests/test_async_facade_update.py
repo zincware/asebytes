@@ -56,6 +56,10 @@ class MemoryBlobBackend(ReadWriteBackend):
     def extend(self, values):
         self._rows.extend(values)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 class MemoryObjectBackend(ReadWriteBackend):
     """Minimal in-memory str/Any backend."""
@@ -93,6 +97,10 @@ class MemoryObjectBackend(ReadWriteBackend):
     def extend(self, values):
         self._rows.extend(values)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 class ReadOnlyBlobBackend(ReadBackend):
     """Read-only bytes backend (no write methods)."""
@@ -113,6 +121,10 @@ class ReadOnlyBlobBackend(ReadBackend):
             return {k: row[k] for k in keys if k in row}
         return dict(row)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 class ReadOnlyObjectBackend(ReadBackend):
     """Read-only str/Any backend (no write methods)."""
@@ -132,6 +144,10 @@ class ReadOnlyObjectBackend(ReadBackend):
         if keys is not None:
             return {k: row[k] for k in keys if k in row}
         return dict(row)
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
 
 
 # ── AsyncBlobIO.update() ─────────────────────────────────────────────
@@ -218,7 +234,9 @@ class TestAsyncASEIOUpdate:
     async def test_update_top_level_keys(self):
         """update(0, {"cell": ...}) works for valid top-level keys."""
         be = MemoryObjectBackend()
-        be.extend([{"cell": [[1, 0, 0], [0, 1, 0], [0, 0, 1]], "pbc": [True, True, True]}])
+        be.extend(
+            [{"cell": [[1, 0, 0], [0, 1, 0], [0, 0, 1]], "pbc": [True, True, True]}]
+        )
         db = AsyncASEIO(sync_to_async(be))
 
         new_cell = [[2, 0, 0], [0, 2, 0], [0, 0, 2]]

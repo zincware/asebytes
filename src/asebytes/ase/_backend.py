@@ -95,9 +95,7 @@ class ASEReadOnlyBackend(ReadBackend[str, Any]):
             )
         return self._length
 
-    def get(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any]:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         row = self._read_frame(index)
         if keys is not None:
             return {k: row[k] for k in keys if k in row}
@@ -113,9 +111,7 @@ class ASEReadOnlyBackend(ReadBackend[str, Any]):
     ) -> Iterator[dict[str, Any]]:
         """Stream frames. Uses ase.io.iread when indices are sorted from 0."""
         unique = len(set(indices)) == len(indices)
-        is_sorted = all(
-            indices[i] <= indices[i + 1] for i in range(len(indices) - 1)
-        )
+        is_sorted = all(indices[i] <= indices[i + 1] for i in range(len(indices) - 1))
         if unique and indices and indices[0] == 0 and is_sorted:
             target_set = set(indices)
             max_target = indices[-1]
@@ -142,12 +138,24 @@ class ASEReadOnlyBackend(ReadBackend[str, Any]):
             for i in indices:
                 yield self.get(i, keys)
 
-    def get_column(
-        self, key: str, indices: list[int] | None = None
-    ) -> list[Any]:
+    def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
         if indices is None:
             indices = list(range(len(self)))
         return [self.get(i, [key])[key] for i in indices]
+
+    def keys(self, index: int) -> list[str]:
+        """Return the list of keys available for the row at the given index."""
+        row = self.get(index)
+        return list(row.keys())
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        """Return the list of groups available at the given path.
+
+        For ASE file-based backends, there are no groups — data is stored
+        directly in the file. This method always returns an empty list.
+        """
+        return []
 
 
 # Backward compatibility alias

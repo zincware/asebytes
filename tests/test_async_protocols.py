@@ -48,6 +48,10 @@ class MemoryAsyncRawReadable(AsyncReadBackend):
             return {k: row[k] for k in keys if k in row}
         return dict(row)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 class MemoryAsyncRawWritable(MemoryAsyncRawReadable, AsyncReadWriteBackend):
     async def set(self, index: int, data: dict[bytes, bytes] | None) -> None:
@@ -294,6 +298,10 @@ class TestSyncToAsyncAdapter:
                 self._data.extend(data)
                 return len(self._data)
 
+            @staticmethod
+            def list_groups(path: str, **kwargs) -> list[str]:
+                return []
+
         return MemorySyncRaw(data)
 
     @pytest.mark.anyio
@@ -420,6 +428,10 @@ class TestSyncToAsyncAdapterStrKeys:
             def extend(self, data):
                 self._data.extend(data)
                 return len(self._data)
+
+            @staticmethod
+            def list_groups(path: str, **kwargs) -> list[str]:
+                return []
 
         return MemorySyncStr(data)
 

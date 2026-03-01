@@ -1,4 +1,5 @@
 """Tests for clear() and remove() on sync facades."""
+
 from __future__ import annotations
 
 import pytest
@@ -11,8 +12,10 @@ from asebytes._object_io import ObjectIO
 class MemoryRW(ReadWriteBackend):
     def __init__(self, data=None):
         self._data = data or []
+
     def __len__(self):
         return len(self._data)
+
     def get(self, index, keys=None):
         row = self._data[index]
         if row is None:
@@ -20,6 +23,7 @@ class MemoryRW(ReadWriteBackend):
         if keys is not None:
             return {k: row[k] for k in keys if k in row}
         return dict(row)
+
     def set(self, index, value):
         if index < len(self._data):
             self._data[index] = value
@@ -27,21 +31,34 @@ class MemoryRW(ReadWriteBackend):
             self._data.append(value)
         else:
             raise IndexError(index)
+
     def delete(self, index):
         del self._data[index]
+
     def extend(self, values):
         self._data.extend(values)
+
     def insert(self, index, value):
         self._data.insert(index, value)
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
 
 
 class MemoryRO(ReadBackend):
     def __init__(self):
         pass
+
     def __len__(self):
         return 0
+
     def get(self, index, keys=None):
         raise IndexError(index)
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
 
 
 class TestBlobIOClearRemove:

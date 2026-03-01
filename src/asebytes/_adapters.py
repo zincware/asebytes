@@ -50,6 +50,17 @@ class BlobToObjectReadAdapter(ReadBackend[str, Any]):
     def __init__(self, store: ReadBackend[bytes, bytes]) -> None:
         self._store = store
 
+    @staticmethod
+    def list_groups(path: str, **kwargs: Any) -> list[str]:
+        """Adapters don't have direct path access; raise NotImplementedError.
+
+        Use the underlying backend's list_groups directly instead.
+        """
+        raise NotImplementedError(
+            "BlobToObjectReadAdapter wraps an existing backend instance. "
+            "Call list_groups on the underlying backend class instead."
+        )
+
     def __len__(self) -> int:
         return len(self._store)
 
@@ -168,6 +179,17 @@ class ObjectToBlobReadAdapter(ReadBackend[bytes, bytes]):
 
     def __init__(self, store: ReadBackend[str, Any]) -> None:
         self._store = store
+
+    @staticmethod
+    def list_groups(path: str, **kwargs: Any) -> list[str]:
+        """Adapters don't have direct path access; raise NotImplementedError.
+
+        Use the underlying backend's list_groups directly instead.
+        """
+        raise NotImplementedError(
+            "ObjectToBlobReadAdapter wraps an existing backend instance. "
+            "Call list_groups on the underlying backend class instead."
+        )
 
     def __len__(self) -> int:
         return len(self._store)

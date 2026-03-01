@@ -17,6 +17,23 @@ V = TypeVar("V")
 class AsyncReadBackend(Generic[K, V], ABC):
     """Async read-only backend. Mirrors ReadBackend with a-prefix methods."""
 
+    @staticmethod
+    @abstractmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        """Return available group names at the given path.
+
+        Note: This is a sync method even on async backends, as group discovery
+        typically doesn't require async I/O.
+
+        Args:
+            path: File path or URI to the storage location.
+            **kwargs: Backend-specific options (e.g., credentials).
+
+        Returns:
+            List of group names available at the path.
+        """
+        ...
+
     @abstractmethod
     async def len(self) -> int: ...
 
@@ -90,9 +107,7 @@ class AsyncReadWriteBackend(AsyncReadBackend[K, V], ABC):
         for i in range(stop - 1, start - 1, -1):
             await self.delete(i)
 
-    async def drop_keys(
-        self, keys: list[K], indices: list[int] | None = None
-    ) -> None:
+    async def drop_keys(self, keys: list[K], indices: list[int] | None = None) -> None:
         """Remove specific keys from rows."""
         if indices is None:
             n = await self.len()
@@ -154,6 +169,12 @@ class SyncToAsyncReadAdapter(AsyncReadBackend[K, V]):
     def __init__(self, backend: ReadBackend[K, V]):
         self._backend = backend
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        raise NotImplementedError(
+            "list_groups not available on adapter; call on the underlying backend class"
+        )
+
     async def len(self) -> int:
         return await asyncio.to_thread(len, self._backend)
 
@@ -175,7 +196,9 @@ class SyncToAsyncReadAdapter(AsyncReadBackend[K, V]):
             yield row
 
 
-class SyncToAsyncReadWriteAdapter(SyncToAsyncReadAdapter[K, V], AsyncReadWriteBackend[K, V]):
+class SyncToAsyncReadWriteAdapter(
+    SyncToAsyncReadAdapter[K, V], AsyncReadWriteBackend[K, V]
+):
     """Wraps a sync ReadWriteBackend[K,V] -> AsyncReadWriteBackend[K,V].
 
     Inherits all read methods from SyncToAsyncReadAdapter.

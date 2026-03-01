@@ -50,6 +50,10 @@ class MemoryWritable(ReadWriteBackend):
         self._data.extend(data)
         return len(self._data)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 class TestReadWriteBackendNewMethods:
     """Test the new default methods added to ReadWriteBackend."""

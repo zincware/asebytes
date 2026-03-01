@@ -60,6 +60,10 @@ class MemoryBackend(ReadWriteBackend):
         self._rows.extend(data)
         return len(self._rows)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
     def get_column(self, key, indices=None):
         if indices is None:
             indices = list(range(len(self)))

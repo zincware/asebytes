@@ -58,6 +58,10 @@ class MemoryBlobBackend(ReadWriteBackend):
             indices = list(range(len(self)))
         return [self.get(i, [key])[key] for i in indices]
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 @pytest.fixture
 def blob_backend():

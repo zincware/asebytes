@@ -1,11 +1,15 @@
+import os
 import struct
 from collections.abc import Iterator
+from pathlib import Path
+from typing import Any
 
 import lmdb
 
 from .._backends import ReadWriteBackend
 
 BLOCK_SIZE = 1024
+DEFAULT_GROUP = "default"
 
 
 class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
@@ -15,12 +19,15 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
     Sort keys are stored in packed blocks of up to BLOCK_SIZE entries,
     and field names are tracked in a single global schema (union of all fields).
 
+    Each group is stored in a separate LMDB environment within a directory structure:
+    - {file}/{group}/data.mdb
+
     Parameters
     ----------
     file : str
-        Path to LMDB database file.
-    prefix : bytes, default=b""
-        Key prefix for namespacing entries.
+        Path to LMDB database directory (will contain group subdirectories).
+    group : str | None, default=None
+        Group name for namespacing. If None, uses "default".
     map_size : int, default=10737418240
         Maximum size of the LMDB database in bytes (default 10GB).
     readonly : bool, default=False
@@ -32,17 +39,23 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
     def __init__(
         self,
         file: str,
-        prefix: bytes = b"",
+        group: str | None = None,
         map_size: int = 10737418240,
         readonly: bool = False,
         **lmdb_kwargs,
     ):
         self.file = file
-        self.prefix = prefix
+        self.group = group if group is not None else DEFAULT_GROUP
+
+        # Build path: {file}/{group}/
+        group_path = os.path.join(file, self.group)
+        if not readonly:
+            os.makedirs(group_path, exist_ok=True)
+
         self.env = lmdb.open(
-            file,
+            group_path,
             map_size=map_size,
-            subdir=False,
+            subdir=True,  # Changed to True for directory-based storage
             readonly=readonly,
             **lmdb_kwargs,
         )
@@ -50,6 +63,29 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
         self._blocks: list[list[int]] | None = None
         self._schema_cache: list[bytes] | None = None
         self._block_sizes: list[int] | None = None
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        """Return available group names at the given path.
+
+        Args:
+            path: Base directory path containing group subdirectories.
+            **kwargs: Unused, for API compatibility.
+
+        Returns:
+            List of group names (subdirectory names that contain LMDB data).
+        """
+        base = Path(path)
+        if not base.exists():
+            return []
+
+        groups = []
+        for entry in base.iterdir():
+            if entry.is_dir():
+                # Check if it looks like an LMDB environment (has data.mdb or lock.mdb)
+                if (entry / "data.mdb").exists() or (entry / "lock.mdb").exists():
+                    groups.append(entry.name)
+        return sorted(groups)
 
     # ------------------------------------------------------------------
     # Cache management
@@ -66,14 +102,14 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
             return
 
         # Schema
-        schema_bytes = txn.get(self.prefix + b"__schema__")
+        schema_bytes = txn.get(b"__schema__")
         if schema_bytes is not None and schema_bytes:
             self._schema_cache = schema_bytes.split(b"\n")
         else:
             self._schema_cache = []
 
         # Block count
-        blk_count_bytes = txn.get(self.prefix + b"__blk_count__")
+        blk_count_bytes = txn.get(b"__blk_count__")
         if blk_count_bytes is None:
             self._blocks = []
             self._block_sizes = []
@@ -81,14 +117,21 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
 
         n_blocks = struct.unpack("<I", blk_count_bytes)[0]
 
+        if n_blocks == 0:
+            self._blocks = []
+            self._block_sizes = []
+            return
+
         # Block sizes
-        sizes_bytes = txn.get(self.prefix + b"__blk_sizes__")
+        sizes_bytes = txn.get(b"__blk_sizes__")
+        if not sizes_bytes:
+            raise RuntimeError("Corrupt LMDB metadata: missing __blk_sizes__")
         self._block_sizes = list(struct.unpack(f"<{n_blocks}I", sizes_bytes))
 
         # Load all blocks
         self._blocks = []
         for i in range(n_blocks):
-            blk_key = self.prefix + b"__blk__" + struct.pack("<I", i)
+            blk_key = b"__blk__" + struct.pack("<I", i)
             blk_bytes = txn.get(blk_key)
             size = self._block_sizes[i]
             sort_keys = list(struct.unpack(f"<{size}Q", blk_bytes))
@@ -134,23 +177,25 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
     def _save_block_metadata(self, txn) -> None:
         """Write block count + sizes to LMDB."""
         n_blocks = len(self._blocks)
-        txn.put(self.prefix + b"__blk_count__", struct.pack("<I", n_blocks))
+        txn.put(b"__blk_count__", struct.pack("<I", n_blocks))
         self._block_sizes = [len(blk) for blk in self._blocks]
         if n_blocks:
             txn.put(
-                self.prefix + b"__blk_sizes__",
+                b"__blk_sizes__",
                 struct.pack(f"<{n_blocks}I", *self._block_sizes),
             )
+        else:
+            txn.delete(b"__blk_sizes__")
 
     def _save_block(self, txn, block_index: int) -> None:
         """Write a single block to LMDB."""
         blk = self._blocks[block_index]
-        blk_key = self.prefix + b"__blk__" + struct.pack("<I", block_index)
+        blk_key = b"__blk__" + struct.pack("<I", block_index)
         txn.put(blk_key, struct.pack(f"<{len(blk)}Q", *blk))
 
     def _save_schema(self, txn) -> None:
         """Write global schema to LMDB."""
-        txn.put(self.prefix + b"__schema__", b"\n".join(self._schema_cache))
+        txn.put(b"__schema__", b"\n".join(self._schema_cache))
 
     def _merge_schema(self, field_keys: set[bytes]) -> bool:
         """Merge new field keys into schema. Returns True if schema grew."""
@@ -167,7 +212,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
 
     def _get_count(self, txn) -> int:
         """Get the current count from metadata (returns 0 if not set)."""
-        count_key = self.prefix + b"__meta__count"
+        count_key = b"__meta__count"
         count_bytes = txn.get(count_key)
         if count_bytes is None:
             return 0
@@ -175,12 +220,12 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
 
     def _set_count(self, txn, count: int) -> None:
         """Set the count in metadata."""
-        count_key = self.prefix + b"__meta__count"
+        count_key = b"__meta__count"
         txn.put(count_key, str(count).encode())
 
     def _get_next_sort_key(self, txn) -> int:
         """Get the next available sort key counter (returns 0 if not set)."""
-        key = self.prefix + b"__meta__next_sort_key"
+        key = b"__meta__next_sort_key"
         value = txn.get(key)
         if value is None:
             return 0
@@ -188,7 +233,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
 
     def _set_next_sort_key(self, txn, value: int) -> None:
         """Set the next available sort key counter."""
-        key = self.prefix + b"__meta__next_sort_key"
+        key = b"__meta__next_sort_key"
         txn.put(key, str(value).encode())
 
     def _allocate_sort_key(self, txn) -> int:
@@ -217,7 +262,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
         self._ensure_cache(txn)
         sort_key = self._resolve_sort_key(index)
         sort_key_str = str(sort_key).encode()
-        prefix = self.prefix + sort_key_str + b"-"
+        prefix = sort_key_str + b"-"
 
         if keys is not None:
             keys_set = set(keys)
@@ -249,7 +294,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
             self._ensure_cache(txn)
             sort_key = self._resolve_sort_key(index)
             sort_key_str = str(sort_key).encode()
-            prefix = self.prefix + sort_key_str + b"-"
+            prefix = sort_key_str + b"-"
 
             keys_to_check = [prefix + f for f in self._schema_cache]
             result = []
@@ -292,7 +337,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
 
                 # Delete old data using schema
                 sort_key_str = str(sort_key).encode()
-                prefix = self.prefix + sort_key_str + b"-"
+                prefix = sort_key_str + b"-"
                 for field in self._schema_cache:
                     txn.delete(prefix + field)
             else:
@@ -324,8 +369,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
             # Write new data
             sort_key_str = str(sort_key).encode()
             items_to_insert = [
-                (self.prefix + sort_key_str + b"-" + key, value)
-                for key, value in data.items()
+                (sort_key_str + b"-" + key, value) for key, value in data.items()
             ]
             if items_to_insert:
                 cursor = txn.cursor()
@@ -367,9 +411,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
                 for i in range(blk_idx, len(self._blocks)):
                     self._save_block(txn, i)
                 # Delete the old last block key
-                old_last_key = (
-                    self.prefix + b"__blk__" + struct.pack("<I", n_before - 1)
-                )
+                old_last_key = b"__blk__" + struct.pack("<I", n_before - 1)
                 txn.delete(old_last_key)
             else:
                 self._save_block(txn, blk_idx)
@@ -378,7 +420,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
 
             # Delete data keys using schema
             sort_key_str = str(sort_key).encode()
-            prefix = self.prefix + sort_key_str + b"-"
+            prefix = sort_key_str + b"-"
             for field in self._schema_cache:
                 txn.delete(prefix + field)
 
@@ -429,8 +471,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
             # Write data
             sort_key_str = str(sort_key).encode()
             items_to_insert = [
-                (self.prefix + sort_key_str + b"-" + key, val)
-                for key, val in value.items()
+                (sort_key_str + b"-" + key, val) for key, val in value.items()
             ]
             if items_to_insert:
                 cursor = txn.cursor()
@@ -479,7 +520,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
 
                 # Collect data entries
                 for field_key, field_value in item.items():
-                    data_key = self.prefix + sort_key_str + b"-" + field_key
+                    data_key = sort_key_str + b"-" + field_key
                     all_items.append((data_key, field_value))
 
                 all_field_keys.update(item.keys())
@@ -487,7 +528,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
             # Save modified blocks into the putmulti batch
             for blk_idx in modified_blocks:
                 blk = self._blocks[blk_idx]
-                blk_key = self.prefix + b"__blk__" + struct.pack("<I", blk_idx)
+                blk_key = b"__blk__" + struct.pack("<I", blk_idx)
                 all_items.append((blk_key, struct.pack(f"<{len(blk)}Q", *blk)))
 
             # Block metadata
@@ -495,14 +536,14 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
             self._block_sizes = [len(blk) for blk in self._blocks]
             all_items.append(
                 (
-                    self.prefix + b"__blk_count__",
+                    b"__blk_count__",
                     struct.pack("<I", n_blocks),
                 )
             )
             if n_blocks:
                 all_items.append(
                     (
-                        self.prefix + b"__blk_sizes__",
+                        b"__blk_sizes__",
                         struct.pack(f"<{n_blocks}I", *self._block_sizes),
                     )
                 )
@@ -511,7 +552,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
             if self._merge_schema(all_field_keys):
                 all_items.append(
                     (
-                        self.prefix + b"__schema__",
+                        b"__schema__",
                         b"\n".join(self._schema_cache),
                     )
                 )
@@ -535,7 +576,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
             self._ensure_cache(txn)
             sort_key = self._resolve_sort_key(index)
             sort_key_str = str(sort_key).encode()
-            prefix = self.prefix + sort_key_str + b"-"
+            prefix = sort_key_str + b"-"
 
             items_to_update = [
                 (prefix + field_key, value) for field_key, value in data.items()
@@ -564,7 +605,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
                     continue
                 sort_key = self._resolve_sort_key(start + i)
                 sort_key_str = str(sort_key).encode()
-                prefix = self.prefix + sort_key_str + b"-"
+                prefix = sort_key_str + b"-"
                 for field_key, value in row_data.items():
                     all_items.append((prefix + field_key, value))
                 new_fields.update(row_data.keys())
@@ -585,7 +626,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
             for i, value in enumerate(values):
                 sort_key = self._resolve_sort_key(start + i)
                 sort_key_str = str(sort_key).encode()
-                all_items.append((self.prefix + sort_key_str + b"-" + key, value))
+                all_items.append((sort_key_str + b"-" + key, value))
             if all_items:
                 cursor = txn.cursor()
                 cursor.putmulti(all_items, dupdata=False, overwrite=True)

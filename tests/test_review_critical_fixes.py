@@ -25,7 +25,9 @@ async def test_async_aseio_insert_converts_atoms_to_dict():
     from asebytes.memory import MemoryObjectBackend
     from asebytes import AsyncASEIO, SyncToAsyncAdapter
 
-    backend = SyncToAsyncAdapter(MemoryObjectBackend())
+    backend = SyncToAsyncAdapter(
+        MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
+    )
     db = AsyncASEIO(backend)
 
     # Seed with one row so we can insert at index 0
@@ -54,9 +56,11 @@ async def test_async_aseio_insert_converts_atoms_to_dict():
 
 def test_sync_get_column_handles_none_reserved_rows():
     """ReadBackend.get_column() should return None for reserved (None) rows."""
+    import uuid
     from asebytes.memory import MemoryObjectBackend
 
-    backend = MemoryObjectBackend()
+    # Use unique group for test isolation
+    backend = MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
     backend.extend([{"x": 1}, None, {"x": 3}])
 
     # get_column should handle the None row gracefully, not crash
@@ -99,7 +103,7 @@ def test_mongodb_extend_empty_returns_int_not_none():
     backend = MongoObjectBackend(
         uri=MONGO_URI,
         database="asebytes_test",
-        collection=col_name,
+        group=col_name,
     )
     try:
         # extend([]) BEFORE any other operation — _count is still None
@@ -119,7 +123,7 @@ def test_mongodb_extend_empty_returns_current_count():
     backend = MongoObjectBackend(
         uri=MONGO_URI,
         database="asebytes_test",
-        collection=col_name,
+        group=col_name,
     )
     try:
         backend.extend([{"a": 1}, {"a": 2}])
@@ -137,7 +141,7 @@ async def test_async_mongodb_extend_empty_returns_int_not_none():
     backend = AsyncMongoObjectBackend(
         uri=MONGO_URI,
         database="asebytes_test",
-        collection=col_name,
+        group=col_name,
     )
     try:
         result = await backend.extend([])
@@ -160,7 +164,9 @@ async def test_async_column_view_len_unresolved_raises_clear_error():
     from asebytes.memory import MemoryObjectBackend
     from asebytes import AsyncObjectIO, SyncToAsyncAdapter
 
-    backend = SyncToAsyncAdapter(MemoryObjectBackend())
+    backend = SyncToAsyncAdapter(
+        MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
+    )
     db = AsyncObjectIO(backend)
 
     await db.extend([{"x": 1}, {"x": 2}, {"x": 3}])
@@ -179,7 +185,9 @@ async def test_async_column_view_bool_unresolved_raises_clear_error():
     from asebytes.memory import MemoryObjectBackend
     from asebytes import AsyncObjectIO, SyncToAsyncAdapter
 
-    backend = SyncToAsyncAdapter(MemoryObjectBackend())
+    backend = SyncToAsyncAdapter(
+        MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
+    )
     db = AsyncObjectIO(backend)
 
     await db.extend([{"x": 1}])
@@ -196,7 +204,9 @@ async def test_async_column_view_len_with_explicit_indices_works():
     from asebytes.memory import MemoryObjectBackend
     from asebytes import AsyncObjectIO, SyncToAsyncAdapter
 
-    backend = SyncToAsyncAdapter(MemoryObjectBackend())
+    backend = SyncToAsyncAdapter(
+        MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
+    )
     db = AsyncObjectIO(backend)
 
     await db.extend([{"x": 1}, {"x": 2}, {"x": 3}])
@@ -329,7 +339,7 @@ async def test_mongodb_update_materializes_placeholder():
     backend = AsyncMongoObjectBackend(
         uri=MONGO_URI,
         database="asebytes_test",
-        collection=col_name,
+        group=col_name,
     )
     try:
         # Create sparse data: real doc at 0, placeholder (None) at 1, real doc at 2
@@ -362,7 +372,7 @@ async def test_mongodb_update_many_materializes_placeholders():
     backend = AsyncMongoObjectBackend(
         uri=MONGO_URI,
         database="asebytes_test",
-        collection=col_name,
+        group=col_name,
     )
     try:
         # Create sparse data: real doc at 0, placeholders at 1-2, real doc at 3
@@ -393,7 +403,7 @@ async def test_mongodb_set_column_materializes_placeholders():
     backend = AsyncMongoObjectBackend(
         uri=MONGO_URI,
         database="asebytes_test",
-        collection=col_name,
+        group=col_name,
     )
     try:
         # Create sparse data: real doc at 0, placeholders at 1-2, real doc at 3
@@ -427,7 +437,9 @@ async def test_async_row_view_to_list_handles_none_rows():
     from asebytes.memory import MemoryObjectBackend
     from asebytes import AsyncObjectIO, SyncToAsyncAdapter
 
-    backend = SyncToAsyncAdapter(MemoryObjectBackend())
+    backend = SyncToAsyncAdapter(
+        MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
+    )
     db = AsyncObjectIO(backend)
 
     # Create sparse data with None placeholder at index 1
@@ -447,7 +459,9 @@ async def test_async_row_view_aiter_handles_none_rows():
     from asebytes.memory import MemoryObjectBackend
     from asebytes import AsyncObjectIO, SyncToAsyncAdapter
 
-    backend = SyncToAsyncAdapter(MemoryObjectBackend())
+    backend = SyncToAsyncAdapter(
+        MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
+    )
     db = AsyncObjectIO(backend)
 
     await db.extend([{"x": 1}, None, {"x": 3}])
@@ -465,7 +479,9 @@ async def test_async_column_view_to_list_handles_none_rows():
     from asebytes.memory import MemoryObjectBackend
     from asebytes import AsyncObjectIO, SyncToAsyncAdapter
 
-    backend = SyncToAsyncAdapter(MemoryObjectBackend())
+    backend = SyncToAsyncAdapter(
+        MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
+    )
     db = AsyncObjectIO(backend)
 
     await db.extend([{"x": 1, "y": 2}, None, {"x": 3, "y": 4}])
@@ -484,7 +500,9 @@ async def test_async_column_view_aiter_handles_none_rows():
     from asebytes.memory import MemoryObjectBackend
     from asebytes import AsyncObjectIO, SyncToAsyncAdapter
 
-    backend = SyncToAsyncAdapter(MemoryObjectBackend())
+    backend = SyncToAsyncAdapter(
+        MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
+    )
     db = AsyncObjectIO(backend)
 
     await db.extend([{"x": 1, "y": 2}, None, {"x": 3, "y": 4}])
@@ -503,7 +521,9 @@ async def test_async_ase_column_view_to_list_handles_none_rows():
     from asebytes import AsyncASEIO, AsyncObjectIO, SyncToAsyncAdapter
     from asebytes._convert import atoms_to_dict
 
-    backend = SyncToAsyncAdapter(MemoryObjectBackend())
+    backend = SyncToAsyncAdapter(
+        MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
+    )
     # Use ObjectIO to insert raw data including None (simulating placeholder rows)
     raw_db = AsyncObjectIO(backend)
     atoms = ase.Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
@@ -525,7 +545,9 @@ async def test_async_ase_column_view_aiter_handles_none_rows():
     from asebytes import AsyncASEIO, AsyncObjectIO, SyncToAsyncAdapter
     from asebytes._convert import atoms_to_dict
 
-    backend = SyncToAsyncAdapter(MemoryObjectBackend())
+    backend = SyncToAsyncAdapter(
+        MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
+    )
     # Use ObjectIO to insert raw data including None (simulating placeholder rows)
     raw_db = AsyncObjectIO(backend)
     atoms = ase.Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
@@ -576,7 +598,7 @@ def test_objectio_context_manager_tolerates_no_close():
     from asebytes.memory import MemoryObjectBackend
     from asebytes import ObjectIO
 
-    backend = MemoryObjectBackend()
+    backend = MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
     io = ObjectIO(backend)
 
     with io:
@@ -621,7 +643,7 @@ def test_sync_column_view_to_list_handles_none_rows():
     from asebytes.memory import MemoryObjectBackend
     from asebytes import ObjectIO
 
-    backend = MemoryObjectBackend()
+    backend = MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
     db = ObjectIO(backend)
 
     db.extend([{"x": 1, "y": 2}, None, {"x": 3, "y": 4}])
@@ -639,7 +661,7 @@ def test_sync_column_view_iter_handles_none_rows():
     from asebytes.memory import MemoryObjectBackend
     from asebytes import ObjectIO
 
-    backend = MemoryObjectBackend()
+    backend = MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
     db = ObjectIO(backend)
 
     db.extend([{"x": 1, "y": 2}, None, {"x": 3, "y": 4}])
@@ -656,7 +678,7 @@ def test_sync_column_view_getitem_handles_none_row():
     from asebytes.memory import MemoryObjectBackend
     from asebytes import ObjectIO
 
-    backend = MemoryObjectBackend()
+    backend = MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
     db = ObjectIO(backend)
 
     db.extend([{"x": 1, "y": 2}, None, {"x": 3, "y": 4}])

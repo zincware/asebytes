@@ -25,6 +25,10 @@ class MinimalReadable(ReadBackend):
             return {k: row[k] for k in keys if k in row}
         return dict(row)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 class MinimalWritable(MinimalReadable, ReadWriteBackend):
     """Minimal writable implementation."""

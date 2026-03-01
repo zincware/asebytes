@@ -27,9 +27,9 @@ class LMDBObjectReadBackend(BlobToObjectReadAdapter):
     Parameters
     ----------
     file : str
-        Path to LMDB database file.
-    prefix : bytes
-        Key prefix for namespacing.
+        Path to LMDB database directory.
+    group : str | None
+        Group name for namespacing. If None, uses "default".
     map_size : int
         Maximum LMDB size in bytes (default 10GB).
     **lmdb_kwargs
@@ -39,13 +39,18 @@ class LMDBObjectReadBackend(BlobToObjectReadAdapter):
     def __init__(
         self,
         file: str,
-        prefix: bytes = b"",
+        group: str | None = None,
         map_size: int = 10737418240,
         **lmdb_kwargs,
     ):
         super().__init__(
-            LMDBBlobBackend(file, prefix, map_size, readonly=True, **lmdb_kwargs)
+            LMDBBlobBackend(file, group, map_size, readonly=True, **lmdb_kwargs)
         )
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        """Return available group names at the given path."""
+        return LMDBBlobBackend.list_groups(path, **kwargs)
 
     @property
     def env(self):
@@ -109,9 +114,9 @@ class LMDBObjectBackend(BlobToObjectReadWriteAdapter):
     Parameters
     ----------
     file : str
-        Path to LMDB database file.
-    prefix : bytes
-        Key prefix for namespacing.
+        Path to LMDB database directory.
+    group : str | None
+        Group name for namespacing. If None, uses "default".
     map_size : int
         Maximum LMDB size in bytes (default 10GB).
     readonly : bool
@@ -123,14 +128,19 @@ class LMDBObjectBackend(BlobToObjectReadWriteAdapter):
     def __init__(
         self,
         file: str,
-        prefix: bytes = b"",
+        group: str | None = None,
         map_size: int = 10737418240,
         readonly: bool = False,
         **lmdb_kwargs,
     ):
         super().__init__(
-            LMDBBlobBackend(file, prefix, map_size, readonly, **lmdb_kwargs)
+            LMDBBlobBackend(file, group, map_size, readonly, **lmdb_kwargs)
         )
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        """Return available group names at the given path."""
+        return LMDBBlobBackend.list_groups(path, **kwargs)
 
     @property
     def env(self):

@@ -52,7 +52,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         file: str | Path | None = None,
         *,
         file_handle: h5py.File | None = None,
-        particles_group: str | None = None,
+        group: str | None = None,
         readonly: bool = False,
         compression: str | None = "gzip",
         compression_opts: int | None = None,
@@ -83,7 +83,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         self._author_email = author_email
 
         # Resolve particles group name
-        self._grp_name = self._resolve_particles_group(particles_group)
+        self._grp_name = self._resolve_particles_group(group)
 
         self._n_frames = 0
         self._max_atoms = 0
@@ -104,9 +104,20 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         return "atoms"
 
     @staticmethod
-    def list_groups(file: str | Path) -> list[str]:
-        """List particles group names in an H5MD file."""
-        with h5py.File(file, "r") as f:
+    def list_groups(path: str, **kwargs) -> list[str]:
+        """List particles group names in an H5MD file.
+
+        Args:
+            path: Path to the H5MD file.
+            **kwargs: Unused, for API compatibility.
+
+        Returns:
+            List of group names (particles groups in the file).
+        """
+        path_obj = Path(path)
+        if not path_obj.exists():
+            return []
+        with h5py.File(path, "r") as f:
             if "particles" not in f:
                 return []
             return list(f["particles"].keys())

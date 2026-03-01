@@ -11,7 +11,9 @@ from .._backends import ReadBackend
 from ._mappings import COLABFIT, OPTIMADE, ColumnMapping
 
 
-def load_dataset(path: str, *, streaming: bool = False, split: str | None = None, **kwargs):
+def load_dataset(
+    path: str, *, streaming: bool = False, split: str | None = None, **kwargs
+):
     """Lazy wrapper around ``datasets.load_dataset``.
 
     Raises a helpful ImportError if the ``datasets`` library is not installed.
@@ -204,9 +206,7 @@ class HuggingFaceBackend(ReadBackend[str, Any]):
             )
         return self._length
 
-    def get(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any]:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         # Handle negative indexing for downloaded mode
         if index < 0:
             if self._streaming and self._length is None:
@@ -252,9 +252,7 @@ class HuggingFaceBackend(ReadBackend[str, Any]):
         for i in indices:
             yield self.get(i, keys)
 
-    def get_column(
-        self, key: str, indices: list[int] | None = None
-    ) -> list[Any]:
+    def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
         if indices is None:
             if self._streaming and self._length is None:
                 raise TypeError(
@@ -264,6 +262,20 @@ class HuggingFaceBackend(ReadBackend[str, Any]):
                 )
             indices = list(range(len(self)))
         return [self.get(i, [key])[key] for i in indices]
+
+    def keys(self, index: int) -> list[str]:
+        """Return the list of keys available for the row at the given index."""
+        row = self.get(index)
+        return list(row.keys())
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        """Return the list of groups available at the given path.
+
+        For HuggingFace datasets, there are no groups — data is stored
+        as a single dataset. This method always returns an empty list.
+        """
+        return []
 
     # ── Class method: from_uri ────────────────────────────────────────────
 
@@ -334,14 +346,13 @@ class HuggingFaceBackend(ReadBackend[str, Any]):
         else:
             raise ValueError(f"Unknown URI scheme: {scheme!r}")
 
-        dataset = load_dataset(
-            hf_path, streaming=streaming, split=split, **load_kwargs
-        )
+        dataset = load_dataset(hf_path, streaming=streaming, split=split, **load_kwargs)
 
         # load_dataset returns a DatasetDict when no split is specified.
         # Require the user to pick a split explicitly.
         try:
             from datasets import DatasetDict, IterableDatasetDict
+
             dict_types = (DatasetDict, IterableDatasetDict)
         except ImportError:
             dict_types = ()

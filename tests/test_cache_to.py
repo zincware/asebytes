@@ -38,6 +38,10 @@ class InMemoryReadOnly(ReadBackend):
             return {k: row[k] for k in keys if k in row}
         return dict(row)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 class InMemoryWritable(ReadWriteBackend):
     """Writable backend backed by a plain list."""
@@ -70,6 +74,10 @@ class InMemoryWritable(ReadWriteBackend):
     def extend(self, data: list[dict[str, Any]]) -> int:
         self._rows.extend(data)
         return len(self._rows)
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
 
 
 # ---------------------------------------------------------------------------

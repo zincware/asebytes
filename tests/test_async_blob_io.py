@@ -63,6 +63,10 @@ class MemoryRawBackend(ReadWriteBackend):
         self._rows.extend(data)
         return len(self._rows)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 def _make_raw_row(i: int) -> dict[bytes, bytes]:
     return {

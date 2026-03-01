@@ -128,6 +128,31 @@ def test_decode_missing_cell_uses_default():
     assert np.allclose(atoms.cell.array, np.zeros((3, 3)))
 
 
+def test_decode_pbc_as_plain_list():
+    """Test that decode handles pbc packed as a plain list (not via msgpack_numpy).
+
+    This happens when a server stores pbc as a Python list (e.g. from MongoDB)
+    and re-packs with plain msgpack instead of msgpack_numpy.
+    """
+    import msgpack
+    import msgpack_numpy as m
+
+    data = {
+        b"cell": msgpack.packb(np.eye(3) * 10, default=m.encode),
+        b"pbc": msgpack.packb([True, True, True]),  # plain list, no numpy
+        b"arrays.numbers": msgpack.packb(np.array([1, 1]), default=m.encode),
+        b"arrays.positions": msgpack.packb(
+            np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]), default=m.encode
+        ),
+    }
+    atoms = asebytes.decode(data)
+    assert isinstance(atoms.pbc, np.ndarray), f"pbc should be ndarray, got {type(atoms.pbc)}"
+    assert atoms.pbc.dtype == bool
+    np.testing.assert_array_equal(atoms.pbc, [True, True, True])
+    # This must not raise AttributeError
+    assert atoms.pbc.tolist() == [True, True, True]
+
+
 def test_decode_missing_pbc_uses_default():
     """Test that missing pbc key uses default (False, False, False)."""
     import msgpack
@@ -149,7 +174,7 @@ def test_decode_missing_numbers_creates_empty_atoms():
 
     data = {
         b"cell": msgpack.packb(np.eye(3), default=m.encode),
-        b"pbc": msgpack.packb(np.array([True, True, True]).tobytes()),
+        b"pbc": msgpack.packb(np.array([True, True, True]), default=m.encode),
     }
     # Should now create an empty atoms object instead of raising
     atoms = asebytes.decode(data)
@@ -192,7 +217,7 @@ def test_decode_empty_atoms_both_modes(fast):
 
     data = {
         b"cell": msgpack.packb(np.eye(3), default=m.encode),
-        b"pbc": msgpack.packb(np.array([True, True, True]).tobytes()),
+        b"pbc": msgpack.packb(np.array([True, True, True]), default=m.encode),
         # Missing arrays.numbers - should create empty atoms
     }
     atoms = asebytes.decode(data, fast=fast)

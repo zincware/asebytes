@@ -17,15 +17,17 @@ from ._lua import (
     LUA_UPDATE,
 )
 
+DEFAULT_GROUP = "default"
+
 
 class RedisBlobBackend(ReadWriteBackend[bytes, bytes]):
     """Redis-backed read-write backend for blob dictionaries.
 
-    Storage layout (all keys share a ``{prefix}:`` namespace):
+    Storage layout (all keys share a ``{group}:`` namespace):
 
-    * ``{prefix}:sort_keys``  -- LIST of sort-key integers (positional index)
-    * ``{prefix}:next_sk``    -- STRING, monotonically increasing counter
-    * ``{prefix}:row:{sk}``   -- HASH, one per row (field=bytes, value=bytes)
+    * ``{group}:sort_keys``  -- LIST of sort-key integers (positional index)
+    * ``{group}:next_sk``    -- STRING, monotonically increasing counter
+    * ``{group}:row:{sk}``   -- HASH, one per row (field=bytes, value=bytes)
 
     A *None* row is represented by having its sort key in the list but
     **no** corresponding hash key.
@@ -34,17 +36,18 @@ class RedisBlobBackend(ReadWriteBackend[bytes, bytes]):
     ----------
     url : str
         Redis connection URI, e.g. ``redis://localhost:6379/0``.
-    prefix : str
-        Namespace prefix (default ``"default"``).
+    group : str | None
+        Group name (key prefix). Defaults to ``"default"``.
     """
 
     def __init__(
         self,
         url: str = "redis://localhost:6379",
-        prefix: str = "default",
+        group: str | None = None,
     ) -> None:
         self._r = redis_mod.Redis.from_url(url, decode_responses=False)
-        self._prefix = prefix
+        self.group = group if group is not None else DEFAULT_GROUP
+        self._prefix = self.group  # Internal alias for key generation
         self._scripts: dict[str, Any] | None = None
 
     # ------------------------------------------------------------------
@@ -136,11 +139,21 @@ class RedisBlobBackend(ReadWriteBackend[bytes, bytes]):
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_uri(cls, uri: str, **kwargs: Any) -> RedisBlobBackend:
-        """Construct from ``redis://host:port/db/prefix``.
+    def from_uri(
+        cls, uri: str, group: str | None = None, **kwargs: Any
+    ) -> RedisBlobBackend:
+        """Construct from ``redis://host:port/db``.
 
-        If only ``redis://host:port`` is given, db defaults to 0 and
-        prefix defaults to ``"default"``.
+        The group (key prefix) is passed separately via the ``group`` parameter.
+
+        Parameters
+        ----------
+        uri : str
+            Redis URI with optional database path (e.g. ``redis://host:port/0``).
+        group : str | None
+            Group name (key prefix). Defaults to ``"default"``.
+        **kwargs
+            Additional arguments passed to the constructor.
         """
         from urllib.parse import urlsplit, urlunsplit
 
@@ -148,24 +161,10 @@ class RedisBlobBackend(ReadWriteBackend[bytes, bytes]):
         if not parsed.scheme:
             raise ValueError(f"Invalid URI: {uri!r}")
 
-        # Path is e.g. "/0/myprefix" or "/0" or ""
+        # Extract the db number from the path (e.g. "/0" from "redis://host:port/0")
         path_parts = [p for p in parsed.path.split("/") if p]
-        if len(path_parts) >= 2:
+        if len(path_parts) >= 1:
             db = path_parts[0]
-            prefix = path_parts[1]
-            # Rebuild the connection URL with only the db in the path
-            connection_url = urlunsplit(
-                (
-                    parsed.scheme,
-                    parsed.netloc,
-                    f"/{db}",
-                    parsed.query,
-                    parsed.fragment,
-                )
-            )
-        elif len(path_parts) == 1:
-            db = path_parts[0]
-            prefix = "default"
             connection_url = urlunsplit(
                 (
                     parsed.scheme,
@@ -176,8 +175,6 @@ class RedisBlobBackend(ReadWriteBackend[bytes, bytes]):
                 )
             )
         else:
-            prefix = "default"
-            # Preserve the full URI (including query params, auth, etc.)
             connection_url = urlunsplit(
                 (
                     parsed.scheme,
@@ -188,7 +185,40 @@ class RedisBlobBackend(ReadWriteBackend[bytes, bytes]):
                 )
             )
 
-        return cls(url=connection_url, prefix=prefix, **kwargs)
+        return cls(url=connection_url, group=group, **kwargs)
+
+    @staticmethod
+    def list_groups(path: str = "redis://localhost:6379", **kwargs) -> list[str]:
+        """Return available group names (key prefixes) in the Redis database.
+
+        Parameters
+        ----------
+        path : str
+            Redis connection URI (e.g. ``redis://localhost:6379/0``).
+        **kwargs
+            Unused, for API compatibility.
+
+        Returns
+        -------
+        list[str]
+            List of group names found by scanning for ``*:sort_keys`` patterns.
+        """
+        r = redis_mod.Redis.from_url(path, decode_responses=True)
+        try:
+            groups = set()
+            cursor = 0
+            while True:
+                cursor, keys = r.scan(cursor=cursor, match="*:sort_keys", count=1000)
+                for key in keys:
+                    # Key format is {group}:sort_keys
+                    if key.endswith(":sort_keys"):
+                        group = key[:-10]  # Remove ":sort_keys" suffix
+                        groups.add(group)
+                if cursor == 0:
+                    break
+            return sorted(groups)
+        finally:
+            r.close()
 
     # ------------------------------------------------------------------
     # ReadBackend implementation

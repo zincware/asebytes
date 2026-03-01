@@ -190,11 +190,60 @@ URI schemes for remote/streaming sources:
 | Scheme | Source | Example |
 |--------|--------|---------|
 | `memory://` | In-memory (no persistence) | `ObjectIO("memory://")` |
-| `mongodb://` | MongoDB | `ObjectIO("mongodb://host:port/db/collection")` |
-| `redis://` | Redis | `ObjectIO("redis://host:port/prefix")` |
+| `mongodb://` | MongoDB | `ObjectIO("mongodb://host:port/db")` |
+| `redis://` | Redis | `ObjectIO("redis://host:port")` |
 | `hf://` | HuggingFace Datasets | `ASEIO("hf://user/dataset", ...)` |
 | `colabfit://` | ColabFit datasets | `ASEIO("colabfit://mlearn_Cu_train", ...)` |
 | `optimade://` | OPTIMADE datasets | `ASEIO("optimade://LeMaterial/LeMat-Bulk", ...)` |
+
+## Groups
+
+All backends support a unified `group` parameter to organize data into independent collections within the same storage location. Groups are useful for storing multiple datasets, splits, or configurations in a single file/database.
+
+```python
+# LMDB: separate subdirectories per group
+db1 = ASEIO("data.lmdb", group="train")
+db2 = ASEIO("data.lmdb", group="test")
+
+# H5MD: /particles/{group}/ in the HDF5 structure
+db = ASEIO("multi.h5", group="solvent")
+
+# MongoDB: each group = a collection in the database
+db = ObjectIO("mongodb://host:port/mydb", group="train")
+
+# Zarr: separate subdirectories per group
+db = ASEIO("data.zarr", group="conformers")
+
+# Redis: key prefix = group
+db = ObjectIO("redis://host:port", group="mydata")
+
+# Memory: independent storage per group
+db = ObjectIO("memory://", group="temp")
+```
+
+List available groups with `list_groups()`:
+
+```python
+from asebytes import ASEIO, H5MDBackend, LMDBObjectBackend
+
+# Static method on backends
+groups = H5MDBackend.list_groups("multi.h5")
+groups = LMDBObjectBackend.list_groups("data.lmdb")
+
+# Or via facades
+groups = ASEIO.list_groups("data.lmdb")
+```
+
+Default group is backend-specific when not specified (`"default"` for most backends; H5MD defaults to `"atoms"`). Backends store groups using native strategies:
+
+| Backend | Group storage |
+|---------|---------------|
+| LMDB | Subdirectory: `{path}/{group}/` |
+| H5MD | HDF5 group: `/particles/{group}/` |
+| Zarr | Subdirectory: `{path}/{group}/` |
+| MongoDB | Collection: `group` in database |
+| Redis | Key prefix: `{group}:` |
+| Memory | Internal dict keyed by group |
 
 ## Read-Through Cache
 
@@ -259,7 +308,7 @@ db.extend(atoms_list)
 # Multi-group files
 from asebytes import H5MDBackend
 groups = H5MDBackend.list_groups("multi.h5")
-db = ASEIO("multi.h5", particles_group="solvent")
+db = ASEIO("multi.h5", group="solvent")
 ```
 
 ## MongoDB
@@ -268,12 +317,12 @@ Shared remote storage for multi-client access. Requires a running MongoDB instan
 
 ```python
 # Sync
-db = ObjectIO("mongodb://user:pass@host:27017/mydb/mycollection")
+db = ObjectIO("mongodb://user:pass@host:27017/mydb", group="train")
 db.extend([{"energy": -3.5, "positions": [[0, 0, 0]]}])
 row = db[0]
 
 # Async — auto-dispatches to native AsyncMongoObjectBackend
-db = AsyncObjectIO("mongodb://user:pass@host:27017/mydb/mycollection")
+db = AsyncObjectIO("mongodb://user:pass@host:27017/mydb", group="test")
 row = await db[0]
 ```
 

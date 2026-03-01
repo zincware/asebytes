@@ -459,7 +459,7 @@ class TestH5MDStructure:
 
     def test_list_groups(self, h5_path, water_frames):
         """list_groups returns available particles groups."""
-        io1 = H5MDBackend(h5_path, particles_group="atoms")
+        io1 = H5MDBackend(h5_path, group="atoms")
         io1.extend([atoms_to_dict(water_frames[0])])
         io1.close()
 
@@ -469,9 +469,9 @@ class TestH5MDStructure:
     def test_list_groups_multiple(self, h5_path, water_frames):
         """list_groups returns multiple groups when present."""
         with h5py.File(h5_path, "a") as f:
-            io1 = H5MDBackend(file_handle=f, particles_group="atoms")
+            io1 = H5MDBackend(file_handle=f, group="atoms")
             io1.extend([atoms_to_dict(water_frames[0])])
-            io2 = H5MDBackend(file_handle=f, particles_group="solvent")
+            io2 = H5MDBackend(file_handle=f, group="solvent")
             io2.extend([atoms_to_dict(water_frames[0])])
 
         groups = H5MDBackend.list_groups(h5_path)

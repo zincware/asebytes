@@ -70,6 +70,10 @@ class TestBlobIONativeBytes:
             def insert(self, index, data):
                 self._rows.insert(index, data)
 
+            @staticmethod
+            def list_groups(path: str, **kwargs) -> list[str]:
+                return []
+
         backend = MemBlob()
         db = BlobIO(backend)
 
@@ -127,6 +131,10 @@ class TestBlobIONativeBytes:
             def insert(self, index, data):
                 self._rows.insert(index, data)
 
+            @staticmethod
+            def list_groups(path: str, **kwargs) -> list[str]:
+                return []
+
         db = BlobIO(MemBlob())
         assert db[b"name"][0] == b"alice"
 
@@ -179,6 +187,10 @@ class TestBlobIONativeBytes:
 
             def insert(self, index, data):
                 self._rows.insert(index, data)
+
+            @staticmethod
+            def list_groups(path: str, **kwargs) -> list[str]:
+                return []
 
         db = BlobIO(MemBlob())
         rv = db[0:2]
@@ -234,6 +246,10 @@ class TestBlobIONativeBytes:
 
             def insert(self, index, data):
                 self._rows.insert(index, data)
+
+            @staticmethod
+            def list_groups(path: str, **kwargs) -> list[str]:
+                return []
 
         db = BlobIO(MemBlob())
         result = db[[b"name", b"age"]].to_dict()

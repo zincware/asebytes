@@ -48,6 +48,27 @@ class BlobIO(MutableSequence):
         else:
             self._backend = backend
 
+    @staticmethod
+    def list_groups(path: str, **kwargs: Any) -> list[str]:
+        """List available groups at the given path.
+
+        Parameters
+        ----------
+        path : str
+            File path or URI to the storage location.
+        **kwargs
+            Backend-specific options (e.g., credentials).
+
+        Returns
+        -------
+        list[str]
+            List of group names available at the path.
+        """
+        from ._registry import get_blob_backend_cls
+
+        cls = get_blob_backend_cls(path, readonly=True)
+        return cls.list_groups(path, **kwargs)
+
     def keys(self, index: int) -> list[bytes]:
         """Return keys present at *index*."""
         return self._backend.keys(index)

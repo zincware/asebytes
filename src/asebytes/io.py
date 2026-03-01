@@ -83,15 +83,34 @@ class ASEIO(MutableSequence):
                 stacklevel=2,
             )
 
+    @staticmethod
+    def list_groups(path: str, **kwargs: Any) -> list[str]:
+        """List available groups at the given path.
+
+        Parameters
+        ----------
+        path : str
+            File path or URI to the storage location.
+        **kwargs
+            Backend-specific options (e.g., credentials).
+
+        Returns
+        -------
+        list[str]
+            List of group names available at the path.
+        """
+        from ._registry import get_backend_cls
+
+        cls = get_backend_cls(path, readonly=True)
+        return cls.list_groups(path, **kwargs)
+
     def keys(self, index: int) -> list[str]:
         """Return keys present at *index*."""
         return self._backend.keys(index)
 
     # --- Internal methods used by views ---
 
-    def _read_row(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any]:
+    def _read_row(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         if self._cache is not None:
             try:
                 return self._cache.get(index, keys)
@@ -243,9 +262,7 @@ class ASEIO(MutableSequence):
         data_list = [atoms_to_dict(atoms) for atoms in values]
         return self._backend.extend(data_list)
 
-    def get(
-        self, index: int, keys: list[str] | None = None
-    ) -> ase.Atoms | None:
+    def get(self, index: int, keys: list[str] | None = None) -> ase.Atoms | None:
         """Read a single row, optionally filtering to specific keys.
 
         Returns an ase.Atoms object (applies dict_to_atoms conversion),
