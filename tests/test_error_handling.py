@@ -229,10 +229,10 @@ def test_decode_empty_atoms_both_modes(fast):
 # =============================================================================
 
 
-def test_bytesio_getitem_nonexistent_index_raises_keyerror(tmp_path):
-    """Test that accessing non-existent index raises KeyError."""
+def test_bytesio_getitem_nonexistent_index_raises_indexerror(tmp_path):
+    """Test that accessing non-existent index raises IndexError."""
     io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
-    with pytest.raises(KeyError, match="Index 0 not found"):
+    with pytest.raises(IndexError):
         _ = io[0]
 
 
@@ -265,17 +265,17 @@ def test_bytesio_delitem_negative_out_of_bounds_raises_indexerror(tmp_path):
         del io[-2]
 
 
-def test_bytesio_get_nonexistent_index_raises_keyerror(tmp_path):
-    """Test that get() with non-existent index raises KeyError."""
+def test_bytesio_get_nonexistent_index_raises_indexerror(tmp_path):
+    """Test that get() with non-existent index raises IndexError."""
     io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
-    with pytest.raises(KeyError, match="Index 0 not found"):
+    with pytest.raises(IndexError):
         io.get(0)
 
 
-def test_bytesio_keys_nonexistent_raises_keyerror(tmp_path):
-    """Test that keys() with non-existent index raises KeyError."""
+def test_bytesio_keys_nonexistent_raises_indexerror(tmp_path):
+    """Test that keys() with non-existent index raises IndexError."""
     io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
-    with pytest.raises(KeyError, match="Index 0 not found"):
+    with pytest.raises(IndexError):
         io.keys(0)
 
 
@@ -297,8 +297,8 @@ def test_bytesio_get_with_invalid_keys_raises_keyerror(tmp_path):
         io.get(0, keys=[b"key1", b"nonexistent_key"])
 
 
-def test_bytesio_getitem_after_delete_raises_keyerror(tmp_path):
-    """Test that accessing deleted index raises KeyError."""
+def test_bytesio_getitem_after_delete_raises_indexerror(tmp_path):
+    """Test that accessing deleted index raises IndexError."""
     io = asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
     io[0] = {b"test": b"data1"}
     io[1] = {b"test": b"data2"}
@@ -306,7 +306,7 @@ def test_bytesio_getitem_after_delete_raises_keyerror(tmp_path):
 
     # After deletion, old index 1 becomes index 0
     # Trying to access index 1 should now fail
-    with pytest.raises(KeyError, match="Index 1 not found"):
+    with pytest.raises(IndexError):
         _ = io[1]
 
 

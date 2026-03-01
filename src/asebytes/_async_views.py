@@ -326,6 +326,8 @@ class AsyncSingleColumnView:
             values = await self._parent._read_column(self._keys[0], [idx])
             return values[0]
         row = await self._parent._read_row(idx, keys=self._keys)
+        if row is None:
+            return None
         return [row.get(k) for k in self._keys]
 
 
@@ -406,7 +408,7 @@ class AsyncColumnView:
         result: dict[str, list[Any]] = {k: [] for k in self._keys}
         for row in rows:
             for k in self._keys:
-                result[k].append(row[k] if row is not None else None)
+                result[k].append(row.get(k) if row is not None else None)
         return result
 
     async def __aiter__(self) -> AsyncIterator[Any]:

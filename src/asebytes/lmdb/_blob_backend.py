@@ -148,14 +148,17 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
 
     def _resolve_sort_key(self, index: int) -> int:
         """Resolve logical index to sort_key using cached blocks."""
+        total = sum(self._block_sizes)
         if index < 0:
-            raise KeyError(f"Index {index} not found")
+            index += total
+        if index < 0 or index >= total:
+            raise IndexError(f"Index {index} out of range [0, {total})")
         cumsum = 0
         for i, size in enumerate(self._block_sizes):
             if cumsum + size > index:
                 return self._blocks[i][index - cumsum]
             cumsum += size
-        raise KeyError(f"Index {index} not found")
+        raise IndexError(f"Index {index} out of range [0, {total})")
 
     def _find_block(self, index: int) -> tuple[int, int]:
         """Find (block_index, local_offset) for a logical index.

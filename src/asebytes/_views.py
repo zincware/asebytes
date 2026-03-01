@@ -303,7 +303,7 @@ class ColumnView:
         result: dict[str, list[Any]] = {k: [] for k in self._keys}
         for row in self._parent._read_rows(indices, keys=self._keys):
             for k in self._keys:
-                result[k].append(row[k])
+                result[k].append(row.get(k) if row is not None else None)
         return result
 
     def set(self, data: list) -> None:

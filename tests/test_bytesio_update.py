@@ -103,10 +103,9 @@ def test_update_multiple_keys_at_once(io, ethanol):
     assert msgpack.unpackb(data[b"calc.energy"], object_hook=m.decode) == -156.4
 
 
-def test_update_nonexistent_index_raises_keyerror(io):
-    """Test that updating a non-existent index raises KeyError."""
-    # Act & Assert: Should raise KeyError
-    with pytest.raises(KeyError, match="Index 0 not found"):
+def test_update_nonexistent_index_raises_indexerror(io):
+    """Test that updating a non-existent index raises IndexError."""
+    with pytest.raises(IndexError):
         io.update(0, {b"info.test": msgpack.packb("value", default=m.encode)})
 
 

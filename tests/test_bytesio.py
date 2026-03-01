@@ -132,8 +132,8 @@ def test_get_empty_keys_list(io, ethanol):
 
 
 def test_get_nonexistent_index(io):
-    # Test that get() raises KeyError for non-existent index
-    with pytest.raises(KeyError, match="Index 0 not found"):
+    # Test that get() raises IndexError for non-existent index
+    with pytest.raises(IndexError):
         io.get(0)
 
 
@@ -150,8 +150,8 @@ def test_keys(io, ethanol):
 
 
 def test_keys_nonexistent_index(io):
-    # Test that keys() raises KeyError for non-existent index
-    with pytest.raises(KeyError, match="Index 0 not found"):
+    # Test that keys() raises IndexError for non-existent index
+    with pytest.raises(IndexError):
         io.keys(0)
 
 
