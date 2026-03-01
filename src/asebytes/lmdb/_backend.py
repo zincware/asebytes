@@ -62,20 +62,23 @@ class _LMDBReadMixin:
     def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
         if indices is None:
             indices = list(range(len(self)))
+        if not indices:
+            return []
         byte_key = key.encode()
-        result = []
         with self._store.env.begin() as txn:
+            self._store._ensure_cache(txn)
+            # Build all LMDB keys upfront for a single cursor.getmulti call
+            lmdb_keys = []
             for i in indices:
-                try:
-                    raw = self._store.get_with_txn(txn, i, [byte_key])
-                except KeyError:
-                    result.append(None)
-                    continue
-                if raw is None or byte_key not in raw:
-                    result.append(None)
-                else:
-                    result.append(msgpack.unpackb(raw[byte_key], object_hook=m.decode))
-        return result
+                sort_key = self._store._resolve_sort_key(i)
+                lmdb_keys.append(str(sort_key).encode() + b"-" + byte_key)
+            fetched = dict(txn.cursor().getmulti(lmdb_keys))
+            return [
+                msgpack.unpackb(fetched[k], object_hook=m.decode)
+                if k in fetched
+                else None
+                for k in lmdb_keys
+            ]
 
 
 class LMDBObjectReadBackend(_LMDBReadMixin, BlobToObjectReadAdapter):
