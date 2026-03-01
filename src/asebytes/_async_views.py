@@ -102,8 +102,11 @@ class AsyncSingleRowView(Generic[R]):
             try:
                 n = len(self._parent)
             except TypeError:
+                # async can't do __len__
                 n = await self._parent.len()
             idx += n
+            if idx < 0:
+                raise IndexError(self._index)
         return idx
 
     async def _materialize(self) -> R:
