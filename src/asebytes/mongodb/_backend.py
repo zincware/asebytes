@@ -3,7 +3,10 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any
 
+import msgpack
+import msgpack_numpy as m
 import numpy as np
+from bson import Binary
 from pymongo import MongoClient
 
 from .._backends import ReadWriteBackend
@@ -15,12 +18,23 @@ DEFAULT_GROUP = "default"
 def _bson_safe(value: Any) -> Any:
     """Convert a value to a BSON-serialisable form.
 
-    numpy arrays → list, numpy scalars → Python scalar.
+    numpy arrays → Binary(msgpack) to preserve dtype/shape,
+    numpy scalars → Python scalar.
     """
     if isinstance(value, np.ndarray):
-        return value.tolist()
+        return Binary(msgpack.packb(value, default=m.encode))
     if isinstance(value, np.generic):
         return value.item()
+    return value
+
+
+def _bson_restore(value: Any) -> Any:
+    """Restore numpy arrays from BSON Binary msgpack blobs."""
+    if isinstance(value, (bytes, Binary)):
+        try:
+            return msgpack.unpackb(value, object_hook=m.decode)
+        except Exception:
+            return value
     return value
 
 
@@ -159,7 +173,7 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         data = doc.get("data")
         if data is None:
             return None
-        return dict(data)
+        return {k: _bson_restore(v) for k, v in data.items()}
 
     def _row_to_doc(self, sort_key: int, data: dict[str, Any] | None) -> dict:
         if data is not None:
@@ -212,7 +226,7 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         for sk in sks:
             doc = docs.get(sk)
             if doc is not None and doc.get("data") is not None:
-                results.append(doc["data"].get(key))
+                results.append(_bson_restore(doc["data"].get(key)))
             else:
                 results.append(None)
         return results

@@ -7,7 +7,7 @@ import numpy as np
 from pymongo import AsyncMongoClient
 
 from .._async_backends import AsyncReadWriteBackend
-from ._backend import _bson_safe, DEFAULT_GROUP
+from ._backend import _bson_restore, _bson_safe, DEFAULT_GROUP
 
 META_ID = "__meta__"
 
@@ -147,7 +147,7 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         data = doc.get("data")
         if data is None:
             return None
-        return dict(data)
+        return {k: _bson_restore(v) for k, v in data.items()}
 
     def _row_to_doc(self, sort_key: int, data: dict[str, Any] | None) -> dict:
         if data is not None:
@@ -206,7 +206,7 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         for sk in sks:
             doc = docs.get(sk)
             if doc is not None and doc.get("data") is not None:
-                results.append(doc["data"].get(key))
+                results.append(_bson_restore(doc["data"].get(key)))
             else:
                 results.append(None)
         return results

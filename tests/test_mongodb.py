@@ -3,6 +3,7 @@ import os
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
+import numpy as np
 import pytest
 
 pymongo = pytest.importorskip("pymongo")
@@ -718,3 +719,87 @@ class TestAsyncStaleCache:
                 uri=MONGO_URI, database="asebytes_test", group=group_name
             )
             await cleanup.remove()
+
+
+# ── Numpy array round-trip through BSON ──────────────────────────────────
+
+
+class TestNumpyBsonRoundtrip:
+    """Numpy arrays stored via MongoObjectBackend must survive the BSON round-trip."""
+
+    def test_1d_int_array_roundtrip(self, backend):
+        arr = np.array([1, 6, 8], dtype=np.int64)
+        backend.extend([{"numbers": arr}])
+        result = backend.get(0)
+        assert isinstance(result["numbers"], np.ndarray), (
+            f"Expected np.ndarray, got {type(result['numbers'])}"
+        )
+        np.testing.assert_array_equal(result["numbers"], arr)
+
+    def test_2d_float_array_roundtrip(self, backend):
+        arr = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
+        backend.extend([{"forces": arr}])
+        result = backend.get(0)
+        assert isinstance(result["forces"], np.ndarray), (
+            f"Expected np.ndarray, got {type(result['forces'])}"
+        )
+        np.testing.assert_array_almost_equal(result["forces"], arr)
+
+    def test_bool_array_roundtrip(self, backend):
+        arr = np.array([True, False, True])
+        backend.extend([{"pbc": arr}])
+        result = backend.get(0)
+        assert isinstance(result["pbc"], np.ndarray), (
+            f"Expected np.ndarray, got {type(result['pbc'])}"
+        )
+        np.testing.assert_array_equal(result["pbc"], arr)
+
+    def test_dtype_preserved(self, backend):
+        """Exact dtype must survive the round-trip."""
+        arr = np.array([1.0, 2.0], dtype=np.float32)
+        backend.extend([{"vals": arr}])
+        result = backend.get(0)
+        assert isinstance(result["vals"], np.ndarray)
+        assert result["vals"].dtype == np.float32
+
+    def test_mixed_row_with_arrays_and_scalars(self, backend):
+        row = {
+            "energy": -10.5,
+            "forces": np.array([[0.1, 0.2], [0.3, 0.4]]),
+            "smiles": "CCO",
+            "numbers": np.array([1, 6, 8]),
+        }
+        backend.extend([row])
+        result = backend.get(0)
+        assert result["energy"] == pytest.approx(-10.5)
+        assert result["smiles"] == "CCO"
+        assert isinstance(result["forces"], np.ndarray)
+        np.testing.assert_array_almost_equal(result["forces"], row["forces"])
+        assert isinstance(result["numbers"], np.ndarray)
+        np.testing.assert_array_equal(result["numbers"], row["numbers"])
+
+    def test_numpy_scalar_roundtrip(self, backend):
+        backend.extend([{"val": np.float64(-3.14)}])
+        result = backend.get(0)
+        assert result["val"] == pytest.approx(-3.14)
+
+    def test_get_column_returns_numpy_arrays(self, backend):
+        rows = [
+            {"forces": np.array([[0.1, 0.2], [0.3, 0.4]])},
+            {"forces": np.array([[0.5, 0.6], [0.7, 0.8]])},
+        ]
+        backend.extend(rows)
+        col = backend.get_column("forces")
+        for i, val in enumerate(col):
+            assert isinstance(val, np.ndarray), (
+                f"Column item {i}: expected np.ndarray, got {type(val)}"
+            )
+            np.testing.assert_array_almost_equal(val, rows[i]["forces"])
+
+    def test_update_preserves_numpy_array(self, backend):
+        backend.extend([{"energy": -1.0, "forces": np.array([0.0, 0.0])}])
+        new_forces = np.array([1.0, 2.0])
+        backend.update(0, {"forces": new_forces})
+        result = backend.get(0)
+        assert isinstance(result["forces"], np.ndarray)
+        np.testing.assert_array_equal(result["forces"], new_forces)
