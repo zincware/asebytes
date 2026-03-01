@@ -17,7 +17,6 @@ import pytest
 from asebytes import ObjectIO
 from asebytes._convert import atoms_to_dict
 
-from .conftest import skip_no_mongo, skip_no_redis
 
 # ===================================================================
 # read_positions_trajectory — bulk property read
@@ -57,7 +56,6 @@ def test_read_positions_trajectory_asebytes_h5md(benchmark, bench_h5md):
     assert len(results) == len(bench_h5md.frames)
 
 
-@skip_no_mongo
 @pytest.mark.benchmark(group="read_positions_trajectory")
 def test_read_positions_trajectory_asebytes_mongodb(benchmark, bench_mongodb):
     db = bench_mongodb.objectio
@@ -70,7 +68,6 @@ def test_read_positions_trajectory_asebytes_mongodb(benchmark, bench_mongodb):
 
 
 
-@skip_no_redis
 @pytest.mark.benchmark(group="read_positions_trajectory")
 def test_read_positions_trajectory_asebytes_redis(benchmark, bench_redis):
     db = bench_redis.objectio
@@ -160,7 +157,6 @@ def test_read_positions_single_asebytes_h5md(benchmark, bench_h5md):
     assert len(results) == n
 
 
-@skip_no_mongo
 @pytest.mark.benchmark(group="read_positions_single")
 def test_read_positions_single_asebytes_mongodb(benchmark, bench_mongodb):
     db = bench_mongodb.objectio
@@ -174,7 +170,6 @@ def test_read_positions_single_asebytes_mongodb(benchmark, bench_mongodb):
 
 
 
-@skip_no_redis
 @pytest.mark.benchmark(group="read_positions_single")
 def test_read_positions_single_asebytes_redis(benchmark, bench_redis):
     db = bench_redis.objectio
@@ -269,7 +264,6 @@ def test_column_energy_asebytes_h5md(benchmark, bench_h5md):
     assert len(results) == len(bench_h5md.frames)
 
 
-@skip_no_mongo
 @pytest.mark.benchmark(group="column_energy")
 def test_column_energy_asebytes_mongodb(benchmark, bench_mongodb):
     db = bench_mongodb.objectio
@@ -282,7 +276,6 @@ def test_column_energy_asebytes_mongodb(benchmark, bench_mongodb):
 
 
 
-@skip_no_redis
 @pytest.mark.benchmark(group="column_energy")
 def test_column_energy_asebytes_redis(benchmark, bench_redis):
     db = bench_redis.objectio

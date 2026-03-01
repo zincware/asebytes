@@ -1,3 +1,4 @@
+import os
 import pathlib
 
 import ase
@@ -7,6 +8,25 @@ import molify
 import numpy as np
 import pytest
 from ase.calculators.singlepoint import SinglePointCalculator
+
+# ---------------------------------------------------------------------------
+# Network backend URIs (shared across all test modules)
+# ---------------------------------------------------------------------------
+
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://root:example@localhost:27017")
+REDIS_URI = os.environ.get("REDIS_URI", "redis://localhost:6379")
+
+
+@pytest.fixture
+def mongo_uri() -> str:
+    """Return the MongoDB connection URI."""
+    return MONGO_URI
+
+
+@pytest.fixture
+def redis_uri() -> str:
+    """Return the Redis connection URI."""
+    return REDIS_URI
 
 LEMAT_PATH = pathlib.Path(__file__).parent / "data" / "lemat_1000.lmdb"
 

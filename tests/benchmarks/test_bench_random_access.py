@@ -14,7 +14,7 @@ from __future__ import annotations
 import ase
 import pytest
 
-from .conftest import random_indices, skip_no_mongo, skip_no_redis
+from .conftest import random_indices
 
 # ===================================================================
 # random_trajectory — bulk random read
@@ -61,7 +61,6 @@ def test_random_trajectory_asebytes_h5md(benchmark, bench_h5md):
     assert len(results) == n
 
 
-@skip_no_mongo
 @pytest.mark.benchmark(group="random_trajectory")
 def test_random_trajectory_asebytes_mongodb(benchmark, bench_mongodb):
     db = bench_mongodb.aseio
@@ -76,7 +75,6 @@ def test_random_trajectory_asebytes_mongodb(benchmark, bench_mongodb):
 
 
 
-@skip_no_redis
 @pytest.mark.benchmark(group="random_trajectory")
 def test_random_trajectory_asebytes_redis(benchmark, bench_redis):
     db = bench_redis.aseio
@@ -182,7 +180,6 @@ def test_random_single_asebytes_h5md(benchmark, bench_h5md):
     assert len(results) == n
 
 
-@skip_no_mongo
 @pytest.mark.benchmark(group="random_single")
 def test_random_single_asebytes_mongodb(benchmark, bench_mongodb):
     db = bench_mongodb.aseio
@@ -197,7 +194,6 @@ def test_random_single_asebytes_mongodb(benchmark, bench_mongodb):
 
 
 
-@skip_no_redis
 @pytest.mark.benchmark(group="random_single")
 def test_random_single_asebytes_redis(benchmark, bench_redis):
     db = bench_redis.aseio

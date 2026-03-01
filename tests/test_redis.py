@@ -1,12 +1,10 @@
 """Tests for the Redis blob-level backend (RedisBlobBackend).
 
-Requires a running Redis server. Skipped automatically when Redis is
-unreachable.  Override the URI with the ``REDIS_URI`` env-var.
+Requires a running Redis server.
 """
 
 from __future__ import annotations
 
-import os
 import uuid
 
 import pytest
@@ -15,29 +13,14 @@ redis_mod = pytest.importorskip("redis")
 
 from asebytes._backends import ReadBackend, ReadWriteBackend
 
-REDIS_URI = os.environ.get("REDIS_URI", "redis://localhost:6379")
-
-
-def _redis_available() -> bool:
-    try:
-        r = redis_mod.Redis.from_url(REDIS_URI, socket_connect_timeout=1)
-        r.ping()
-        return True
-    except Exception:
-        return False
-
-
-pytestmark = pytest.mark.skipif(
-    not _redis_available(), reason=f"Redis not available at {REDIS_URI}"
-)
 
 
 @pytest.fixture
-def backend():
+def backend(redis_uri):
     from asebytes.redis import RedisBlobBackend
 
     group = f"test_{uuid.uuid4().hex[:8]}"
-    b = RedisBlobBackend(url=REDIS_URI, group=group)
+    b = RedisBlobBackend(url=redis_uri, group=group)
     yield b
     b.remove()
 
@@ -400,10 +383,10 @@ def test_clear_then_extend(backend, sample_row):
 # ======================================================================
 
 
-def test_remove(backend, sample_row):
+def test_remove(backend, sample_row, redis_uri):
     backend.extend([sample_row, sample_row])
     prefix = backend._prefix
-    r = redis_mod.Redis.from_url(REDIS_URI)
+    r = redis_mod.Redis.from_url(redis_uri)
     # Verify keys exist before remove
     assert r.exists(f"{prefix}:sort_keys") == 1
     backend.remove()
@@ -461,23 +444,23 @@ def test_from_uri_with_db_only():
 # ======================================================================
 
 
-def test_group_parameter_default():
+def test_group_parameter_default(redis_uri):
     """Test that group parameter defaults to 'default'."""
     from asebytes.redis import RedisBlobBackend
 
-    b = RedisBlobBackend(url=REDIS_URI)
+    b = RedisBlobBackend(url=redis_uri)
     try:
         assert b.group == "default"
     finally:
         b.close()
 
 
-def test_group_parameter_custom():
+def test_group_parameter_custom(redis_uri):
     """Test that custom group parameter creates separate namespaces."""
     from asebytes.redis import RedisBlobBackend
 
     group_name = f"test_group_{uuid.uuid4().hex[:8]}"
-    b = RedisBlobBackend(url=REDIS_URI, group=group_name)
+    b = RedisBlobBackend(url=redis_uri, group=group_name)
     try:
         assert b.group == group_name
         b.extend([{b"x": b"1"}])
@@ -486,7 +469,7 @@ def test_group_parameter_custom():
         b.remove()
 
 
-def test_groups_are_isolated():
+def test_groups_are_isolated(redis_uri):
     """Test that different groups are isolated from each other."""
     from asebytes.redis import RedisBlobBackend
 
@@ -494,8 +477,8 @@ def test_groups_are_isolated():
     group_a = f"{base_name}_a"
     group_b = f"{base_name}_b"
 
-    b_a = RedisBlobBackend(url=REDIS_URI, group=group_a)
-    b_b = RedisBlobBackend(url=REDIS_URI, group=group_b)
+    b_a = RedisBlobBackend(url=redis_uri, group=group_a)
+    b_b = RedisBlobBackend(url=redis_uri, group=group_b)
 
     try:
         b_a.extend([{b"v": b"a1"}, {b"v": b"a2"}])
@@ -510,7 +493,7 @@ def test_groups_are_isolated():
         b_b.remove()
 
 
-def test_list_groups():
+def test_list_groups(redis_uri):
     """Test list_groups returns available groups in Redis."""
     from asebytes.redis import RedisBlobBackend
 
@@ -518,15 +501,15 @@ def test_list_groups():
     group_a = f"{base_name}_a"
     group_b = f"{base_name}_b"
 
-    b_a = RedisBlobBackend(url=REDIS_URI, group=group_a)
-    b_b = RedisBlobBackend(url=REDIS_URI, group=group_b)
+    b_a = RedisBlobBackend(url=redis_uri, group=group_a)
+    b_b = RedisBlobBackend(url=redis_uri, group=group_b)
 
     try:
         # Write something so the keys exist
         b_a.extend([{b"x": b"1"}])
         b_b.extend([{b"x": b"2"}])
 
-        groups = RedisBlobBackend.list_groups(path=REDIS_URI)
+        groups = RedisBlobBackend.list_groups(path=redis_uri)
         assert group_a in groups
         assert group_b in groups
     finally:
@@ -557,11 +540,11 @@ from asebytes._async_backends import AsyncReadBackend, AsyncReadWriteBackend
 
 
 @pytest.fixture
-async def async_backend():
+async def async_backend(redis_uri):
     from asebytes.redis import AsyncRedisBlobBackend
 
     group = f"test_async_{uuid.uuid4().hex[:8]}"
-    b = AsyncRedisBlobBackend(url=REDIS_URI, group=group)
+    b = AsyncRedisBlobBackend(url=redis_uri, group=group)
     yield b
     await b.remove()
 
@@ -786,12 +769,12 @@ class TestAsyncRedisBlobBackend:
         assert await async_backend.get(0) == sample_row
         assert await async_backend.get(1) == sample_row
 
-    async def test_remove(self, async_backend, sample_row):
+    async def test_remove(self, async_backend, sample_row, redis_uri):
         await async_backend.extend([sample_row, sample_row])
         prefix = async_backend._prefix
         import redis.asyncio as aioredis
 
-        r = aioredis.from_url(REDIS_URI)
+        r = aioredis.from_url(redis_uri)
         # Verify keys exist before remove
         assert await r.exists(f"{prefix}:sort_keys") == 1
         await async_backend.remove()

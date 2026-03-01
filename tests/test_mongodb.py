@@ -1,5 +1,4 @@
 import asyncio
-import os
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
@@ -12,30 +11,14 @@ from asebytes._backends import ReadBackend, ReadWriteBackend
 from asebytes._async_backends import AsyncReadBackend, AsyncReadWriteBackend
 from asebytes.mongodb import AsyncMongoObjectBackend, MongoObjectBackend
 
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://root:example@localhost:27017")
-
-
-def _mongo_available():
-    """Check whether a local MongoDB is reachable."""
-    try:
-        client = pymongo.MongoClient(MONGO_URI, serverSelectionTimeoutMS=1000)
-        client.admin.command("ping")
-        return True
-    except Exception:
-        return False
-
-
-pytestmark = pytest.mark.skipif(
-    not _mongo_available(), reason=f"MongoDB not available at {MONGO_URI}"
-)
 
 
 @pytest.fixture
-def backend():
+def backend(mongo_uri):
     """Create a backend with a unique group, drop it after the test."""
     group_name = f"test_{uuid.uuid4().hex[:8]}"
     b = MongoObjectBackend(
-        uri=MONGO_URI,
+        uri=mongo_uri,
         database="asebytes_test",
         group=group_name,
     )
@@ -177,11 +160,11 @@ def test_set_none_placeholder(backend, sample_row):
     assert backend.get(0)["energy"] == pytest.approx(-10.5)
 
 
-def test_from_uri():
+def test_from_uri(mongo_uri):
     col_name = f"test_{uuid.uuid4().hex[:8]}"
-    # Build a from_uri string from MONGO_URI
-    # Extract host part from MONGO_URI (e.g. "root:example@localhost:27017")
-    after_scheme = MONGO_URI.split("://", 1)[1]
+    # Build a from_uri string from mongo_uri
+    # Extract host part from mongo_uri (e.g. "root:example@localhost:27017")
+    after_scheme = mongo_uri.split("://", 1)[1]
     uri = f"mongodb://{after_scheme}/asebytes_test/{col_name}"
     b = MongoObjectBackend.from_uri(uri)
     try:
@@ -197,10 +180,10 @@ def test_from_uri():
 # ======================================================================
 
 
-def test_group_parameter_default():
+def test_group_parameter_default(mongo_uri):
     """Test that group parameter defaults to 'default'."""
     b = MongoObjectBackend(
-        uri=MONGO_URI,
+        uri=mongo_uri,
         database="asebytes_test",
     )
     # Should use "default" as the collection name
@@ -208,11 +191,11 @@ def test_group_parameter_default():
     b.close()
 
 
-def test_group_parameter_custom():
+def test_group_parameter_custom(mongo_uri):
     """Test that custom group parameter creates separate collections."""
     group_name = f"test_group_{uuid.uuid4().hex[:8]}"
     b = MongoObjectBackend(
-        uri=MONGO_URI,
+        uri=mongo_uri,
         database="asebytes_test",
         group=group_name,
     )
@@ -224,19 +207,19 @@ def test_group_parameter_custom():
         b.remove()
 
 
-def test_groups_are_isolated():
+def test_groups_are_isolated(mongo_uri):
     """Test that different groups are isolated from each other."""
     base_name = f"test_iso_{uuid.uuid4().hex[:8]}"
     group_a = f"{base_name}_a"
     group_b = f"{base_name}_b"
 
     b_a = MongoObjectBackend(
-        uri=MONGO_URI,
+        uri=mongo_uri,
         database="asebytes_test",
         group=group_a,
     )
     b_b = MongoObjectBackend(
-        uri=MONGO_URI,
+        uri=mongo_uri,
         database="asebytes_test",
         group=group_b,
     )
@@ -254,19 +237,19 @@ def test_groups_are_isolated():
         b_b.remove()
 
 
-def test_list_groups():
+def test_list_groups(mongo_uri):
     """Test list_groups returns available groups in a database."""
     base_name = f"test_lg_{uuid.uuid4().hex[:8]}"
     group_a = f"{base_name}_a"
     group_b = f"{base_name}_b"
 
     b_a = MongoObjectBackend(
-        uri=MONGO_URI,
+        uri=mongo_uri,
         database="asebytes_test",
         group=group_a,
     )
     b_b = MongoObjectBackend(
-        uri=MONGO_URI,
+        uri=mongo_uri,
         database="asebytes_test",
         group=group_b,
     )
@@ -277,7 +260,7 @@ def test_list_groups():
         b_b.extend([{"x": 2}])
 
         groups = MongoObjectBackend.list_groups(
-            path=MONGO_URI,
+            path=mongo_uri,
             database="asebytes_test",
         )
         assert group_a in groups
@@ -287,10 +270,10 @@ def test_list_groups():
         b_b.remove()
 
 
-def test_from_uri_with_group():
+def test_from_uri_with_group(mongo_uri):
     """Test from_uri with group parameter (URI contains only database)."""
     group_name = f"test_uri_grp_{uuid.uuid4().hex[:8]}"
-    after_scheme = MONGO_URI.split("://", 1)[1]
+    after_scheme = mongo_uri.split("://", 1)[1]
     # URI now only contains database, NOT collection
     uri = f"mongodb://{after_scheme}/asebytes_test"
     b = MongoObjectBackend.from_uri(uri, group=group_name)
@@ -332,10 +315,10 @@ def test_delete_last(backend, sample_row):
 
 
 @pytest.fixture
-async def async_backend():
+async def async_backend(mongo_uri):
     group_name = f"test_async_{uuid.uuid4().hex[:8]}"
     b = AsyncMongoObjectBackend(
-        uri=MONGO_URI,
+        uri=mongo_uri,
         database="asebytes_test",
         group=group_name,
     )
@@ -494,9 +477,9 @@ class TestAsyncMongoBackend:
         assert (await async_backend.get(0))["energy"] == pytest.approx(-1.0)
 
     @pytest.mark.anyio
-    async def test_from_uri(self):
+    async def test_from_uri(self, mongo_uri):
         col_name = f"test_async_{uuid.uuid4().hex[:8]}"
-        after_scheme = MONGO_URI.split("://", 1)[1]
+        after_scheme = mongo_uri.split("://", 1)[1]
         uri = f"mongodb://{after_scheme}/asebytes_test/{col_name}"
         b = AsyncMongoObjectBackend.from_uri(uri)
         try:
@@ -512,7 +495,7 @@ class TestAsyncMongoBackend:
 # ======================================================================
 
 
-def test_concurrent_extend_no_duplicate_keys(sample_row):
+def test_concurrent_extend_no_duplicate_keys(mongo_uri, sample_row):
     """Two threads calling extend() simultaneously must not collide on sort keys.
 
     Before the fix, both threads read the same next_sort_key, then both
@@ -523,7 +506,7 @@ def test_concurrent_extend_no_duplicate_keys(sample_row):
 
     def _extend_in_thread():
         b = MongoObjectBackend(
-            uri=MONGO_URI, database="asebytes_test", group=group_name
+            uri=mongo_uri, database="asebytes_test", group=group_name
         )
         b.extend(rows)
         b.close()
@@ -536,7 +519,7 @@ def test_concurrent_extend_no_duplicate_keys(sample_row):
 
         # Verify: 10 total rows, all readable
         b = MongoObjectBackend(
-            uri=MONGO_URI, database="asebytes_test", group=group_name
+            uri=mongo_uri, database="asebytes_test", group=group_name
         )
         assert len(b) == 10
         # All 10 rows should be retrievable without error
@@ -545,25 +528,25 @@ def test_concurrent_extend_no_duplicate_keys(sample_row):
         b.close()
     finally:
         cleanup = MongoObjectBackend(
-            uri=MONGO_URI, database="asebytes_test", group=group_name
+            uri=mongo_uri, database="asebytes_test", group=group_name
         )
         cleanup.remove()
 
 
-def test_concurrent_insert_no_duplicate_keys(sample_row):
+def test_concurrent_insert_no_duplicate_keys(mongo_uri, sample_row):
     """Two threads calling insert() simultaneously must not collide on sort keys."""
     group_name = f"test_race_ins_{uuid.uuid4().hex[:8]}"
 
     # Seed with one row so insert(0, ...) is valid
     seed = MongoObjectBackend(
-        uri=MONGO_URI, database="asebytes_test", group=group_name
+        uri=mongo_uri, database="asebytes_test", group=group_name
     )
     seed.extend([{**sample_row, "energy": -999.0}])
     seed.close()
 
     def _insert_in_thread(value):
         b = MongoObjectBackend(
-            uri=MONGO_URI, database="asebytes_test", group=group_name
+            uri=mongo_uri, database="asebytes_test", group=group_name
         )
         b.insert(0, {**sample_row, "energy": float(value)})
         b.close()
@@ -575,27 +558,27 @@ def test_concurrent_insert_no_duplicate_keys(sample_row):
                 f.result()  # raises if DuplicateKeyError occurred
 
         b = MongoObjectBackend(
-            uri=MONGO_URI, database="asebytes_test", group=group_name
+            uri=mongo_uri, database="asebytes_test", group=group_name
         )
         assert len(b) == 3  # 1 seed + 2 inserts
         b.close()
     finally:
         cleanup = MongoObjectBackend(
-            uri=MONGO_URI, database="asebytes_test", group=group_name
+            uri=mongo_uri, database="asebytes_test", group=group_name
         )
         cleanup.remove()
 
 
 class TestAsyncRaceConditions:
     @pytest.mark.anyio
-    async def test_concurrent_extend_no_duplicate_keys(self, sample_row):
+    async def test_concurrent_extend_no_duplicate_keys(self, mongo_uri, sample_row):
         """Two concurrent async extend() calls must not collide on sort keys."""
         group_name = f"test_async_race_{uuid.uuid4().hex[:8]}"
         rows = [{**sample_row, "energy": float(i)} for i in range(5)]
 
         async def _extend():
             b = AsyncMongoObjectBackend(
-                uri=MONGO_URI, database="asebytes_test", group=group_name
+                uri=mongo_uri, database="asebytes_test", group=group_name
             )
             await b.extend(rows)
             b.close()
@@ -604,7 +587,7 @@ class TestAsyncRaceConditions:
             await asyncio.gather(_extend(), _extend())
 
             b = AsyncMongoObjectBackend(
-                uri=MONGO_URI, database="asebytes_test", group=group_name
+                uri=mongo_uri, database="asebytes_test", group=group_name
             )
             assert await b.len() == 10
             for i in range(10):
@@ -612,24 +595,24 @@ class TestAsyncRaceConditions:
             b.close()
         finally:
             cleanup = AsyncMongoObjectBackend(
-                uri=MONGO_URI, database="asebytes_test", group=group_name
+                uri=mongo_uri, database="asebytes_test", group=group_name
             )
             await cleanup.remove()
 
     @pytest.mark.anyio
-    async def test_concurrent_insert_no_duplicate_keys(self, sample_row):
+    async def test_concurrent_insert_no_duplicate_keys(self, mongo_uri, sample_row):
         """Two concurrent async insert() calls must not collide on sort keys."""
         group_name = f"test_async_race_ins_{uuid.uuid4().hex[:8]}"
 
         seed = AsyncMongoObjectBackend(
-            uri=MONGO_URI, database="asebytes_test", group=group_name
+            uri=mongo_uri, database="asebytes_test", group=group_name
         )
         await seed.extend([{**sample_row, "energy": -999.0}])
         seed.close()
 
         async def _insert(value):
             b = AsyncMongoObjectBackend(
-                uri=MONGO_URI, database="asebytes_test", group=group_name
+                uri=mongo_uri, database="asebytes_test", group=group_name
             )
             await b.insert(0, {**sample_row, "energy": float(value)})
             b.close()
@@ -638,13 +621,13 @@ class TestAsyncRaceConditions:
             await asyncio.gather(_insert(0), _insert(1))
 
             b = AsyncMongoObjectBackend(
-                uri=MONGO_URI, database="asebytes_test", group=group_name
+                uri=mongo_uri, database="asebytes_test", group=group_name
             )
             assert await b.len() == 3
             b.close()
         finally:
             cleanup = AsyncMongoObjectBackend(
-                uri=MONGO_URI, database="asebytes_test", group=group_name
+                uri=mongo_uri, database="asebytes_test", group=group_name
             )
             await cleanup.remove()
 
@@ -654,7 +637,7 @@ class TestAsyncRaceConditions:
 # ======================================================================
 
 
-def test_second_instance_sees_writes_from_first(sample_row):
+def test_second_instance_sees_writes_from_first(mongo_uri, sample_row):
     """A second backend instance must see data written by a different instance.
 
     Simulates two replicas behind a load balancer: replica B loads cache
@@ -665,13 +648,13 @@ def test_second_instance_sees_writes_from_first(sample_row):
     try:
         # Replica B connects first, loads cache (empty)
         replica_b = MongoObjectBackend(
-            uri=MONGO_URI, database="asebytes_test", group=group_name
+            uri=mongo_uri, database="asebytes_test", group=group_name
         )
         assert len(replica_b) == 0  # cache loaded: empty
 
         # Replica A writes 3 rows via a separate instance
         replica_a = MongoObjectBackend(
-            uri=MONGO_URI, database="asebytes_test", group=group_name
+            uri=mongo_uri, database="asebytes_test", group=group_name
         )
         replica_a.extend([sample_row, sample_row, sample_row])
         assert len(replica_a) == 3
@@ -684,26 +667,26 @@ def test_second_instance_sees_writes_from_first(sample_row):
         replica_b.close()
     finally:
         cleanup = MongoObjectBackend(
-            uri=MONGO_URI, database="asebytes_test", group=group_name
+            uri=mongo_uri, database="asebytes_test", group=group_name
         )
         cleanup.remove()
 
 
 class TestAsyncStaleCache:
     @pytest.mark.anyio
-    async def test_second_instance_sees_writes_from_first(self, sample_row):
+    async def test_second_instance_sees_writes_from_first(self, mongo_uri, sample_row):
         """Async: a second backend instance must see data written by another."""
         group_name = f"test_async_stale_{uuid.uuid4().hex[:8]}"
         try:
             # Replica B loads cache (empty)
             replica_b = AsyncMongoObjectBackend(
-                uri=MONGO_URI, database="asebytes_test", group=group_name
+                uri=mongo_uri, database="asebytes_test", group=group_name
             )
             assert await replica_b.len() == 0
 
             # Replica A writes 3 rows
             replica_a = AsyncMongoObjectBackend(
-                uri=MONGO_URI, database="asebytes_test", group=group_name
+                uri=mongo_uri, database="asebytes_test", group=group_name
             )
             await replica_a.extend([sample_row, sample_row, sample_row])
             assert await replica_a.len() == 3
@@ -716,7 +699,7 @@ class TestAsyncStaleCache:
             replica_b.close()
         finally:
             cleanup = AsyncMongoObjectBackend(
-                uri=MONGO_URI, database="asebytes_test", group=group_name
+                uri=mongo_uri, database="asebytes_test", group=group_name
             )
             await cleanup.remove()
 

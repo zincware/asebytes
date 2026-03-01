@@ -72,36 +72,19 @@ def test_sync_get_column_handles_none_reserved_rows():
 # Bug 3: MongoDB extend([]) returning None when cache uninitialised
 # ---------------------------------------------------------------------------
 
-import os
 import uuid
 
 pymongo = pytest.importorskip("pymongo")
 
 from asebytes.mongodb import MongoObjectBackend, AsyncMongoObjectBackend
 
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://root:example@localhost:27017")
 
 
-def _mongo_available():
-    try:
-        client = pymongo.MongoClient(MONGO_URI, serverSelectionTimeoutMS=1000)
-        client.admin.command("ping")
-        return True
-    except Exception:
-        return False
-
-
-_skip_no_mongo = pytest.mark.skipif(
-    not _mongo_available(), reason=f"MongoDB not available at {MONGO_URI}"
-)
-
-
-@_skip_no_mongo
-def test_mongodb_extend_empty_returns_int_not_none():
+def test_mongodb_extend_empty_returns_int_not_none(mongo_uri):
     """MongoDB extend([]) on a fresh backend should return 0, not None."""
     col_name = f"test_{uuid.uuid4().hex[:8]}"
     backend = MongoObjectBackend(
-        uri=MONGO_URI,
+        uri=mongo_uri,
         database="asebytes_test",
         group=col_name,
     )
@@ -116,12 +99,11 @@ def test_mongodb_extend_empty_returns_int_not_none():
         backend.remove()
 
 
-@_skip_no_mongo
-def test_mongodb_extend_empty_returns_current_count():
+def test_mongodb_extend_empty_returns_current_count(mongo_uri):
     """MongoDB extend([]) after data exists should return current count."""
     col_name = f"test_{uuid.uuid4().hex[:8]}"
     backend = MongoObjectBackend(
-        uri=MONGO_URI,
+        uri=mongo_uri,
         database="asebytes_test",
         group=col_name,
     )
@@ -133,13 +115,12 @@ def test_mongodb_extend_empty_returns_current_count():
         backend.remove()
 
 
-@_skip_no_mongo
 @pytest.mark.anyio
-async def test_async_mongodb_extend_empty_returns_int_not_none():
+async def test_async_mongodb_extend_empty_returns_int_not_none(mongo_uri):
     """Async MongoDB extend([]) on a fresh backend should return 0, not None."""
     col_name = f"test_{uuid.uuid4().hex[:8]}"
     backend = AsyncMongoObjectBackend(
-        uri=MONGO_URI,
+        uri=mongo_uri,
         database="asebytes_test",
         group=col_name,
     )
@@ -222,8 +203,7 @@ async def test_async_column_view_len_with_explicit_indices_works():
 # ---------------------------------------------------------------------------
 
 
-@_skip_no_mongo
-def test_objectio_mongodb_with_numpy_arrays():
+def test_objectio_mongodb_with_numpy_arrays(mongo_uri):
     """ObjectIO with mongodb:// URI must handle numpy arrays in data.
 
     atoms_to_dict() produces numpy arrays for positions, numbers, forces, etc.
@@ -235,7 +215,7 @@ def test_objectio_mongodb_with_numpy_arrays():
     from asebytes import ObjectIO
 
     col_name = f"test_{uuid.uuid4().hex[:8]}"
-    after_scheme = MONGO_URI.split("://", 1)[1]
+    after_scheme = mongo_uri.split("://", 1)[1]
     uri = f"mongodb://{after_scheme}/asebytes_test/{col_name}"
 
     db = ObjectIO(uri)
@@ -264,8 +244,7 @@ def test_objectio_mongodb_with_numpy_arrays():
         db.remove()
 
 
-@_skip_no_mongo
-def test_aseio_mongodb_roundtrip():
+def test_aseio_mongodb_roundtrip(mongo_uri):
     """ASEIO with mongodb:// URI must roundtrip ase.Atoms objects.
 
     This is the end-to-end test: create Atoms with calculator results,
@@ -276,7 +255,7 @@ def test_aseio_mongodb_roundtrip():
     import ase.calculators.singlepoint
 
     col_name = f"test_{uuid.uuid4().hex[:8]}"
-    after_scheme = MONGO_URI.split("://", 1)[1]
+    after_scheme = mongo_uri.split("://", 1)[1]
     uri = f"mongodb://{after_scheme}/asebytes_test/{col_name}"
 
     db = ASEIO(uri)
@@ -299,15 +278,14 @@ def test_aseio_mongodb_roundtrip():
         db.remove()
 
 
-@_skip_no_mongo
 @pytest.mark.anyio
-async def test_async_objectio_mongodb_with_numpy_arrays():
+async def test_async_objectio_mongodb_with_numpy_arrays(mongo_uri):
     """AsyncObjectIO with mongodb:// URI must handle numpy arrays."""
     import numpy as np
     from asebytes import AsyncObjectIO
 
     col_name = f"test_{uuid.uuid4().hex[:8]}"
-    after_scheme = MONGO_URI.split("://", 1)[1]
+    after_scheme = mongo_uri.split("://", 1)[1]
     uri = f"mongodb://{after_scheme}/asebytes_test/{col_name}"
 
     db = AsyncObjectIO(uri)
@@ -331,13 +309,12 @@ async def test_async_objectio_mongodb_with_numpy_arrays():
 # ---------------------------------------------------------------------------
 
 
-@_skip_no_mongo
 @pytest.mark.anyio
-async def test_mongodb_update_materializes_placeholder():
+async def test_mongodb_update_materializes_placeholder(mongo_uri):
     """MongoDB update() on placeholder row should update data field correctly."""
     col_name = f"test_{uuid.uuid4().hex[:8]}"
     backend = AsyncMongoObjectBackend(
-        uri=MONGO_URI,
+        uri=mongo_uri,
         database="asebytes_test",
         group=col_name,
     )
@@ -359,18 +336,17 @@ async def test_mongodb_update_materializes_placeholder():
     finally:
         await backend.aclose()
         # Clean up
-        client = pymongo.AsyncMongoClient(MONGO_URI)
+        client = pymongo.AsyncMongoClient(mongo_uri)
         await client["asebytes_test"][col_name].drop()
         await client.close()
 
 
-@_skip_no_mongo
 @pytest.mark.anyio
-async def test_mongodb_update_many_materializes_placeholders():
+async def test_mongodb_update_many_materializes_placeholders(mongo_uri):
     """MongoDB update_many() on placeholder rows should update data correctly."""
     col_name = f"test_{uuid.uuid4().hex[:8]}"
     backend = AsyncMongoObjectBackend(
-        uri=MONGO_URI,
+        uri=mongo_uri,
         database="asebytes_test",
         group=col_name,
     )
@@ -390,18 +366,17 @@ async def test_mongodb_update_many_materializes_placeholders():
         assert row2.get("b") == 2
     finally:
         await backend.aclose()
-        client = pymongo.AsyncMongoClient(MONGO_URI)
+        client = pymongo.AsyncMongoClient(mongo_uri)
         await client["asebytes_test"][col_name].drop()
         await client.close()
 
 
-@_skip_no_mongo
 @pytest.mark.anyio
-async def test_mongodb_set_column_materializes_placeholders():
+async def test_mongodb_set_column_materializes_placeholders(mongo_uri):
     """MongoDB set_column() on placeholder rows should update data correctly."""
     col_name = f"test_{uuid.uuid4().hex[:8]}"
     backend = AsyncMongoObjectBackend(
-        uri=MONGO_URI,
+        uri=mongo_uri,
         database="asebytes_test",
         group=col_name,
     )
@@ -421,7 +396,7 @@ async def test_mongodb_set_column_materializes_placeholders():
         assert row2.get("val") == 20
     finally:
         await backend.aclose()
-        client = pymongo.AsyncMongoClient(MONGO_URI)
+        client = pymongo.AsyncMongoClient(mongo_uri)
         await client["asebytes_test"][col_name].drop()
         await client.close()
 

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import pytest
 
-from .conftest import skip_no_mongo, skip_no_redis
 
 # ===================================================================
 # update_property_trajectory — bulk column update
@@ -53,7 +52,6 @@ def test_update_property_trajectory_asebytes_h5md(benchmark, bench_h5md):
     benchmark(fn)
 
 
-@skip_no_mongo
 @pytest.mark.benchmark(group="update_property_trajectory")
 def test_update_property_trajectory_asebytes_mongodb(benchmark, bench_mongodb):
     db = bench_mongodb.objectio
@@ -67,7 +65,6 @@ def test_update_property_trajectory_asebytes_mongodb(benchmark, bench_mongodb):
 
 
 
-@skip_no_redis
 @pytest.mark.benchmark(group="update_property_trajectory")
 def test_update_property_trajectory_asebytes_redis(benchmark, bench_redis):
     db = bench_redis.objectio

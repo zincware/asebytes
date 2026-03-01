@@ -9,7 +9,6 @@ Datasets: ethanol (1000 small molecules), lemat (1000 periodic structures).
 
 from __future__ import annotations
 
-import os
 import random
 import uuid
 from dataclasses import dataclass, field
@@ -23,46 +22,6 @@ from ase.db import connect
 from asebytes import ASEIO, ObjectIO
 from asebytes._convert import atoms_to_dict
 
-# ---------------------------------------------------------------------------
-# Connection URIs
-# ---------------------------------------------------------------------------
-
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://root:example@localhost:27017")
-REDIS_URI = os.environ.get("REDIS_URI", "redis://localhost:6379")
-
-# ---------------------------------------------------------------------------
-# Availability checks
-# ---------------------------------------------------------------------------
-
-
-def _mongo_available():
-    try:
-        import pymongo
-
-        c = pymongo.MongoClient(MONGO_URI, serverSelectionTimeoutMS=1000)
-        c.admin.command("ping")
-        return True
-    except Exception:
-        return False
-
-
-def _redis_available():
-    try:
-        import redis
-
-        r = redis.Redis.from_url(REDIS_URI, socket_connect_timeout=1)
-        r.ping()
-        return True
-    except Exception:
-        return False
-
-
-skip_no_mongo = pytest.mark.skipif(
-    not _mongo_available(), reason=f"MongoDB not available at {MONGO_URI}"
-)
-skip_no_redis = pytest.mark.skipif(
-    not _redis_available(), reason=f"Redis not available at {REDIS_URI}"
-)
 
 # ---------------------------------------------------------------------------
 # Dataset parametrisation
@@ -147,9 +106,9 @@ def bench_h5md(dataset, tmp_path):
 
 
 @pytest.fixture
-def bench_mongodb(dataset):
+def bench_mongodb(dataset, mongo_uri):
     name, frames = dataset
-    uri = f"{MONGO_URI}/bench_{name}_{uuid.uuid4().hex[:8]}"
+    uri = f"{mongo_uri}/bench_{name}_{uuid.uuid4().hex[:8]}"
     aseio = ASEIO(uri)
     aseio.extend(frames)
     objectio = ObjectIO(uri)
@@ -158,10 +117,10 @@ def bench_mongodb(dataset):
 
 
 @pytest.fixture
-def bench_redis(dataset):
+def bench_redis(dataset, redis_uri):
     name, frames = dataset
     prefix = f"bench_{name}_{uuid.uuid4().hex[:8]}"
-    uri = f"{REDIS_URI}/{prefix}"
+    uri = f"{redis_uri}/{prefix}"
     aseio = ASEIO(uri)
     aseio.extend(frames)
     objectio = ObjectIO(uri)

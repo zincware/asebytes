@@ -9,7 +9,6 @@ Verifies that for db = [data, None, data2]:
 
 from __future__ import annotations
 
-import os
 import uuid
 
 import pytest
@@ -23,66 +22,63 @@ from asebytes.mongodb import AsyncMongoObjectBackend, MongoObjectBackend
 ROW_A = {"x": 1, "tag": "a"}
 ROW_B = {"x": 2, "tag": "b"}
 
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://root:example@localhost:27017")
-REDIS_URI = os.environ.get("REDIS_URI", "redis://localhost:6379")
 
-
-def _lmdb(tmp_path):
+def _lmdb(tmp_path, **_kw):
     return ObjectIO(LMDBObjectBackend(str(tmp_path / "test.lmdb")))
 
 
-def _memory(tmp_path):
+def _memory(tmp_path, **_kw):
     return ObjectIO(MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}"))
 
 
-def _mongo(tmp_path):
+def _mongo(tmp_path, *, mongo_uri, **_kw):
     return ObjectIO(
         MongoObjectBackend(
-            uri=MONGO_URI, database="asebytes_test",
+            uri=mongo_uri, database="asebytes_test",
             group=f"test_{uuid.uuid4().hex[:8]}",
         )
     )
 
 
-def _redis(tmp_path):
-    return ObjectIO(REDIS_URI, group=f"test_{uuid.uuid4().hex[:8]}")
+def _redis(tmp_path, *, redis_uri, **_kw):
+    return ObjectIO(redis_uri, group=f"test_{uuid.uuid4().hex[:8]}")
 
 
 @pytest.fixture(
     params=[_lmdb, _memory, _mongo, _redis],
     ids=["lmdb", "memory", "mongo", "redis"],
 )
-def sync_io(tmp_path, request):
-    return request.param(tmp_path)
+def sync_io(tmp_path, mongo_uri, redis_uri, request):
+    return request.param(tmp_path, mongo_uri=mongo_uri, redis_uri=redis_uri)
 
 
-def _async_lmdb(tmp_path):
+def _async_lmdb(tmp_path, **_kw):
     return AsyncObjectIO(str(tmp_path / "test.lmdb"))
 
 
-def _async_memory(tmp_path):
+def _async_memory(tmp_path, **_kw):
     return AsyncObjectIO("memory://", group=f"test_{uuid.uuid4().hex[:8]}")
 
 
-def _async_mongo(tmp_path):
+def _async_mongo(tmp_path, *, mongo_uri, **_kw):
     return AsyncObjectIO(
         AsyncMongoObjectBackend(
-            uri=MONGO_URI, database="asebytes_test",
+            uri=mongo_uri, database="asebytes_test",
             group=f"test_async_{uuid.uuid4().hex[:8]}",
         )
     )
 
 
-def _async_redis(tmp_path):
-    return AsyncObjectIO(REDIS_URI, group=f"test_async_{uuid.uuid4().hex[:8]}")
+def _async_redis(tmp_path, *, redis_uri, **_kw):
+    return AsyncObjectIO(redis_uri, group=f"test_async_{uuid.uuid4().hex[:8]}")
 
 
 @pytest.fixture(
     params=[_async_lmdb, _async_memory, _async_mongo, _async_redis],
     ids=["lmdb", "memory", "mongo", "redis"],
 )
-def async_io(tmp_path, request):
-    return request.param(tmp_path)
+def async_io(tmp_path, mongo_uri, redis_uri, request):
+    return request.param(tmp_path, mongo_uri=mongo_uri, redis_uri=redis_uri)
 
 
 # ======================================================================
@@ -110,6 +106,32 @@ class TestSyncNoneIndexing:
 
         with pytest.raises(IndexError):
             sync_io[-4]
+
+    def test_column_view(self, sync_io):
+        sync_io.extend([ROW_A, None, ROW_B])
+
+        assert sync_io["tag"].to_list() == ["a", None, "b"]
+        assert sync_io["x"].to_list() == [1, None, 2]
+
+    def test_row_view_slice(self, sync_io):
+        sync_io.extend([ROW_A, None, ROW_B])
+
+        assert list(sync_io[:]) == [ROW_A, None, ROW_B]
+
+    def test_column_view_index_error(self, sync_io):
+        sync_io.extend([ROW_A, None, ROW_B])
+
+        with pytest.raises(IndexError):
+            sync_io["tag"][3]
+
+        with pytest.raises(IndexError):
+            sync_io["tag"][-4]
+
+    def test_column_view_keyerror(self, sync_io):
+        sync_io.extend([ROW_A, None, ROW_B])
+
+        with pytest.raises(KeyError):
+            sync_io["nonexistent"].to_list()
 
 
 # ======================================================================
@@ -139,3 +161,33 @@ class TestAsyncNoneIndexing:
 
         with pytest.raises(IndexError):
             await async_io[-4]
+
+    @pytest.mark.anyio
+    async def test_column_view(self, async_io):
+        await async_io.extend([ROW_A, None, ROW_B])
+
+        assert await async_io["tag"].to_list() == ["a", None, "b"]
+        assert await async_io["x"].to_list() == [1, None, 2]
+
+    @pytest.mark.anyio
+    async def test_row_view_slice(self, async_io):
+        await async_io.extend([ROW_A, None, ROW_B])
+
+        assert await async_io[:].to_list() == [ROW_A, None, ROW_B]
+
+    @pytest.mark.anyio
+    async def test_column_view_keyerror(self, async_io):
+        await async_io.extend([ROW_A, None, ROW_B])
+
+        with pytest.raises(KeyError):
+            await async_io["nonexistent"].to_list()
+
+    @pytest.mark.anyio
+    async def test_column_view_index_error(self, async_io):
+        await async_io.extend([ROW_A, None, ROW_B])
+
+        with pytest.raises(IndexError):
+            await async_io["tag"][3]
+
+        with pytest.raises(IndexError):
+            await async_io["tag"][-4]

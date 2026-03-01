@@ -14,7 +14,6 @@ from ase.db import connect
 
 from asebytes import ASEIO
 
-from .conftest import MONGO_URI, REDIS_URI, skip_no_mongo, skip_no_redis
 
 # ===================================================================
 # write_trajectory — bulk write
@@ -57,14 +56,13 @@ def test_write_trajectory_asebytes_h5md(benchmark, dataset, tmp_path):
     benchmark(fn)
 
 
-@skip_no_mongo
 @pytest.mark.benchmark(group="write_trajectory")
-def test_write_trajectory_asebytes_mongodb(benchmark, dataset):
+def test_write_trajectory_asebytes_mongodb(benchmark, dataset, mongo_uri):
     name, frames = dataset
     dbs = []
 
     def fn():
-        uri = f"{MONGO_URI}/bench_wt_{name}_{uuid.uuid4().hex[:8]}"
+        uri = f"{mongo_uri}/bench_wt_{name}_{uuid.uuid4().hex[:8]}"
         db = ASEIO(uri)
         db.extend(frames)
         dbs.append(db)
@@ -74,14 +72,13 @@ def test_write_trajectory_asebytes_mongodb(benchmark, dataset):
         db.remove()
 
 
-@skip_no_redis
 @pytest.mark.benchmark(group="write_trajectory")
-def test_write_trajectory_asebytes_redis(benchmark, dataset):
+def test_write_trajectory_asebytes_redis(benchmark, dataset, redis_uri):
     name, frames = dataset
     dbs = []
 
     def fn():
-        uri = f"{REDIS_URI}/bench_wt_{name}_{uuid.uuid4().hex[:8]}"
+        uri = f"{redis_uri}/bench_wt_{name}_{uuid.uuid4().hex[:8]}"
         db = ASEIO(uri)
         db.extend(frames)
         dbs.append(db)
@@ -186,11 +183,10 @@ def test_write_single_asebytes_h5md(benchmark, dataset, tmp_path):
     benchmark(fn)
 
 
-@skip_no_mongo
 @pytest.mark.benchmark(group="write_single")
-def test_write_single_asebytes_mongodb(benchmark, dataset):
+def test_write_single_asebytes_mongodb(benchmark, dataset, mongo_uri):
     name, frames = dataset
-    uri = f"{MONGO_URI}/bench_ws_{name}_{uuid.uuid4().hex[:8]}"
+    uri = f"{mongo_uri}/bench_ws_{name}_{uuid.uuid4().hex[:8]}"
     db = ASEIO(uri)
 
     def fn():
@@ -201,11 +197,10 @@ def test_write_single_asebytes_mongodb(benchmark, dataset):
     db.remove()
 
 
-@skip_no_redis
 @pytest.mark.benchmark(group="write_single")
-def test_write_single_asebytes_redis(benchmark, dataset):
+def test_write_single_asebytes_redis(benchmark, dataset, redis_uri):
     name, frames = dataset
-    uri = f"{REDIS_URI}/bench_ws_{name}_{uuid.uuid4().hex[:8]}"
+    uri = f"{redis_uri}/bench_ws_{name}_{uuid.uuid4().hex[:8]}"
     db = ASEIO(uri)
 
     def fn():

@@ -7,28 +7,11 @@ blob-level URI registries.
 
 from __future__ import annotations
 
-import os
 import uuid
 
 import pytest
 
 redis_mod = pytest.importorskip("redis")
-
-REDIS_URI = os.environ.get("REDIS_URI", "redis://localhost:6379")
-
-
-def _redis_available():
-    try:
-        r = redis_mod.Redis.from_url(REDIS_URI, socket_connect_timeout=1)
-        r.ping()
-        return True
-    except Exception:
-        return False
-
-
-_skip_no_redis = pytest.mark.skipif(
-    not _redis_available(), reason=f"Redis not available at {REDIS_URI}"
-)
 
 
 def test_parse_uri_recognizes_redis():
@@ -53,12 +36,11 @@ def test_get_backend_cls_returns_adapter_for_redis():
     assert callable(cls)
 
 
-@_skip_no_redis
-def test_blobio_redis_uri():
+def test_blobio_redis_uri(redis_uri):
     from asebytes import BlobIO
 
     prefix = f"test_{uuid.uuid4().hex[:8]}"
-    uri = f"{REDIS_URI}/0/{prefix}"
+    uri = f"{redis_uri}/0/{prefix}"
     db = BlobIO(uri)
     try:
         db.extend([{b"x": b"1"}, {b"y": b"2"}])
@@ -68,12 +50,11 @@ def test_blobio_redis_uri():
         db.remove()
 
 
-@_skip_no_redis
-def test_objectio_redis_uri():
+def test_objectio_redis_uri(redis_uri):
     from asebytes import ObjectIO
 
     prefix = f"test_{uuid.uuid4().hex[:8]}"
-    uri = f"{REDIS_URI}/0/{prefix}"
+    uri = f"{redis_uri}/0/{prefix}"
     db = ObjectIO(uri)
     try:
         db.extend([{"x": 1, "y": 2.5}])
@@ -85,13 +66,12 @@ def test_objectio_redis_uri():
         db.remove()
 
 
-@_skip_no_redis
 @pytest.mark.anyio
-async def test_async_blobio_redis_uri():
+async def test_async_blobio_redis_uri(redis_uri):
     from asebytes import AsyncBlobIO
 
     prefix = f"test_{uuid.uuid4().hex[:8]}"
-    uri = f"{REDIS_URI}/0/{prefix}"
+    uri = f"{redis_uri}/0/{prefix}"
     db = AsyncBlobIO(uri)
     try:
         await db.extend([{b"x": b"1"}])
@@ -100,13 +80,12 @@ async def test_async_blobio_redis_uri():
         await db.remove()
 
 
-@_skip_no_redis
 @pytest.mark.anyio
-async def test_async_objectio_redis_uri():
+async def test_async_objectio_redis_uri(redis_uri):
     from asebytes import AsyncObjectIO
 
     prefix = f"test_{uuid.uuid4().hex[:8]}"
-    uri = f"{REDIS_URI}/0/{prefix}"
+    uri = f"{redis_uri}/0/{prefix}"
     db = AsyncObjectIO(uri)
     try:
         await db.extend([{"x": 1}])
