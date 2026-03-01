@@ -36,36 +36,35 @@ def get_version() -> str:
         return "unknown"
 
 
-def strip_nan_padding(arr: np.ndarray) -> np.ndarray:
-    """Remove trailing NaN rows from a per-atom array."""
-    if arr.ndim == 0:
-        return arr
-    if arr.ndim == 1:
-        mask = ~np.isnan(arr)
-        if not mask.any():
-            return arr[:0]
-        last = len(mask) - np.argmax(mask[::-1])
-        return arr[:last]
-    # Multi-dim: collapse all but first axis
-    mask = ~np.isnan(arr)
-    valid = mask.reshape(arr.shape[0], -1).any(axis=1)
-    if not valid.any():
-        return arr[:0]
-    last = len(valid) - np.argmax(valid[::-1])
-    return arr[:last]
+def get_fill_value(dtype: np.dtype) -> int | float:
+    """Return a dtype-appropriate fill value for padding."""
+    if np.issubdtype(dtype, np.floating):
+        return np.nan
+    if np.issubdtype(dtype, np.integer):
+        return 0
+    if np.issubdtype(dtype, np.bool_):
+        return False
+    return 0
 
 
 def concat_varying(
-    arrays: list[np.ndarray], fillvalue: float
+    arrays: list[np.ndarray], fillvalue: float | int | None = None
 ) -> np.ndarray:
-    """Concatenate arrays of varying shapes with padding."""
+    """Concatenate arrays of varying shapes with padding.
+
+    Preserves the dtype of the first array. If *fillvalue* is ``None``,
+    a dtype-appropriate default is chosen via :func:`get_fill_value`.
+    """
     if not arrays:
         return np.array([])
+    dtype = arrays[0].dtype
+    if fillvalue is None:
+        fillvalue = get_fill_value(dtype)
     maxshape = list(arrays[0].shape)
     for a in arrays[1:]:
         for i, (m, s) in enumerate(zip(maxshape, a.shape)):
             maxshape[i] = max(m, s)
-    out = np.full((len(arrays), *maxshape), fillvalue, dtype=np.float64)
+    out = np.full((len(arrays), *maxshape), fillvalue, dtype=dtype)
     for i, a in enumerate(arrays):
         slices = tuple(slice(0, s) for s in a.shape)
         out[(i,) + slices] = a

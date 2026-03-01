@@ -671,30 +671,37 @@ def test_sync_column_view_getitem_handles_none_row():
 def test_h5md_set_column_applies_padding(tmp_path):
     """H5MD set_column should pad per-atom arrays to max_atoms.
 
-    Note: get() strips NaN padding when returning data (variable_shape mode),
+    Note: get() uses _n_atoms to slice per-atom data on read,
     so we verify padding by checking the raw HDF5 dataset directly.
     """
     import numpy as np
     from asebytes.h5md import H5MDBackend
+    from asebytes._columnar import get_fill_value
 
     path = tmp_path / "test.h5"
     backend = H5MDBackend(path, readonly=False)
 
     # First, extend with varying atom counts to establish max_atoms
+    # Use float arrays so NaN fill is used (matching typical positions dtype)
     backend.extend(
         [
             {
-                "arrays.positions": np.array([[0, 0, 0], [1, 1, 1], [2, 2, 2]])
+                "arrays.positions": np.array(
+                    [[0, 0, 0], [1, 1, 1], [2, 2, 2]], dtype=np.float64
+                )
             },  # 3 atoms
-            {"arrays.positions": np.array([[0, 0, 0], [1, 1, 1]])},  # 2 atoms
+            {
+                "arrays.positions": np.array(
+                    [[0, 0, 0], [1, 1, 1]], dtype=np.float64
+                )
+            },  # 2 atoms
         ]
     )
 
     # Now use set_column with a smaller array - should be padded
-    backend.set_column("arrays.positions", 1, [np.array([[5, 5, 5]])])  # 1 atom
+    backend.set_column("arrays.positions", 1, [np.array([[5, 5, 5]], dtype=np.float64)])  # 1 atom
 
     # Verify padding was applied by checking raw HDF5 data
-    # (get() strips NaN padding, so we check the dataset directly)
     h5_path = backend._find_dataset_path("arrays.positions")
     ds = backend._file[h5_path]["value"]
     raw_data = ds[1]  # Row 1
@@ -703,8 +710,12 @@ def test_h5md_set_column_applies_padding(tmp_path):
     assert raw_data.shape[0] == 3
     # First atom should be our data
     np.testing.assert_array_equal(raw_data[0], [5, 5, 5])
-    # Remaining should be NaN (padding)
-    assert np.all(np.isnan(raw_data[1:]))
+    # Remaining should be filled with dtype-appropriate fill value
+    fv = get_fill_value(ds.dtype)
+    if np.isnan(fv):
+        assert np.all(np.isnan(raw_data[1:]))
+    else:
+        assert np.all(raw_data[1:] == fv)
 
     backend.close()
 
@@ -712,30 +723,37 @@ def test_h5md_set_column_applies_padding(tmp_path):
 def test_h5md_update_many_applies_padding(tmp_path):
     """H5MD update_many should pad per-atom arrays to max_atoms.
 
-    Note: get() strips NaN padding when returning data (variable_shape mode),
+    Note: get() uses _n_atoms to slice per-atom data on read,
     so we verify padding by checking the raw HDF5 dataset directly.
     """
     import numpy as np
     from asebytes.h5md import H5MDBackend
+    from asebytes._columnar import get_fill_value
 
     path = tmp_path / "test.h5"
     backend = H5MDBackend(path, readonly=False)
 
     # First, extend with varying atom counts to establish max_atoms
+    # Use float arrays so NaN fill is used (matching typical positions dtype)
     backend.extend(
         [
             {
-                "arrays.positions": np.array([[0, 0, 0], [1, 1, 1], [2, 2, 2]])
+                "arrays.positions": np.array(
+                    [[0, 0, 0], [1, 1, 1], [2, 2, 2]], dtype=np.float64
+                )
             },  # 3 atoms
-            {"arrays.positions": np.array([[0, 0, 0], [1, 1, 1]])},  # 2 atoms
+            {
+                "arrays.positions": np.array(
+                    [[0, 0, 0], [1, 1, 1]], dtype=np.float64
+                )
+            },  # 2 atoms
         ]
     )
 
     # Now use update_many with a smaller array - should be padded
-    backend.update_many(1, [{"arrays.positions": np.array([[5, 5, 5]])}])  # 1 atom
+    backend.update_many(1, [{"arrays.positions": np.array([[5, 5, 5]], dtype=np.float64)}])  # 1 atom
 
     # Verify padding was applied by checking raw HDF5 data
-    # (get() strips NaN padding, so we check the dataset directly)
     h5_path = backend._find_dataset_path("arrays.positions")
     ds = backend._file[h5_path]["value"]
     raw_data = ds[1]  # Row 1
@@ -744,7 +762,11 @@ def test_h5md_update_many_applies_padding(tmp_path):
     assert raw_data.shape[0] == 3
     # First atom should be our data
     np.testing.assert_array_equal(raw_data[0], [5, 5, 5])
-    # Remaining should be NaN (padding)
-    assert np.all(np.isnan(raw_data[1:]))
+    # Remaining should be filled with dtype-appropriate fill value
+    fv = get_fill_value(ds.dtype)
+    if np.isnan(fv):
+        assert np.all(np.isnan(raw_data[1:]))
+    else:
+        assert np.all(raw_data[1:] == fv)
 
     backend.close()

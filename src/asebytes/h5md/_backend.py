@@ -16,7 +16,7 @@ from typing import Any
 import h5py
 import numpy as np
 
-from asebytes._columnar import concat_varying, get_version, jsonable, strip_nan_padding
+from asebytes._columnar import concat_varying, get_fill_value, get_version, jsonable
 from asebytes._backends import ReadWriteBackend
 from asebytes.h5md._mapping import (
     ASE_TO_H5MD,
@@ -26,15 +26,34 @@ from asebytes.h5md._mapping import (
 )
 
 
+def _strip_nan_rows(arr: np.ndarray) -> np.ndarray:
+    """Remove trailing NaN rows — fallback for files without ``_n_atoms``."""
+    if arr.ndim == 0:
+        return arr
+    if arr.ndim == 1:
+        mask = ~np.isnan(arr)
+        if not mask.any():
+            return arr[:0]
+        last = len(mask) - np.argmax(mask[::-1])
+        return arr[:last]
+    # Multi-dim: collapse all but first axis
+    mask = ~np.isnan(arr)
+    valid = mask.reshape(arr.shape[0], -1).any(axis=1)
+    if not valid.any():
+        return arr[:0]
+    last = len(valid) - np.argmax(valid[::-1])
+    return arr[:last]
+
+
 class _PostProc(enum.IntEnum):
     """Type tags for fast-path postprocessing dispatch."""
 
     SCALAR_FLOAT = 0
     SCALAR_INT = 1
-    PER_ATOM_FLOAT = 2  # needs NaN strip
-    SPECIES_INT = 3  # float → int + NaN strip
+    PER_ATOM = 2  # per-atom array, slice by _n_atoms
+    SPECIES = 3  # per-atom int (species/numbers), slice by _n_atoms
     STRING_JSON = 4  # decode + json.loads
-    NDARRAY_FLOAT = 5  # float ndarray, no NaN strip
+    NDARRAY_FLOAT = 5  # float ndarray, no per-atom slicing
     NDARRAY_PLAIN = 6  # return as-is
 
 
@@ -131,9 +150,9 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         if dtype.kind in ("S", "U", "O") or dtype == h5py.string_dtype():
             return _PostProc.STRING_JSON
 
-        # Species (float → int + NaN strip)
+        # Species (per-atom integer)
         if h5_name == "species":
-            return _PostProc.SPECIES_INT
+            return _PostProc.SPECIES
 
         # Scalar float
         if frame_ndim == 0 and dtype.kind == "f":
@@ -143,11 +162,11 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         if frame_ndim == 0 and dtype.kind in ("i", "u"):
             return _PostProc.SCALAR_INT
 
-        # Float array with potential NaN padding
-        if frame_ndim >= 1 and dtype.kind == "f" and self._variable_shape:
-            return _PostProc.PER_ATOM_FLOAT
+        # Per-atom array (any numeric dtype) with variable shape
+        if frame_ndim >= 1 and self._variable_shape:
+            return _PostProc.PER_ATOM
 
-        # Float array without NaN stripping
+        # Float array without per-atom slicing
         if frame_ndim >= 1 and dtype.kind == "f":
             return _PostProc.NDARRAY_FLOAT
 
@@ -155,10 +174,16 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         return _PostProc.NDARRAY_PLAIN
 
     def _discover(self) -> None:
-        """Read frame count, max-atoms, and cache dataset references."""
-        self._col_cache: dict[str, tuple[h5py.Dataset, str, _PostProc]] = {}
+        """Read frame count, max-atoms, and cache dataset references.
+
+        The cache stores ``(dataset, h5_name, tag, is_per_atom)`` tuples.
+        ``is_per_atom`` is True only for datasets inside the particles
+        group (not box, not observables).
+        """
+        self._col_cache: dict[str, tuple[h5py.Dataset, str, _PostProc, bool]] = {}
         self._box_cache: dict[str, tuple[str, Any]] = {}
         self._conn_cache: dict[str, tuple[str, Any]] = {}
+        self._n_atoms_ds: h5py.Dataset | None = None
 
         pgrp = f"particles/{self._grp_name}"
         if pgrp in self._file:
@@ -170,7 +195,12 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                     if ds.ndim > 1:
                         self._max_atoms = ds.shape[1]
 
-            # Cache particle dataset references
+            # Cache _n_atoms dataset if present (stored in asebytes/ group)
+            meta_path = f"asebytes/{self._grp_name}"
+            if meta_path in self._file and "_n_atoms" in self._file[meta_path]:
+                self._n_atoms_ds = self._file[meta_path]["_n_atoms"]
+
+            # Cache particle dataset references (per-atom)
             for name in grp:
                 if name == "box":
                     self._cache_box(grp["box"])
@@ -180,9 +210,9 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                     continue
                 key = self._h5_to_key(name, elem)
                 ds = elem["value"]
-                self._col_cache[key] = (ds, name, self._classify(ds, name))
+                self._col_cache[key] = (ds, name, self._classify(ds, name), True)
 
-        # Cache observable dataset references
+        # Cache observable dataset references (NOT per-atom)
         opath = f"observables/{self._grp_name}"
         if opath in self._file:
             for name in self._file[opath]:
@@ -191,7 +221,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                     continue
                 key = self._h5_to_key(name, elem)
                 ds = elem["value"]
-                self._col_cache[key] = (ds, name, self._classify(ds, name))
+                self._col_cache[key] = (ds, name, self._classify(ds, name), False)
 
         # Cache connectivity dataset references
         conn_path = f"connectivity/{self._grp_name}"
@@ -239,6 +269,11 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         index = self._check_index(index)
         result: dict[str, Any] = {}
 
+        # Read _n_atoms for per-atom slicing
+        n_atoms: int | None = None
+        if self._n_atoms_ds is not None and index < self._n_atoms_ds.shape[0]:
+            n_atoms = int(self._n_atoms_ds[index])
+
         for box_key in ("cell", "pbc"):
             if keys is not None and box_key not in keys:
                 continue
@@ -260,14 +295,15 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                     [b not in ("none", b"none") for b in ref], dtype=bool
                 )
 
-        for key, (ds, h5_name, tag) in self._col_cache.items():
+        for key, (ds, h5_name, tag, is_per_atom) in self._col_cache.items():
             if keys is not None and key not in keys:
                 continue
             # Skip columns shorter than the requested index (backward compat)
             if index >= ds.shape[0]:
                 continue
             val = ds[index]
-            val = self._postprocess_typed(val, tag)
+            na = n_atoms if is_per_atom else None
+            val = self._postprocess_typed(val, tag, n_atoms=na)
             if val is not None:
                 result[key] = val
 
@@ -304,6 +340,13 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         else:
             h5_sel = unique_sorted
 
+        # Bulk-read _n_atoms for per-atom slicing
+        n_atoms_map: list[int | None] = [None] * n_unique
+        if self._n_atoms_ds is not None:
+            na_bulk = self._n_atoms_ds[h5_sel]
+            for j in range(n_unique):
+                n_atoms_map[j] = int(na_bulk[j])
+
         unique_rows: list[dict[str, Any]] = [{} for _ in range(n_unique)]
 
         # Box columns
@@ -332,7 +375,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                     row[box_key] = pbc
 
         # Regular columns — one bulk read per dataset
-        for key, (ds, h5_name, tag) in self._col_cache.items():
+        for key, (ds, h5_name, tag, is_per_atom) in self._col_cache.items():
             if keys is not None and key not in keys:
                 continue
             # Skip columns shorter than max requested index (backward compat)
@@ -342,13 +385,15 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                 for j in range(n_unique):
                     idx = int(unique_sorted[j])
                     if idx < ds.shape[0]:
-                        val = self._postprocess_typed(ds[idx], tag)
+                        na = n_atoms_map[j] if is_per_atom else None
+                        val = self._postprocess_typed(ds[idx], tag, n_atoms=na)
                         if val is not None:
                             unique_rows[j][key] = val
                 continue
             bulk = ds[h5_sel]
             for j in range(n_unique):
-                val = self._postprocess_typed(bulk[j], tag)
+                na = n_atoms_map[j] if is_per_atom else None
+                val = self._postprocess_typed(bulk[j], tag, n_atoms=na)
                 if val is not None:
                     unique_rows[j][key] = val
 
@@ -397,8 +442,9 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
 
     def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
         """Optimised: reads a single HDF5 dataset directly."""
+        is_per_atom = False
         if key in self._col_cache:
-            ds, h5_name, tag = self._col_cache[key]
+            ds, h5_name, tag, is_per_atom = self._col_cache[key]
         else:
             h5_path = self._find_dataset_path(key)
             if h5_path is None:
@@ -407,17 +453,30 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
             ds = grp["value"]
             h5_name = h5_path.rsplit("/", 1)[-1]
             tag = self._classify(ds, h5_name)
+            # Infer is_per_atom from path (particles/ vs observables/)
+            is_per_atom = h5_path.startswith(f"/particles/{self._grp_name}/")
+
+        # Bulk-read _n_atoms for per-atom slicing
+        n_atoms_all: np.ndarray | None = None
+        if is_per_atom and self._n_atoms_ds is not None:
+            n_atoms_all = self._n_atoms_ds[()]
 
         if indices is None:
             raw = ds[()]
-            return [self._postprocess_typed(raw[i], tag) for i in range(len(raw))]
+            result = []
+            for i in range(len(raw)):
+                na = int(n_atoms_all[i]) if n_atoms_all is not None and i < len(n_atoms_all) else None
+                result.append(self._postprocess_typed(raw[i], tag, n_atoms=na))
+            return result
 
         order = np.argsort(indices)
         sorted_idx = [indices[j] for j in order]
         raw = ds[sorted_idx]
         result: list[Any] = [None] * len(indices)
         for j in range(len(indices)):
-            result[order[j]] = self._postprocess_typed(raw[j], tag)
+            idx = sorted_idx[j]
+            na = int(n_atoms_all[idx]) if n_atoms_all is not None and idx < len(n_atoms_all) else None
+            result[order[j]] = self._postprocess_typed(raw[j], tag, n_atoms=na)
         return result
 
     # ------------------------------------------------------------------
@@ -434,17 +493,23 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         n_new = len(data)
         all_keys = sorted({k for row in data if row is not None for k in row})
 
-        # Determine new max atoms
+        # Determine new max atoms and per-frame n_atoms
         new_max = 0
+        n_atoms_values: list[int] = []
         for row in data:
             if row is None:
+                n_atoms_values.append(0)
                 continue
             pos = row.get("arrays.positions")
             nums = row.get("arrays.numbers")
             if pos is not None:
-                new_max = max(new_max, len(pos))
+                na = len(pos)
             elif nums is not None:
-                new_max = max(new_max, len(nums))
+                na = len(nums)
+            else:
+                na = 0
+            n_atoms_values.append(na)
+            new_max = max(new_max, na)
         max_atoms = max(self._max_atoms, new_max)
 
         for key in all_keys:
@@ -456,12 +521,15 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
             values = [row.get(key) if row is not None else None for row in data]
             self._write_element(h5_path, origin, key, values, max_atoms)
 
+        # Write _n_atoms length column
+        self._write_n_atoms(n_atoms_values)
+
         self._write_connectivity(data)
 
         # Extend existing columns not in this batch so all datasets stay aligned
         new_total = self._n_frames + n_new
         touched = set(all_keys)
-        for key, (ds, h5_name, _tag) in list(self._col_cache.items()):
+        for key, (ds, h5_name, _tag, _pa) in list(self._col_cache.items()):
             if key not in touched and ds.shape[0] < new_total:
                 target = (new_total,) + ds.shape[1:]
                 ds.resize(target)
@@ -589,8 +657,14 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         # Observables default to calc.*
         return f"calc.{ase_name}"
 
-    def _postprocess_typed(self, val: Any, tag: _PostProc) -> Any:
-        """Fast-path postprocessor using pre-classified type tags."""
+    def _postprocess_typed(
+        self, val: Any, tag: _PostProc, n_atoms: int | None = None
+    ) -> Any:
+        """Fast-path postprocessor using pre-classified type tags.
+
+        When *n_atoms* is provided, per-atom arrays are sliced to
+        ``val[:n_atoms]`` instead of scanning for NaN.
+        """
         if tag == _PostProc.SCALAR_FLOAT:
             v = float(val)
             if v != v:  # NaN check
@@ -600,10 +674,17 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         if tag == _PostProc.SCALAR_INT:
             return int(val)
 
-        if tag == _PostProc.PER_ATOM_FLOAT:
+        if tag == _PostProc.PER_ATOM:
             if isinstance(val, np.ndarray):
-                val = strip_nan_padding(val)
+                if n_atoms is not None:
+                    val = val[:n_atoms]
+                elif val.ndim >= 1 and val.dtype.kind == "f":
+                    # Fallback for files without _n_atoms (e.g. znh5md)
+                    val = _strip_nan_rows(val)
                 if val.size == 0:
+                    return None
+                # All-NaN slice means column absent for this frame
+                if val.dtype.kind == "f" and np.all(np.isnan(val)):
                     return None
                 if val.ndim == 0:
                     v = val.item()
@@ -614,10 +695,17 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                 return None if np.isnan(val) else val.item()
             return val
 
-        if tag == _PostProc.SPECIES_INT:
+        if tag == _PostProc.SPECIES:
             if isinstance(val, np.ndarray):
-                val = strip_nan_padding(val)
+                if n_atoms is not None:
+                    val = val[:n_atoms]
+                elif val.dtype.kind == "f":
+                    # Fallback for files without _n_atoms (e.g. znh5md)
+                    val = _strip_nan_rows(val)
                 if val.size == 0:
+                    return None
+                # All-NaN means column absent for this frame
+                if val.dtype.kind == "f" and np.all(np.isnan(val)):
                     return None
                 if val.dtype.kind == "f":
                     val = val.astype(int)
@@ -640,8 +728,12 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
             return val.item()
         return val
 
-    def _postprocess(self, val: Any, h5_name: str) -> Any:
-        """Strip NaN padding and cast types after reading."""
+    def _postprocess(self, val: Any, h5_name: str, n_atoms: int | None = None) -> Any:
+        """Postprocess a value after reading.
+
+        When *n_atoms* is provided, per-atom arrays are sliced to
+        ``val[:n_atoms]`` instead of scanning for NaN.
+        """
         if isinstance(val, bytes):
             val = val.decode()
         if isinstance(val, str):
@@ -676,10 +768,17 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                         items.append(v)
                 return items if len(items) > 1 else items[0] if items else None
 
-            # Strip NaN padding for per-atom data
-            if self._variable_shape and val.ndim >= 1 and val.dtype.kind == "f":
-                val = strip_nan_padding(val)
+            # Slice per-atom data using _n_atoms
+            if self._variable_shape and val.ndim >= 1:
+                if n_atoms is not None:
+                    val = val[:n_atoms]
+                elif val.dtype.kind == "f":
+                    # Fallback for files without _n_atoms
+                    val = _strip_nan_rows(val)
                 if val.size == 0:
+                    return None
+                # All-NaN slice means column absent for this frame
+                if val.dtype.kind == "f" and np.all(np.isnan(val)):
                     return None
 
             # Species/numbers should be int
@@ -740,7 +839,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         """Find the H5MD group path for an asebytes key."""
         # Fast path: check cache
         if key in self._col_cache:
-            ds, _, _tag = self._col_cache[key]
+            ds, _, _tag, _pa = self._col_cache[key]
             return ds.parent.name
         if key in self._box_cache:
             kind, ref = self._box_cache[key]
@@ -779,6 +878,42 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
     # ------------------------------------------------------------------
     # Internal: write helpers
     # ------------------------------------------------------------------
+
+    def _write_n_atoms(self, n_atoms_values: list[int]) -> None:
+        """Write or extend the ``_n_atoms`` dataset.
+
+        Stored under ``asebytes/{particles_group}/_n_atoms`` to avoid
+        conflicts with the standard H5MD particles group layout (znh5md
+        expects all entries there to be time-dependent element groups).
+        """
+        meta_path = f"asebytes/{self._grp_name}"
+        self._file.require_group(meta_path)
+        grp = self._file[meta_path]
+
+        arr = np.array(n_atoms_values, dtype=np.int32)
+        ds_name = "_n_atoms"
+
+        if ds_name in grp:
+            ds = grp[ds_name]
+            old_len = ds.shape[0]
+            n_new = len(arr)
+            shift = self._n_frames - old_len
+            ds.resize((old_len + n_new + shift,))
+            ds[old_len + shift :] = arr
+        else:
+            total = self._n_frames + len(arr)
+            chunks = (min(64, total),)
+            ds = grp.create_dataset(
+                ds_name,
+                shape=(total,),
+                maxshape=(None,),
+                dtype=np.int32,
+                fillvalue=0,
+                compression=self._compression,
+                compression_opts=self._compression_opts,
+                chunks=chunks,
+            )
+            ds[self._n_frames :] = arr
 
     def _write_connectivity(self, data: list[dict[str, Any]]) -> None:
         """Write connectivity to H5MD-standard ``connectivity/bonds``.
@@ -1038,8 +1173,10 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                 return
 
         # Prepare data
+        # Species (arrays.numbers) must stay float64 for znh5md compat
+        force_float = key == "arrays.numbers"
         prepared, dtype, fillvalue = self._prepare_column(
-            values, is_per_atom, max_atoms
+            values, is_per_atom, max_atoms, force_float=force_float
         )
         if prepared is None:
             return
@@ -1054,6 +1191,8 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         values: list[Any],
         is_per_atom: bool,
         max_atoms: int,
+        *,
+        force_float: bool = False,
     ) -> tuple[Any, Any, Any]:
         """Convert a column of values into HDF5-ready data."""
         ref = next((v for v in values if v is not None), None)
@@ -1099,17 +1238,21 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         # --- Numeric ndarray ---
         if isinstance(ref, np.ndarray):
             if is_per_atom and self._variable_shape:
-                return self._pad_per_atom(values, ref, max_atoms)
+                return self._pad_per_atom(
+                    values, ref, max_atoms, force_float=force_float
+                )
+            dtype = ref.dtype
+            fv = get_fill_value(dtype)
             processed = []
             for v in values:
                 if v is not None:
-                    processed.append(np.asarray(v, dtype=np.float64))
+                    processed.append(np.asarray(v, dtype=dtype))
                 else:
-                    processed.append(np.full_like(ref, np.nan, dtype=np.float64))
+                    processed.append(np.full_like(ref, fv, dtype=dtype))
             return (
-                concat_varying(processed, np.nan),
-                np.float64,
-                np.nan,
+                concat_varying(processed, fv),
+                dtype,
+                fv,
             )
 
         return None, None, None
@@ -1119,22 +1262,30 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         values: list[Any],
         ref: np.ndarray,
         max_atoms: int,
-    ) -> tuple[np.ndarray, type, float]:
-        """Pad per-atom arrays to max_atoms with NaN."""
+        *,
+        force_float: bool = False,
+    ) -> tuple[np.ndarray, Any, int | float]:
+        """Pad per-atom arrays to max_atoms, preserving original dtype.
+
+        When *force_float* is True (used for species/numbers), always
+        store as float64 with NaN fill for znh5md compatibility.
+        """
+        dtype = np.float64 if force_float else ref.dtype
+        fv = np.nan if force_float else get_fill_value(dtype)
         padded = []
         for v in values:
             if v is None:
                 shape = (max_atoms,) + ref.shape[1:]
-                padded.append(np.full(shape, np.nan, dtype=np.float64))
+                padded.append(np.full(shape, fv, dtype=dtype))
             else:
-                v = np.asarray(v, dtype=np.float64)
+                v = np.asarray(v, dtype=dtype)
                 if v.shape[0] < max_atoms:
                     pad_shape = (max_atoms - v.shape[0],) + v.shape[1:]
                     v = np.concatenate(
-                        [v, np.full(pad_shape, np.nan, dtype=np.float64)]
+                        [v, np.full(pad_shape, fv, dtype=dtype)]
                     )
                 padded.append(v)
-        return np.array(padded), np.float64, np.nan
+        return np.array(padded), dtype, fv
 
     def _get_chunks(self, shape: tuple[int, ...]) -> tuple[int, ...] | bool:
         """Compute chunk shape for a dataset."""
@@ -1234,7 +1385,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                     padded = np.full(
                         (n_new, new_second, *old_shape[2:]),
                         fillvalue,
-                        dtype=np.float64,
+                        dtype=arr.dtype,
                     )
                     padded[:, : arr.shape[1]] = arr
                     arr = padded
@@ -1254,12 +1405,13 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
     def _pad_value(self, val: Any, ds: h5py.Dataset) -> Any:
         """Pad a value to match dataset dimensions if needed.
 
-        Applies NaN padding for per-atom arrays when variable_shape is enabled,
+        Uses dtype-appropriate fill values when variable_shape is enabled,
         ensuring consistency with single-row set() operations.
         """
         if isinstance(val, np.ndarray) and self._variable_shape:
             if ds.ndim > 1 and val.ndim >= 1 and val.shape[0] < ds.shape[1]:
-                padded = np.full(ds.shape[1:], np.nan, dtype=np.float64)
+                fv = get_fill_value(ds.dtype)
+                padded = np.full(ds.shape[1:], fv, dtype=ds.dtype)
                 slices = tuple(slice(0, s) for s in val.shape)
                 padded[slices] = val
                 return padded

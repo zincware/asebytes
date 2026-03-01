@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 import zarr
 
-from asebytes._columnar import concat_varying, get_version, jsonable, strip_nan_padding
+from asebytes._columnar import concat_varying, get_fill_value, get_version, jsonable
 from asebytes._backends import ReadWriteBackend
 
 DEFAULT_GROUP = "default"
@@ -111,6 +111,7 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         self._n_frames = attrs.get("n_frames", 0)
         self._max_atoms = attrs.get("max_atoms", 0)
         self._columns = list(attrs.get("columns", []))
+        self._per_atom_cols: set[str] = set(attrs.get("per_atom_columns", []))
 
         for col_name in self._columns:
             try:
@@ -148,7 +149,17 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
     def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         index = self._check_index(index)
         result: dict[str, Any] = {}
+
+        # Read _n_atoms for per-atom slicing
+        n_atoms: int | None = None
+        if "_n_atoms" in self._col_cache:
+            na_arr = self._col_cache["_n_atoms"]
+            if index < na_arr.shape[0]:
+                n_atoms = int(na_arr[index])
+
         for col_name, arr in self._col_cache.items():
+            if col_name == "_n_atoms":
+                continue
             if keys is not None and col_name not in keys:
                 continue
             # Array may be shorter than n_frames if the column was absent
@@ -156,7 +167,7 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
             if index >= arr.shape[0]:
                 continue
             val = arr[index]
-            val = self._postprocess(val, col_name)
+            val = self._postprocess(val, col_name, n_atoms=n_atoms)
             if val is not None:
                 result[col_name] = val
         return result if result else None
@@ -184,9 +195,19 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         else:
             zarr_sel = unique_sorted.tolist()
 
+        # Bulk-read _n_atoms for per-atom slicing
+        n_atoms_map: list[int | None] = [None] * n_unique
+        if "_n_atoms" in self._col_cache:
+            na_arr = self._col_cache["_n_atoms"]
+            na_bulk = na_arr[zarr_sel]
+            for j in range(n_unique):
+                n_atoms_map[j] = int(na_bulk[j])
+
         unique_rows: list[dict[str, Any]] = [{} for _ in range(n_unique)]
 
         for col_name, arr in self._col_cache.items():
+            if col_name == "_n_atoms":
+                continue
             if keys is not None and col_name not in keys:
                 continue
             arr_len = arr.shape[0]
@@ -205,7 +226,7 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
                 eff_n = len(eff_indices)
             bulk = arr[eff_sel]
             for j in range(eff_n):
-                val = self._postprocess(bulk[j], col_name)
+                val = self._postprocess(bulk[j], col_name, n_atoms=n_atoms_map[j])
                 if val is not None:
                     unique_rows[j][col_name] = val
 
@@ -232,9 +253,17 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         arr = self._col_cache[key]
         arr_len = arr.shape[0]
 
+        # Bulk-read _n_atoms for per-atom slicing
+        n_atoms_all: np.ndarray | None = None
+        if "_n_atoms" in self._col_cache:
+            n_atoms_all = self._col_cache["_n_atoms"][:]
+
         if indices is None:
             raw = arr[:]
-            result = [self._postprocess(raw[i], key) for i in range(len(raw))]
+            result = []
+            for i in range(len(raw)):
+                na = int(n_atoms_all[i]) if n_atoms_all is not None and i < len(n_atoms_all) else None
+                result.append(self._postprocess(raw[i], key, n_atoms=na))
             # Pad with None if array is shorter than n_frames
             if arr_len < self._n_frames:
                 result.extend([None] * (self._n_frames - arr_len))
@@ -247,11 +276,17 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         result: list[Any] = [None] * len(indices)
         if valid_idx:
             raw = arr[valid_idx]
+            # Read n_atoms for valid indices
+            na_vals: list[int | None] = [None] * len(valid_idx)
+            if n_atoms_all is not None:
+                for k, idx in enumerate(valid_idx):
+                    if idx < len(n_atoms_all):
+                        na_vals[k] = int(n_atoms_all[idx])
             vi = 0
             for j in range(len(indices)):
                 idx = sorted_idx[j]
                 if idx < arr_len:
-                    result[order[j]] = self._postprocess(raw[vi], key)
+                    result[order[j]] = self._postprocess(raw[vi], key, n_atoms=na_vals[vi])
                     vi += 1
         return result
 
@@ -266,29 +301,55 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         n_new = len(data)
         all_keys = sorted({k for row in data if row is not None for k in row})
 
-        # Determine new max atoms
+        # Determine new max atoms and per-frame n_atoms
         new_max = 0
+        n_atoms_values: list[int] = []
         for row in data:
             if row is None:
+                n_atoms_values.append(0)
                 continue
             pos = row.get("arrays.positions")
             nums = row.get("arrays.numbers")
             if pos is not None:
-                new_max = max(new_max, len(pos))
+                na = len(pos)
             elif nums is not None:
-                new_max = max(new_max, len(nums))
+                na = len(nums)
+            else:
+                na = 0
+            n_atoms_values.append(na)
+            new_max = max(new_max, na)
         max_atoms = max(self._max_atoms, new_max)
 
+        per_atom_keys: set[str] = set()
         for key in all_keys:
             if key == "constraints":
                 continue
             values = [row.get(key) if row is not None else None for row in data]
-            is_per_atom = self._is_per_atom(key, data)
+            # Respect prior classification: once a column is non-per-atom,
+            # it stays non-per-atom even if a later batch's atom count
+            # happens to match the array's first dimension.
+            if key in self._per_atom_cols:
+                is_per_atom = True
+            elif key in self._col_cache:
+                # Already exists but not per-atom — keep as non-per-atom
+                is_per_atom = False
+            else:
+                is_per_atom = self._is_per_atom(key, data)
+            if is_per_atom:
+                per_atom_keys.add(key)
             self._write_column(key, values, is_per_atom, max_atoms)
+
+        # Write _n_atoms length column (int32)
+        self._write_column(
+            "_n_atoms",
+            [np.int32(v) for v in n_atoms_values],
+            is_per_atom=False,
+            max_atoms=max_atoms,
+        )
 
         # Extend existing columns not in this batch so all arrays stay aligned
         new_total = self._n_frames + n_new
-        touched = set(all_keys)
+        touched = set(all_keys) | {"_n_atoms"}
         for col_name, arr in list(self._col_cache.items()):
             if col_name not in touched and arr.shape[0] < new_total:
                 target = (new_total,) + arr.shape[1:]
@@ -296,7 +357,7 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
 
         self._max_atoms = max_atoms
         self._n_frames += n_new
-        self._update_attrs(all_keys)
+        self._update_attrs(all_keys + ["_n_atoms"], per_atom_keys=per_atom_keys)
         self._discover()
         return self._n_frames
 
@@ -309,7 +370,8 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
             val = self._serialize_value(val)
             if isinstance(val, np.ndarray) and self._variable_shape:
                 if arr.ndim > 1 and val.ndim >= 1 and val.shape[0] < arr.shape[1]:
-                    padded = np.full(arr.shape[1:], np.nan, dtype=np.float64)
+                    fv = get_fill_value(arr.dtype)
+                    padded = np.full(arr.shape[1:], fv, dtype=arr.dtype)
                     slices = tuple(slice(0, s) for s in val.shape)
                     padded[slices] = val
                     val = padded
@@ -382,8 +444,12 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
             raise IndexError(f"Index {index} out of range for {self._n_frames} frames")
         return index
 
-    def _postprocess(self, val: Any, col_name: str) -> Any:
-        """Strip NaN padding and cast types after reading."""
+    def _postprocess(self, val: Any, col_name: str, n_atoms: int | None = None) -> Any:
+        """Postprocess a value after reading.
+
+        When *n_atoms* is provided, per-atom arrays are sliced to
+        ``val[:n_atoms]`` instead of scanning for NaN.
+        """
         if isinstance(val, (bytes, np.bytes_)):
             val = val.decode() if isinstance(val, bytes) else str(val)
 
@@ -427,15 +493,19 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
                         items.append(v)
                 return items if len(items) > 1 else items[0] if items else None
 
-            # Strip NaN padding for per-atom data
-            if self._variable_shape and val.ndim >= 1 and val.dtype.kind == "f":
-                val = strip_nan_padding(val)
+            # Slice per-atom data using _n_atoms
+            if (
+                self._variable_shape
+                and val.ndim >= 1
+                and n_atoms is not None
+                and col_name in self._per_atom_cols
+            ):
+                val = val[:n_atoms]
                 if val.size == 0:
                     return None
-
-            # numbers should be int
-            if col_name == "arrays.numbers" and val.dtype.kind == "f":
-                val = val.astype(int)
+                # All-NaN / all-zero slice means column absent for this frame
+                if val.dtype.kind == "f" and np.all(np.isnan(val)):
+                    return None
 
             # Scalar
             if val.ndim == 0:
@@ -450,8 +520,20 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
     # Internal: write helpers
     # ------------------------------------------------------------------
 
+    # Columns that are never per-atom regardless of shape coincidence
+    _NEVER_PER_ATOM = frozenset({"cell", "pbc"})
+
     def _is_per_atom(self, key: str, data: list[dict[str, Any]]) -> bool:
-        """Check if a column is per-atom (first dim == n_atoms)."""
+        """Check if a column is per-atom (first dim == n_atoms).
+
+        Checks all rows in the batch: a column is per-atom only if its first
+        dimension matches n_atoms for every row where both are available.
+        A single mismatch means the column is NOT per-atom.
+        """
+        if key in self._NEVER_PER_ATOM:
+            return False
+
+        matched = False
         for row in data:
             if row is None:
                 continue
@@ -465,10 +547,12 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
                 n_atoms = len(pos)
             elif nums is not None:
                 n_atoms = len(nums)
-            if n_atoms is not None and val.shape[0] == n_atoms:
-                return True
-            break
-        return False
+            if n_atoms is None:
+                continue
+            if val.shape[0] != n_atoms:
+                return False
+            matched = True
+        return matched
 
     def _write_column(
         self,
@@ -520,6 +604,14 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
 
         # --- Scalar ---
         if isinstance(ref, (int, float, np.integer, np.floating)):
+            if isinstance(ref, np.integer):
+                dtype = ref.dtype
+                fv = 0
+                arr = np.array(
+                    [dtype.type(v) if v is not None else fv for v in values],
+                    dtype=dtype,
+                )
+                return arr, dtype, fv
             arr = np.array(
                 [float(v) if v is not None else np.nan for v in values],
                 dtype=np.float64,
@@ -540,16 +632,18 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         if isinstance(ref, np.ndarray):
             if is_per_atom and self._variable_shape:
                 return self._pad_per_atom(values, ref, max_atoms)
+            dtype = ref.dtype
+            fv = get_fill_value(dtype)
             processed = []
             for v in values:
                 if v is not None:
-                    processed.append(np.asarray(v, dtype=np.float64))
+                    processed.append(np.asarray(v, dtype=dtype))
                 else:
-                    processed.append(np.full_like(ref, np.nan, dtype=np.float64))
+                    processed.append(np.full_like(ref, fv, dtype=dtype))
             return (
-                concat_varying(processed, np.nan),
-                np.float64,
-                np.nan,
+                concat_varying(processed, fv),
+                dtype,
+                fv,
             )
 
         return None, None, None
@@ -559,22 +653,24 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         values: list[Any],
         ref: np.ndarray,
         max_atoms: int,
-    ) -> tuple[np.ndarray, type, float]:
-        """Pad per-atom arrays to max_atoms with NaN."""
+    ) -> tuple[np.ndarray, Any, int | float]:
+        """Pad per-atom arrays to max_atoms, preserving original dtype."""
+        dtype = ref.dtype
+        fv = get_fill_value(dtype)
         padded = []
         for v in values:
             if v is None:
                 shape = (max_atoms,) + ref.shape[1:]
-                padded.append(np.full(shape, np.nan, dtype=np.float64))
+                padded.append(np.full(shape, fv, dtype=dtype))
             else:
-                v = np.asarray(v, dtype=np.float64)
+                v = np.asarray(v, dtype=dtype)
                 if v.shape[0] < max_atoms:
                     pad_shape = (max_atoms - v.shape[0],) + v.shape[1:]
                     v = np.concatenate(
-                        [v, np.full(pad_shape, np.nan, dtype=np.float64)]
+                        [v, np.full(pad_shape, fv, dtype=dtype)]
                     )
                 padded.append(v)
-        return np.array(padded), np.float64, np.nan
+        return np.array(padded), dtype, fv
 
     def _create_array(
         self,
@@ -651,7 +747,7 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
                     padded = np.full(
                         (n_new, new_second, *old_shape[2:]),
                         fill_value,
-                        dtype=np.float64,
+                        dtype=arr_data.dtype,
                     )
                     padded[:, : arr_data.shape[1]] = arr_data
                     arr_data = padded
@@ -661,16 +757,23 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
 
             arr[old_shape[0] + shift :] = arr_data
 
-    def _update_attrs(self, new_keys: list[str] | None = None) -> None:
+    def _update_attrs(
+        self,
+        new_keys: list[str] | None = None,
+        per_atom_keys: set[str] | None = None,
+    ) -> None:
         """Update root group attributes."""
         if new_keys:
             existing = set(self._columns)
             for key in new_keys:
                 if key != "constraints" and key not in existing:
                     self._columns.append(key)
+        if per_atom_keys:
+            self._per_atom_cols.update(per_atom_keys)
         self._root.attrs["n_frames"] = self._n_frames
         self._root.attrs["max_atoms"] = self._max_atoms
         self._root.attrs["columns"] = self._columns
+        self._root.attrs["per_atom_columns"] = sorted(self._per_atom_cols)
         self._root.attrs["asebytes_version"] = get_version()
 
     @staticmethod
