@@ -155,35 +155,20 @@ class RedisBlobBackend(ReadWriteBackend[bytes, bytes]):
         **kwargs
             Additional arguments passed to the constructor.
         """
-        from urllib.parse import urlsplit, urlunsplit
-
-        parsed = urlsplit(uri)
-        if not parsed.scheme:
+        if "://" not in uri:
             raise ValueError(f"Invalid URI: {uri!r}")
-
-        # Extract the db number from the path (e.g. "/0" from "redis://host:port/0")
-        path_parts = [p for p in parsed.path.split("/") if p]
-        if len(path_parts) >= 1:
-            db = path_parts[0]
-            connection_url = urlunsplit(
-                (
-                    parsed.scheme,
-                    parsed.netloc,
-                    f"/{db}",
-                    parsed.query,
-                    parsed.fragment,
-                )
-            )
+        scheme, after_scheme = uri.split("://", 1)
+        if "/" in after_scheme:
+            host_part, path_part = after_scheme.split("/", 1)
         else:
-            connection_url = urlunsplit(
-                (
-                    parsed.scheme,
-                    parsed.netloc,
-                    parsed.path,
-                    parsed.query,
-                    parsed.fragment,
-                )
-            )
+            host_part, path_part = after_scheme, ""
+
+        parts = [p for p in path_part.split("/") if p]
+        if len(parts) >= 1:
+            db = parts[0]
+            connection_url = f"{scheme}://{host_part}/{db}"
+        else:
+            connection_url = uri
 
         return cls(url=connection_url, group=group, **kwargs)
 
@@ -260,6 +245,7 @@ class RedisBlobBackend(ReadWriteBackend[bytes, bytes]):
         results: list[dict[bytes, bytes] | None] = []
         if keys is not None:
             pos = 0
+            step = 1 + len(keys)
             for _ in sks:
                 exists = raw[pos]
                 pos += 1

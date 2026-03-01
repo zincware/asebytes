@@ -51,7 +51,6 @@ class MemoryBlobBackend(ReadWriteBackend):
 
     def extend(self, data):
         self._rows.extend(data)
-        return len(self._rows)
 
     def get_column(self, key, indices=None):
         if indices is None:

@@ -27,16 +27,8 @@ _URI_REGISTRY: dict[str, tuple[str, str | None, str]] = {
     "hf": ("asebytes.hf._backend", None, "HuggingFaceBackend"),
     "colabfit": ("asebytes.hf._backend", None, "HuggingFaceBackend"),
     "optimade": ("asebytes.hf._backend", None, "HuggingFaceBackend"),
-    "mongodb": (
-        "asebytes.mongodb._backend",
-        "MongoObjectBackend",
-        "MongoObjectBackend",
-    ),
-    "memory": (
-        "asebytes.memory._backend",
-        "MemoryObjectBackend",
-        "MemoryObjectBackend",
-    ),
+    "mongodb": ("asebytes.mongodb._backend", "MongoObjectBackend", "MongoObjectBackend"),
+    "memory": ("asebytes.memory._backend", "MemoryObjectBackend", "MemoryObjectBackend"),
 }
 
 _EXTRAS_HINT: dict[str, str] = {
@@ -153,7 +145,8 @@ def get_backend_cls(path: str, *, readonly: bool | None = None):
         if readonly is False:
             if writable is None:
                 raise TypeError(
-                    f"Backend for '{path}' is read-only, no writable variant available"
+                    f"Backend for '{path}' is read-only, "
+                    "no writable variant available"
                 )
             return getattr(mod, writable)
         # readonly is None — auto-detect
@@ -229,7 +222,8 @@ def get_async_backend_cls(path: str, *, readonly: bool | None = None):
         if readonly is False:
             if writable is None:
                 raise TypeError(
-                    f"Backend for '{path}' is read-only, no writable variant available"
+                    f"Backend for '{path}' is read-only, "
+                    "no writable variant available"
                 )
             return getattr(mod, writable)
         if writable is not None:
@@ -271,7 +265,8 @@ def get_blob_backend_cls(path: str, *, readonly: bool | None = None):
         if readonly is False:
             if writable is None:
                 raise TypeError(
-                    f"Backend for '{path}' is read-only, no writable variant available"
+                    f"Backend for '{path}' is read-only, "
+                    "no writable variant available"
                 )
             return getattr(mod, writable)
         if writable is not None:
@@ -303,45 +298,29 @@ def get_blob_backend_cls(path: str, *, readonly: bool | None = None):
     # --- Fallback: wrap object backend with ObjectToBlobAdapter ---
     try:
         obj_cls = get_backend_cls(path, readonly=readonly)
-    except KeyError as e:
-        raise KeyError(f"No blob backend registered for '{path}'") from e
+    except KeyError:
+        raise KeyError(f"No blob backend registered for '{path}'")
 
     from ._adapters import ObjectToBlobReadAdapter, ObjectToBlobReadWriteAdapter
 
-    # Determine whether the resolved object backend actually supports writes.
-    # When readonly is None (auto-detect), only wrap with the read-write adapter
-    # if the backend class exposes write methods.
-    def _supports_write(cls: type) -> bool:
-        return hasattr(cls, "set") and hasattr(cls, "extend")
-
-    use_read_adapter = readonly is True or (
-        readonly is None and not _supports_write(obj_cls)
-    )
-
     if scheme is not None:
         # URI-based backend: use from_uri to instantiate
-        if use_read_adapter:
-
+        if readonly is True:
             def _make_read_adapter(*args, **kwargs):
                 return ObjectToBlobReadAdapter(obj_cls.from_uri(*args, **kwargs))
-
             return _make_read_adapter
 
         def _make_readwrite_adapter(*args, **kwargs):
             return ObjectToBlobReadWriteAdapter(obj_cls.from_uri(*args, **kwargs))
-
         return _make_readwrite_adapter
 
-    if use_read_adapter:
-
+    if readonly is True:
         def _make_read_adapter(*args, **kwargs):
             return ObjectToBlobReadAdapter(obj_cls(*args, **kwargs))
-
         return _make_read_adapter
 
     def _make_readwrite_adapter(*args, **kwargs):
         return ObjectToBlobReadWriteAdapter(obj_cls(*args, **kwargs))
-
     return _make_readwrite_adapter
 
 
@@ -367,7 +346,8 @@ def get_async_blob_backend_cls(path: str, *, readonly: bool | None = None):
         if readonly is False:
             if writable is None:
                 raise TypeError(
-                    f"Backend for '{path}' is read-only, no writable variant available"
+                    f"Backend for '{path}' is read-only, "
+                    "no writable variant available"
                 )
             return getattr(mod, writable)
         if writable is not None:

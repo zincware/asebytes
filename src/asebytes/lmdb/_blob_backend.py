@@ -117,15 +117,8 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
 
         n_blocks = struct.unpack("<I", blk_count_bytes)[0]
 
-        if n_blocks == 0:
-            self._blocks = []
-            self._block_sizes = []
-            return
-
         # Block sizes
         sizes_bytes = txn.get(b"__blk_sizes__")
-        if not sizes_bytes:
-            raise RuntimeError("Corrupt LMDB metadata: missing __blk_sizes__")
         self._block_sizes = list(struct.unpack(f"<{n_blocks}I", sizes_bytes))
 
         # Load all blocks
@@ -184,8 +177,6 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
                 b"__blk_sizes__",
                 struct.pack(f"<{n_blocks}I", *self._block_sizes),
             )
-        else:
-            txn.delete(b"__blk_sizes__")
 
     def _save_block(self, txn, block_index: int) -> None:
         """Write a single block to LMDB."""
@@ -341,17 +332,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
                 for field in self._schema_cache:
                     txn.delete(prefix + field)
             else:
-                # Fill intermediate slots with placeholders first
-                modified_blocks: set[int] = set()
-                for _ in range(current_count, index):
-                    placeholder_key = self._allocate_sort_key(txn)
-                    if not self._blocks or len(self._blocks[-1]) >= BLOCK_SIZE:
-                        self._blocks.append([placeholder_key])
-                    else:
-                        self._blocks[-1].append(placeholder_key)
-                    modified_blocks.add(len(self._blocks) - 1)
-
-                # Append the actual entry
+                # Append new entry
                 sort_key = self._allocate_sort_key(txn)
 
                 # Add sort_key to blocks
@@ -359,11 +340,9 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
                     self._blocks.append([sort_key])
                 else:
                     self._blocks[-1].append(sort_key)
-                modified_blocks.add(len(self._blocks) - 1)
 
-                # Save affected blocks + metadata
-                for blk_idx in modified_blocks:
-                    self._save_block(txn, blk_idx)
+                # Save affected block + metadata
+                self._save_block(txn, len(self._blocks) - 1)
                 self._save_block_metadata(txn)
 
             # Write new data

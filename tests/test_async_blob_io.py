@@ -56,12 +56,11 @@ class MemoryRawBackend(ReadWriteBackend):
     def delete(self, index: int) -> None:
         del self._rows[index]
 
-    def extend(self, data: list[dict[bytes, bytes] | None]) -> int:
+    def extend(self, data: list[dict[bytes, bytes] | None]) -> None:
         for d in data:
             if d is not None:
                 self._schema |= set(d.keys())
         self._rows.extend(data)
-        return len(self._rows)
 
     @staticmethod
     def list_groups(path: str, **kwargs) -> list[str]:

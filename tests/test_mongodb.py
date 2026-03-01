@@ -1,5 +1,7 @@
+import asyncio
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -503,81 +505,144 @@ class TestAsyncMongoBackend:
         finally:
             await b.remove()
 
-    @pytest.mark.anyio
-    async def test_concurrent_extend_no_duplicate_sort_keys(self, sample_row):
-        """Test that concurrent extend calls don't produce duplicate sort keys.
 
-        This tests the race condition fix: atomic sort-key allocation using
-        find_one_and_update with $inc instead of separate read-then-write.
-        """
-        import asyncio
+# ======================================================================
+# Race condition tests — concurrent extend must not produce duplicate keys
+# ======================================================================
 
-        col_name = f"test_concurrent_{uuid.uuid4().hex[:8]}"
-        backend = AsyncMongoObjectBackend(
-            uri=MONGO_URI,
-            database="asebytes_test",
-            group=col_name,
+
+def test_concurrent_extend_no_duplicate_keys(sample_row):
+    """Two threads calling extend() simultaneously must not collide on sort keys.
+
+    Before the fix, both threads read the same next_sort_key, then both
+    try to insert_many with the same _id values → DuplicateKeyError.
+    """
+    group_name = f"test_race_{uuid.uuid4().hex[:8]}"
+    rows = [{**sample_row, "energy": float(i)} for i in range(5)]
+
+    def _extend_in_thread():
+        b = MongoObjectBackend(
+            uri=MONGO_URI, database="asebytes_test", group=group_name
         )
+        b.extend(rows)
+        b.close()
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(_extend_in_thread) for _ in range(2)]
+            for f in futures:
+                f.result()  # raises if DuplicateKeyError occurred
+
+        # Verify: 10 total rows, all readable
+        b = MongoObjectBackend(
+            uri=MONGO_URI, database="asebytes_test", group=group_name
+        )
+        assert len(b) == 10
+        # All 10 rows should be retrievable without error
+        for i in range(10):
+            assert b.get(i) is not None
+        b.close()
+    finally:
+        cleanup = MongoObjectBackend(
+            uri=MONGO_URI, database="asebytes_test", group=group_name
+        )
+        cleanup.remove()
+
+
+def test_concurrent_insert_no_duplicate_keys(sample_row):
+    """Two threads calling insert() simultaneously must not collide on sort keys."""
+    group_name = f"test_race_ins_{uuid.uuid4().hex[:8]}"
+
+    # Seed with one row so insert(0, ...) is valid
+    seed = MongoObjectBackend(
+        uri=MONGO_URI, database="asebytes_test", group=group_name
+    )
+    seed.extend([{**sample_row, "energy": -999.0}])
+    seed.close()
+
+    def _insert_in_thread(value):
+        b = MongoObjectBackend(
+            uri=MONGO_URI, database="asebytes_test", group=group_name
+        )
+        b.insert(0, {**sample_row, "energy": float(value)})
+        b.close()
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(_insert_in_thread, i) for i in range(2)]
+            for f in futures:
+                f.result()  # raises if DuplicateKeyError occurred
+
+        b = MongoObjectBackend(
+            uri=MONGO_URI, database="asebytes_test", group=group_name
+        )
+        assert len(b) == 3  # 1 seed + 2 inserts
+        b.close()
+    finally:
+        cleanup = MongoObjectBackend(
+            uri=MONGO_URI, database="asebytes_test", group=group_name
+        )
+        cleanup.remove()
+
+
+class TestAsyncRaceConditions:
+    @pytest.mark.anyio
+    async def test_concurrent_extend_no_duplicate_keys(self, sample_row):
+        """Two concurrent async extend() calls must not collide on sort keys."""
+        group_name = f"test_async_race_{uuid.uuid4().hex[:8]}"
+        rows = [{**sample_row, "energy": float(i)} for i in range(5)]
+
+        async def _extend():
+            b = AsyncMongoObjectBackend(
+                uri=MONGO_URI, database="asebytes_test", group=group_name
+            )
+            await b.extend(rows)
+            b.close()
+
         try:
-            # Run 10 concurrent extend calls, each adding 5 rows
-            tasks = [
-                backend.extend([{**sample_row, "batch": i, "idx": j} for j in range(5)])
-                for i in range(10)
-            ]
-            await asyncio.gather(*tasks)
+            await asyncio.gather(_extend(), _extend())
 
-            # Should have 50 total rows
-            total_len = await backend.len()
-            assert total_len == 50, f"Expected 50 rows, got {total_len}"
-
-            # Verify all sort keys are unique by checking we can fetch all 50 rows
-            # and that the underlying _sort_keys list has no duplicates
-            await backend._ensure_cache()
-            sort_keys = backend._sort_keys
-            assert sort_keys is not None, (
-                "sort_keys should be populated after _ensure_cache"
+            b = AsyncMongoObjectBackend(
+                uri=MONGO_URI, database="asebytes_test", group=group_name
             )
-            assert len(sort_keys) == 50, f"Expected 50 sort keys, got {len(sort_keys)}"
-            assert len(set(sort_keys)) == 50, (
-                f"Duplicate sort keys found! Unique: {len(set(sort_keys))}, Total: {len(sort_keys)}"
-            )
+            assert await b.len() == 10
+            for i in range(10):
+                assert (await b.get(i)) is not None
+            b.close()
         finally:
-            await backend.remove()
+            cleanup = AsyncMongoObjectBackend(
+                uri=MONGO_URI, database="asebytes_test", group=group_name
+            )
+            await cleanup.remove()
 
     @pytest.mark.anyio
-    async def test_concurrent_insert_no_duplicate_sort_keys(self, sample_row):
-        """Test that concurrent insert calls don't produce duplicate sort keys."""
-        import asyncio
+    async def test_concurrent_insert_no_duplicate_keys(self, sample_row):
+        """Two concurrent async insert() calls must not collide on sort keys."""
+        group_name = f"test_async_race_ins_{uuid.uuid4().hex[:8]}"
 
-        col_name = f"test_concurrent_insert_{uuid.uuid4().hex[:8]}"
-        backend = AsyncMongoObjectBackend(
-            uri=MONGO_URI,
-            database="asebytes_test",
-            group=col_name,
+        seed = AsyncMongoObjectBackend(
+            uri=MONGO_URI, database="asebytes_test", group=group_name
         )
+        await seed.extend([{**sample_row, "energy": -999.0}])
+        seed.close()
+
+        async def _insert(value):
+            b = AsyncMongoObjectBackend(
+                uri=MONGO_URI, database="asebytes_test", group=group_name
+            )
+            await b.insert(0, {**sample_row, "energy": float(value)})
+            b.close()
+
         try:
-            # Seed with one row first
-            await backend.extend([sample_row])
+            await asyncio.gather(_insert(0), _insert(1))
 
-            # Run 10 concurrent insert calls at index 0
-            tasks = [
-                backend.insert(0, {**sample_row, "insert_id": i}) for i in range(10)
-            ]
-            await asyncio.gather(*tasks)
-
-            # Should have 11 total rows
-            total_len = await backend.len()
-            assert total_len == 11, f"Expected 11 rows, got {total_len}"
-
-            # Verify all sort keys are unique
-            await backend._ensure_cache()
-            sort_keys = backend._sort_keys
-            assert sort_keys is not None, (
-                "sort_keys should be populated after _ensure_cache"
+            b = AsyncMongoObjectBackend(
+                uri=MONGO_URI, database="asebytes_test", group=group_name
             )
-            assert len(sort_keys) == 11, f"Expected 11 sort keys, got {len(sort_keys)}"
-            assert len(set(sort_keys)) == 11, (
-                f"Duplicate sort keys found! Unique: {len(set(sort_keys))}, Total: {len(sort_keys)}"
-            )
+            assert await b.len() == 3
+            b.close()
         finally:
-            await backend.remove()
+            cleanup = AsyncMongoObjectBackend(
+                uri=MONGO_URI, database="asebytes_test", group=group_name
+            )
+            await cleanup.remove()

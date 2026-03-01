@@ -104,12 +104,9 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         Parameters
         ----------
         path : str
-            MongoDB connection URI (e.g. ``mongodb://localhost:27017``
-            or ``mongodb://host:port/mydb``).  When the URI contains a
-            database path, it is used instead of the *database* parameter.
+            MongoDB connection URI (e.g. ``mongodb://localhost:27017``).
         database : str
-            Database name to list collections from.  Ignored when the
-            URI already contains a database path.
+            Database name to list collections from.
         **kwargs
             Unused, for API compatibility.
 
@@ -118,18 +115,7 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         list[str]
             List of group names (collection names) in the database.
         """
-        # Parse database from URI path, consistent with from_uri()
-        connection_uri = path
-        if "://" in path:
-            _, after_scheme = path.split("://", 1)
-            if "/" in after_scheme:
-                host_part, path_part = after_scheme.split("/", 1)
-                parts = [p for p in path_part.split("/") if p]
-                if parts:
-                    database = parts[0]
-                    connection_uri = path.split("://")[0] + "://" + host_part
-
-        client = MongoClient(connection_uri)
+        client = MongoClient(path)
         try:
             db = client[database]
             # Get all collection names, excluding system collections
@@ -271,24 +257,28 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
     def extend(self, values: list[dict[str, Any] | None]) -> int:
         if not values:
             return self._count if self._count is not None else len(self)
-        self._ensure_cache()
-        meta = self._col.find_one({"_id": META_ID})
+        # Atomically reserve a range of sort keys via $inc
+        meta = self._col.find_one_and_update(
+            {"_id": META_ID},
+            {"$inc": {"next_sort_key": len(values)}},
+            upsert=True,
+            return_document=False,  # BEFORE the increment
+        )
         next_sk = meta.get("next_sort_key", 0) if meta else 0
         new_sks = list(range(next_sk, next_sk + len(values)))
 
         docs = [self._row_to_doc(sk, v) for sk, v in zip(new_sks, values)]
         self._col.insert_many(docs)
 
-        self._sort_keys.extend(new_sks)
-        self._count += len(values)
         self._col.update_one(
             {"_id": META_ID},
             {
                 "$push": {"sort_keys": {"$each": new_sks}},
-                "$set": {"count": self._count, "next_sort_key": next_sk + len(values)},
+                "$inc": {"count": len(values)},
             },
-            upsert=True,
         )
+        self._invalidate_cache()
+        self._ensure_cache()
         return self._count
 
     def insert(self, index: int, value: dict[str, Any] | None) -> None:
@@ -299,24 +289,26 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         if index > n:
             index = n
 
-        meta = self._col.find_one({"_id": META_ID})
+        # Atomically reserve one sort key via $inc
+        meta = self._col.find_one_and_update(
+            {"_id": META_ID},
+            {"$inc": {"next_sort_key": 1}},
+            upsert=True,
+            return_document=False,  # BEFORE the increment
+        )
         next_sk = meta.get("next_sort_key", 0) if meta else 0
 
         self._col.insert_one(self._row_to_doc(next_sk, value))
 
-        self._sort_keys.insert(index, next_sk)
-        self._count += 1
+        # Use atomic $push with $position and $inc for count
         self._col.update_one(
             {"_id": META_ID},
             {
-                "$set": {
-                    "sort_keys": self._sort_keys,
-                    "count": self._count,
-                    "next_sort_key": next_sk + 1,
-                },
+                "$push": {"sort_keys": {"$each": [next_sk], "$position": index}},
+                "$inc": {"count": 1},
             },
-            upsert=True,
         )
+        self._invalidate_cache()
 
     def update(self, index: int, data: dict[str, Any]) -> None:
         if not data:

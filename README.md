@@ -234,7 +234,7 @@ groups = LMDBObjectBackend.list_groups("data.lmdb")
 groups = ASEIO.list_groups("data.lmdb")
 ```
 
-Default group is backend-specific when not specified (`"default"` for most backends; H5MD defaults to `"atoms"`). Backends store groups using native strategies:
+Default group is `"default"` when not specified. Backends store groups using native strategies:
 
 | Backend | Group storage |
 |---------|---------------|

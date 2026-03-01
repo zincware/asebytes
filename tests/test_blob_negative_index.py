@@ -37,7 +37,6 @@ class MemoryRW(ReadWriteBackend):
 
     def extend(self, values):
         self._data.extend(values)
-        return len(self._data)
 
     def insert(self, index, value):
         self._data.insert(index, value)

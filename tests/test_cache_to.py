@@ -71,9 +71,8 @@ class InMemoryWritable(ReadWriteBackend):
     def delete(self, index: int) -> None:
         del self._rows[index]
 
-    def extend(self, data: list[dict[str, Any]]) -> int:
+    def extend(self, data: list[dict[str, Any]]) -> None:
         self._rows.extend(data)
-        return len(self._rows)
 
     @staticmethod
     def list_groups(path: str, **kwargs) -> list[str]:

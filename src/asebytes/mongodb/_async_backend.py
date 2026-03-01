@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
+import numpy as np
 from pymongo import AsyncMongoClient
 
 from .._async_backends import AsyncReadWriteBackend
@@ -90,12 +91,9 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         Parameters
         ----------
         path : str
-            MongoDB connection URI (e.g. ``mongodb://localhost:27017``
-            or ``mongodb://host:port/mydb``).  When the URI contains a
-            database path, it is used instead of the *database* parameter.
+            MongoDB connection URI (e.g. ``mongodb://localhost:27017``).
         database : str
-            Database name to list collections from.  Ignored when the
-            URI already contains a database path.
+            Database name to list collections from.
         **kwargs
             Unused, for API compatibility.
 
@@ -106,18 +104,7 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         """
         from pymongo import MongoClient
 
-        # Parse database from URI path, consistent with from_uri()
-        connection_uri = path
-        if "://" in path:
-            _, after_scheme = path.split("://", 1)
-            if "/" in after_scheme:
-                host_part, path_part = after_scheme.split("/", 1)
-                parts = [p for p in path_part.split("/") if p]
-                if parts:
-                    database = parts[0]
-                    connection_uri = path.split("://")[0] + "://" + host_part
-
-        client = MongoClient(connection_uri)
+        client = MongoClient(path)
         try:
             db = client[database]
             collections = db.list_collection_names()
@@ -264,35 +251,28 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
     async def extend(self, values: list[dict[str, Any] | None]) -> int:
         if not values:
             return self._count if self._count is not None else await self.len()
-        await self._ensure_cache()
-
-        # Atomically allocate sort keys using find_one_and_update with $inc
-        # This prevents race conditions where concurrent extend() calls
-        # could read the same next_sort_key and create duplicate _id values
-        from pymongo import ReturnDocument
-
-        num_values = len(values)
+        # Atomically reserve a range of sort keys via $inc
         meta = await self._col.find_one_and_update(
             {"_id": META_ID},
-            {"$inc": {"next_sort_key": num_values}},
+            {"$inc": {"next_sort_key": len(values)}},
             upsert=True,
-            return_document=ReturnDocument.BEFORE,
+            return_document=False,  # BEFORE the increment
         )
         next_sk = meta.get("next_sort_key", 0) if meta else 0
-        new_sks = list(range(next_sk, next_sk + num_values))
+        new_sks = list(range(next_sk, next_sk + len(values)))
 
         docs = [self._row_to_doc(sk, v) for sk, v in zip(new_sks, values)]
         await self._col.insert_many(docs)
 
-        self._sort_keys.extend(new_sks)
-        self._count += num_values
         await self._col.update_one(
             {"_id": META_ID},
             {
                 "$push": {"sort_keys": {"$each": new_sks}},
-                "$set": {"count": self._count},
+                "$inc": {"count": len(values)},
             },
         )
+        self._invalidate_cache()
+        await self._ensure_cache()
         return self._count
 
     async def insert(self, index: int, value: dict[str, Any] | None) -> None:
@@ -303,32 +283,26 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         if index > n:
             index = n
 
-        # Atomically allocate a single sort key using find_one_and_update with $inc
-        # This prevents race conditions where concurrent insert() calls
-        # could read the same next_sort_key and create duplicate _id values
-        from pymongo import ReturnDocument
-
+        # Atomically reserve one sort key via $inc
         meta = await self._col.find_one_and_update(
             {"_id": META_ID},
             {"$inc": {"next_sort_key": 1}},
             upsert=True,
-            return_document=ReturnDocument.BEFORE,
+            return_document=False,  # BEFORE the increment
         )
         next_sk = meta.get("next_sort_key", 0) if meta else 0
 
         await self._col.insert_one(self._row_to_doc(next_sk, value))
 
-        self._sort_keys.insert(index, next_sk)
-        self._count += 1
+        # Use atomic $push with $position and $inc for count
         await self._col.update_one(
             {"_id": META_ID},
             {
-                "$set": {
-                    "sort_keys": self._sort_keys,
-                    "count": self._count,
-                },
+                "$push": {"sort_keys": {"$each": [next_sk], "$position": index}},
+                "$inc": {"count": 1},
             },
         )
+        self._invalidate_cache()
 
     async def update(self, index: int, data: dict[str, Any]) -> None:
         if not data:
@@ -336,12 +310,6 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         await self._ensure_cache()
         sk = self._resolve_sort_key(index)
         update_fields = {f"data.{k}": _bson_safe(v) for k, v in data.items()}
-        # If `data` is null (placeholder row), $set on data.key fails.
-        # First ensure data is a dict by conditionally setting it to {}.
-        await self._col.update_one(
-            {"_id": sk, "data": None},
-            {"$set": {"data": {}}},
-        )
         await self._col.update_one({"_id": sk}, {"$set": update_fields})
 
     async def update_many(self, start: int, data: list[dict[str, Any]]) -> None:
@@ -350,29 +318,15 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         from pymongo import UpdateOne
 
         await self._ensure_cache()
-        # Collect sort keys for rows we'll update
-        sks_to_update = []
         ops = []
         for i, row_data in enumerate(data):
             if not row_data:
                 continue
             sk = self._resolve_sort_key(start + i)
-            sks_to_update.append(sk)
             update_fields = {f"data.{k}": _bson_safe(v) for k, v in row_data.items()}
             ops.append(UpdateOne({"_id": sk}, {"$set": update_fields}))
-
-        if not ops:
-            return
-
-        # First, convert any placeholder rows (data: null) to data: {}
-        # This prevents MongoDB error when $set on nested fields of null
-        if sks_to_update:
-            await self._col.update_many(
-                {"_id": {"$in": sks_to_update}, "data": None},
-                {"$set": {"data": {}}},
-            )
-        # Now do the actual updates
-        await self._col.bulk_write(ops, ordered=False)
+        if ops:
+            await self._col.bulk_write(ops, ordered=False)
 
     async def set_column(self, key: str, start: int, values: list[Any]) -> None:
         if not values:
@@ -380,27 +334,14 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         from pymongo import UpdateOne
 
         await self._ensure_cache()
-        sks_to_update = []
         ops = []
         for i, value in enumerate(values):
             sk = self._resolve_sort_key(start + i)
-            sks_to_update.append(sk)
             ops.append(
                 UpdateOne({"_id": sk}, {"$set": {f"data.{key}": _bson_safe(value)}})
             )
-
-        if not ops:
-            return
-
-        # First, convert any placeholder rows (data: null) to data: {}
-        # This prevents MongoDB error when $set on nested fields of null
-        if sks_to_update:
-            await self._col.update_many(
-                {"_id": {"$in": sks_to_update}, "data": None},
-                {"$set": {"data": {}}},
-            )
-        # Now do the actual updates
-        await self._col.bulk_write(ops, ordered=False)
+        if ops:
+            await self._col.bulk_write(ops, ordered=False)
 
     async def drop_keys(
         self, keys: list[str], indices: list[int] | None = None
@@ -433,34 +374,11 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         self._invalidate_cache()
 
     def close(self) -> None:
-        """Close the MongoDB client connection (sync wrapper for compatibility).
-
-        Prefer ``aclose()`` for proper async cleanup. This sync fallback
-        schedules the close on the running event loop when possible, or
-        uses ``asyncio.run`` as a last resort.
-        """
-        import asyncio
-
-        try:
-            loop = asyncio.get_running_loop()
-            task = loop.create_task(self._client.close())
-            task.add_done_callback(
-                lambda t: t.exception() if not t.cancelled() else None
-            )
-        except RuntimeError:
-            # No running loop — run the close synchronously via asyncio.run
-            try:
-                asyncio.run(self._client.close())
-            except RuntimeError:
-                # Already inside an event loop that we can't use — best effort
-                pass
-
-    async def aclose(self) -> None:
-        """Close the MongoDB client connection asynchronously."""
-        await self._client.close()
+        """Close the MongoDB client connection."""
+        self._client.close()
 
     async def __aenter__(self) -> AsyncMongoObjectBackend:
         return self
 
     async def __aexit__(self, *args) -> None:
-        await self.aclose()
+        self.close()
