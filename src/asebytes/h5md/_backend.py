@@ -542,7 +542,13 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
 
         self._max_atoms = max_atoms
         self._n_frames += n_new
-        self._discover()  # Rebuild dataset cache for new/extended datasets
+        # Only do a full cache rebuild when new columns were created.
+        # For append-only workloads (same schema each extend), existing
+        # h5py.Dataset references remain valid after resize/write.
+        known = set(self._col_cache) | set(self._box_cache)
+        new_cols = set(all_keys) - known - {"constraints"}
+        if new_cols or self._n_frames == n_new:
+            self._discover()
         return self._n_frames
 
     def set(self, index: int, data: dict[str, Any] | None) -> None:

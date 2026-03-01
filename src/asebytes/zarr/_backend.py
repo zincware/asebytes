@@ -150,12 +150,17 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         index = self._check_index(index)
         result: dict[str, Any] = {}
 
-        # Read _n_atoms for per-atom slicing
+        # Only read _n_atoms if we actually need per-atom slicing
         n_atoms: int | None = None
-        if "_n_atoms" in self._col_cache:
-            na_arr = self._col_cache["_n_atoms"]
-            if index < na_arr.shape[0]:
-                n_atoms = int(na_arr[index])
+        need_n_atoms = "_n_atoms" in self._col_cache and self._per_atom_cols
+        if need_n_atoms:
+            # Check if any per-atom column will be read
+            if keys is not None:
+                need_n_atoms = bool(self._per_atom_cols & set(keys))
+            if need_n_atoms:
+                na_arr = self._col_cache["_n_atoms"]
+                if index < na_arr.shape[0]:
+                    n_atoms = int(na_arr[index])
 
         for col_name, arr in self._col_cache.items():
             if col_name == "_n_atoms":
@@ -195,13 +200,15 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         else:
             zarr_sel = unique_sorted.tolist()
 
-        # Bulk-read _n_atoms for per-atom slicing
+        # Only read _n_atoms when per-atom columns will be read
         n_atoms_map: list[int | None] = [None] * n_unique
-        if "_n_atoms" in self._col_cache:
-            na_arr = self._col_cache["_n_atoms"]
-            na_bulk = na_arr[zarr_sel]
-            for j in range(n_unique):
-                n_atoms_map[j] = int(na_bulk[j])
+        if "_n_atoms" in self._col_cache and self._per_atom_cols:
+            need_n_atoms = keys is None or bool(self._per_atom_cols & set(keys))
+            if need_n_atoms:
+                na_arr = self._col_cache["_n_atoms"]
+                na_bulk = na_arr[zarr_sel]
+                for j in range(n_unique):
+                    n_atoms_map[j] = int(na_bulk[j])
 
         unique_rows: list[dict[str, Any]] = [{} for _ in range(n_unique)]
 
@@ -255,9 +262,9 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         arr = self._col_cache[key]
         arr_len = arr.shape[0]
 
-        # Bulk-read _n_atoms for per-atom slicing
+        # Only read _n_atoms when the column is per-atom
         n_atoms_all: np.ndarray | None = None
-        if "_n_atoms" in self._col_cache:
+        if key in self._per_atom_cols and "_n_atoms" in self._col_cache:
             n_atoms_all = self._col_cache["_n_atoms"][:]
 
         if indices is None:
@@ -322,6 +329,9 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
             new_max = max(new_max, na)
         max_atoms = max(self._max_atoms, new_max)
 
+        # Snapshot known columns before writes (for conditional _discover)
+        known_cols = set(self._col_cache)
+
         per_atom_keys: set[str] = set()
         for key in all_keys:
             if key == "constraints":
@@ -360,7 +370,12 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         self._max_atoms = max_atoms
         self._n_frames += n_new
         self._update_attrs(all_keys + ["_n_atoms"], per_atom_keys=per_atom_keys)
-        self._discover()
+        # Only rebuild caches when new columns were created.
+        # For append-only workloads (same schema each extend), existing
+        # zarr.Array references remain valid after resize/write.
+        new_cols = (set(all_keys) | {"_n_atoms"}) - known_cols - {"constraints"}
+        if new_cols or self._n_frames == n_new:
+            self._discover()
         return self._n_frames
 
     def set(self, index: int, data: dict[str, Any] | None) -> None:
