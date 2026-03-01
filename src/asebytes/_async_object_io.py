@@ -101,8 +101,6 @@ class AsyncObjectIO:
         -------
         dict[str, SchemaEntry]
         """
-        from ._schema import infer_schema
-
         if index is None:
             index = 0
         n = await self.len()
@@ -110,10 +108,7 @@ class AsyncObjectIO:
             index += n
         if index < 0 or index >= n:
             raise IndexError(index)
-        row = await self._read_row(index)
-        if row is None:
-            return {}
-        return infer_schema(row)
+        return await self._backend.schema(index)
 
     async def _read_row(
         self, index: int, keys: list[str] | None = None

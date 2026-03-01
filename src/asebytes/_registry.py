@@ -14,43 +14,51 @@ from __future__ import annotations
 
 import fnmatch
 import importlib
-from typing import Literal
+from typing import Literal, NamedTuple
 
 # ---------------------------------------------------------------------------
 # Unified registry
 # ---------------------------------------------------------------------------
-# Each entry:
-#   (match_type, match_value, layer, module_path,
-#    writable_cls_name | None, readonly_cls_name, is_async_native)
 
-_REGISTRY: list[tuple[str, str, str, str, str | None, str, bool]] = [
+
+class _RegistryEntry(NamedTuple):
+    match_type: str           # "pattern" or "scheme"
+    match_value: str          # e.g. "*.lmdb" or "mongodb"
+    layer: str                # "blob" or "object"
+    module_path: str          # e.g. "asebytes.lmdb"
+    writable_cls: str | None  # writable class name or None
+    readonly_cls: str         # readonly class name
+    is_async: bool            # True if native async
+
+
+_REGISTRY: list[_RegistryEntry] = [
     # -- Object-level, pattern-based ----------------------------------------
-    ("pattern", "*.lmdb", "object", "asebytes.lmdb", "LMDBObjectBackend", "LMDBObjectReadBackend", False),
-    ("pattern", "*.h5", "object", "asebytes.h5md", "H5MDBackend", "H5MDBackend", False),
-    ("pattern", "*.h5md", "object", "asebytes.h5md", "H5MDBackend", "H5MDBackend", False),
-    ("pattern", "*.zarr", "object", "asebytes.zarr", "ZarrBackend", "ZarrBackend", False),
-    ("pattern", "*.traj", "object", "asebytes.ase", None, "ASEReadOnlyBackend", False),
-    ("pattern", "*.xyz", "object", "asebytes.ase", None, "ASEReadOnlyBackend", False),
-    ("pattern", "*.extxyz", "object", "asebytes.ase", None, "ASEReadOnlyBackend", False),
+    _RegistryEntry("pattern", "*.lmdb", "object", "asebytes.lmdb", "LMDBObjectBackend", "LMDBObjectReadBackend", False),
+    _RegistryEntry("pattern", "*.h5", "object", "asebytes.h5md", "H5MDBackend", "H5MDBackend", False),
+    _RegistryEntry("pattern", "*.h5md", "object", "asebytes.h5md", "H5MDBackend", "H5MDBackend", False),
+    _RegistryEntry("pattern", "*.zarr", "object", "asebytes.zarr", "ZarrBackend", "ZarrBackend", False),
+    _RegistryEntry("pattern", "*.traj", "object", "asebytes.ase", None, "ASEReadOnlyBackend", False),
+    _RegistryEntry("pattern", "*.xyz", "object", "asebytes.ase", None, "ASEReadOnlyBackend", False),
+    _RegistryEntry("pattern", "*.extxyz", "object", "asebytes.ase", None, "ASEReadOnlyBackend", False),
     # -- Blob-level, pattern-based ------------------------------------------
-    ("pattern", "*.lmdb", "blob", "asebytes.lmdb", "LMDBBlobBackend", "LMDBBlobBackend", False),
+    _RegistryEntry("pattern", "*.lmdb", "blob", "asebytes.lmdb", "LMDBBlobBackend", "LMDBBlobBackend", False),
     # -- Object-level, scheme-based -----------------------------------------
-    ("scheme", "hf", "object", "asebytes.hf._backend", None, "HuggingFaceBackend", False),
-    ("scheme", "colabfit", "object", "asebytes.hf._backend", None, "HuggingFaceBackend", False),
-    ("scheme", "optimade", "object", "asebytes.hf._backend", None, "HuggingFaceBackend", False),
-    ("scheme", "mongodb", "object", "asebytes.mongodb._backend", "MongoObjectBackend", "MongoObjectBackend", False),
-    ("scheme", "memory", "object", "asebytes.memory._backend", "MemoryObjectBackend", "MemoryObjectBackend", False),
+    _RegistryEntry("scheme", "hf", "object", "asebytes.hf._backend", None, "HuggingFaceBackend", False),
+    _RegistryEntry("scheme", "colabfit", "object", "asebytes.hf._backend", None, "HuggingFaceBackend", False),
+    _RegistryEntry("scheme", "optimade", "object", "asebytes.hf._backend", None, "HuggingFaceBackend", False),
+    _RegistryEntry("scheme", "mongodb", "object", "asebytes.mongodb._backend", "MongoObjectBackend", "MongoObjectBackend", False),
+    _RegistryEntry("scheme", "memory", "object", "asebytes.memory._backend", "MemoryObjectBackend", "MemoryObjectBackend", False),
     # -- Async object-level, scheme-based -----------------------------------
-    ("scheme", "mongodb", "object", "asebytes.mongodb._async_backend", "AsyncMongoObjectBackend", "AsyncMongoObjectBackend", True),
+    _RegistryEntry("scheme", "mongodb", "object", "asebytes.mongodb._async_backend", "AsyncMongoObjectBackend", "AsyncMongoObjectBackend", True),
     # -- Blob-level, scheme-based -------------------------------------------
-    ("scheme", "redis", "blob", "asebytes.redis._backend", "RedisBlobBackend", "RedisBlobBackend", False),
+    _RegistryEntry("scheme", "redis", "blob", "asebytes.redis._backend", "RedisBlobBackend", "RedisBlobBackend", False),
     # -- Async blob-level, scheme-based -------------------------------------
-    ("scheme", "redis", "blob", "asebytes.redis._async_backend", "AsyncRedisBlobBackend", "AsyncRedisBlobBackend", True),
+    _RegistryEntry("scheme", "redis", "blob", "asebytes.redis._async_backend", "AsyncRedisBlobBackend", "AsyncRedisBlobBackend", True),
 ]
 
 # Collect all known URI schemes from the registry for parse_uri().
 _KNOWN_SCHEMES: frozenset[str] = frozenset(
-    match_value for match_type, match_value, *_ in _REGISTRY if match_type == "scheme"
+    entry.match_value for entry in _REGISTRY if entry.match_type == "scheme"
 )
 
 # ---------------------------------------------------------------------------
@@ -118,27 +126,22 @@ def parse_uri(path: str) -> tuple[str | None, str]:
 # ---------------------------------------------------------------------------
 
 
-def _pick_class(
-    entry: tuple[str, str, str, str, str | None, str, bool],
-    path: str,
-    writable: bool | None,
-):
+def _pick_class(entry: _RegistryEntry, path: str, writable: bool | None):
     """Import the module from *entry* and return the appropriate class."""
-    _, _, _, module_path, writable_cls_name, readonly_cls_name, _ = entry
-    mod = _import_module(module_path)
+    mod = _import_module(entry.module_path)
 
     if writable is True:
-        if writable_cls_name is None:
+        if entry.writable_cls is None:
             raise TypeError(
                 f"Backend for '{path}' is read-only, no writable variant available"
             )
-        return getattr(mod, writable_cls_name)
+        return getattr(mod, entry.writable_cls)
     if writable is False:
-        return getattr(mod, readonly_cls_name)
+        return getattr(mod, entry.readonly_cls)
     # writable is None -- prefer writable if available
-    if writable_cls_name is not None:
-        return getattr(mod, writable_cls_name)
-    return getattr(mod, readonly_cls_name)
+    if entry.writable_cls is not None:
+        return getattr(mod, entry.writable_cls)
+    return getattr(mod, entry.readonly_cls)
 
 
 def resolve_backend(
@@ -189,20 +192,18 @@ def resolve_backend(
     scheme, _remainder = parse_uri(path_or_uri)
 
     # -- Collect direct candidates for the requested layer ------------------
-    candidates: list[tuple[str, str, str, str, str | None, str, bool]] = []
+    candidates: list[_RegistryEntry] = []
     for entry in _REGISTRY:
-        match_type, match_value, entry_layer, *_ = entry
-
-        if entry_layer != layer:
+        if entry.layer != layer:
             continue
 
-        if match_type == "scheme":
-            if scheme != match_value:
+        if entry.match_type == "scheme":
+            if scheme != entry.match_value:
                 continue
         else:  # pattern
             if scheme is not None:
                 continue  # don't match patterns for URIs
-            if not fnmatch.fnmatch(path_or_uri, match_value):
+            if not fnmatch.fnmatch(path_or_uri, entry.match_value):
                 continue
 
         candidates.append(entry)
@@ -223,12 +224,12 @@ def resolve_backend(
 
     # -- Filter by async preference -----------------------------------------
     if async_:
-        async_candidates = [c for c in candidates if c[6]]
+        async_candidates = [c for c in candidates if c.is_async]
         if async_candidates:
             candidates = async_candidates
         # else: fall back to sync candidates (caller wraps with SyncToAsyncAdapter)
     else:
-        sync_candidates = [c for c in candidates if not c[6]]
+        sync_candidates = [c for c in candidates if not c.is_async]
         if sync_candidates:
             candidates = sync_candidates
 

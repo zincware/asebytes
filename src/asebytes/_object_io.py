@@ -85,14 +85,14 @@ class ObjectIO(MutableSequence):
         -------
         dict[str, SchemaEntry]
         """
-        from ._schema import infer_schema
-
         if index is None:
             index = 0
-        row = self[index]  # raises IndexError on empty / out-of-bounds
-        if row is None:
-            return {}
-        return infer_schema(row)
+        n = len(self)
+        if index < 0:
+            index += n
+        if index < 0 or index >= n:
+            raise IndexError(index)
+        return self._backend.schema(index)
 
     # --- Internal methods used by views ---
 

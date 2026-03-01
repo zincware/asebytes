@@ -146,6 +146,24 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
     def __len__(self) -> int:
         return self._n_frames
 
+    def schema(self, index: int = 0) -> dict:
+        """O(1) metadata read from zarr array attrs."""
+        from asebytes._schema import SchemaEntry
+
+        result = {}
+        for col_name, arr in self._col_cache.items():
+            if col_name == "_n_atoms":
+                continue
+            dtype = arr.dtype
+            if dtype.kind in ("U", "S", "O", "T"):
+                entry = SchemaEntry(dtype=str, shape=())
+            elif col_name in self._per_atom_cols:
+                entry = SchemaEntry(dtype=dtype, shape=("N",) + arr.shape[2:])
+            else:
+                entry = SchemaEntry(dtype=dtype, shape=arr.shape[1:])
+            result[col_name] = entry
+        return result
+
     def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         index = self._check_index(index)
         result: dict[str, Any] = {}

@@ -80,6 +80,15 @@ class ReadBackend(Generic[K, V], ABC):
             return []
         return list(row.keys())
 
+    def schema(self, index: int = 0) -> dict:
+        """Column names, dtypes, shapes. Override for O(1) metadata reads."""
+        from ._schema import infer_schema
+
+        row = self.get(index)
+        if row is None:
+            return {}
+        return infer_schema(row)
+
 
 # ── Generic read-write backend ───────────────────────────────────────────
 

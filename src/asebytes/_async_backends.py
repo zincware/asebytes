@@ -79,6 +79,15 @@ class AsyncReadBackend(Generic[K, V], ABC):
             return []
         return list(row.keys())
 
+    async def schema(self, index: int = 0) -> dict:
+        """Column names, dtypes, shapes. Override for O(1) metadata reads."""
+        from ._schema import infer_schema
+
+        row = await self.get(index)
+        if row is None:
+            return {}
+        return infer_schema(row)
+
 
 # ── Async generic read-write backend ─────────────────────────────────────
 
@@ -193,6 +202,9 @@ class SyncToAsyncReadAdapter(AsyncReadBackend[K, V]):
 
     async def keys(self, index):
         return await asyncio.to_thread(self._backend.keys, index)
+
+    async def schema(self, index=0):
+        return await asyncio.to_thread(self._backend.schema, index)
 
     async def iter_rows(self, indices, keys=None):
         rows = await asyncio.to_thread(list, self._backend.iter_rows(indices, keys))

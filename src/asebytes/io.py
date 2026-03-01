@@ -111,20 +111,14 @@ class ASEIO(MutableSequence):
 
     def schema(self, index: int | None = None) -> dict[str, SchemaEntry]:
         """Inspect column names, dtypes, and shapes."""
-        from ._schema import infer_schema
-
         if index is None:
             index = 0
-        # Read raw row (not converted to Atoms) to get dict schema
         n = len(self)
         if index < 0:
             index += n
         if index < 0 or index >= n:
             raise IndexError(index)
-        row = self._read_row(index)
-        if row is None:
-            return {}
-        return infer_schema(row)
+        return self._backend.schema(index)
 
     # --- Internal methods used by views ---
 

@@ -265,13 +265,50 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
     def __len__(self) -> int:
         return self._n_frames
 
+    def schema(self, index: int = 0) -> dict:
+        """O(1) metadata read from HDF5 dataset attrs."""
+        from asebytes._schema import SchemaEntry
+
+        result = {}
+        for col_name, (ds, _, _, is_per_atom) in self._col_cache.items():
+            dtype = ds.dtype
+            if dtype.kind in ("S", "U", "O") or dtype == h5py.string_dtype():
+                entry = SchemaEntry(dtype=str, shape=())
+            elif is_per_atom:
+                entry = SchemaEntry(dtype=dtype, shape=("N",) + ds.shape[2:])
+            else:
+                entry = SchemaEntry(dtype=dtype, shape=ds.shape[1:])
+            result[col_name] = entry
+        # Box columns
+        for box_key, (kind, ref) in self._box_cache.items():
+            if kind == "td":
+                result[box_key] = SchemaEntry(dtype=ref.dtype, shape=ref.shape[1:])
+            elif kind == "static":
+                result[box_key] = SchemaEntry(dtype=ref.dtype, shape=ref.shape)
+            elif kind == "boundary":
+                result[box_key] = SchemaEntry(dtype=np.dtype("bool"), shape=(3,))
+        return result
+
+    def _needs_n_atoms(self, keys: list[str] | None) -> bool:
+        """Return True if any per-atom column would be read for the given keys."""
+        if self._n_atoms_ds is None:
+            return False
+        if not any(is_pa for _, _, _, is_pa in self._col_cache.values()):
+            return False
+        if keys is not None:
+            return any(
+                is_pa for k, (_, _, _, is_pa) in self._col_cache.items()
+                if k in keys
+            )
+        return True
+
     def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         index = self._check_index(index)
         result: dict[str, Any] = {}
 
-        # Read _n_atoms for per-atom slicing
+        # Read _n_atoms only when per-atom columns will be accessed
         n_atoms: int | None = None
-        if self._n_atoms_ds is not None and index < self._n_atoms_ds.shape[0]:
+        if self._needs_n_atoms(keys) and index < self._n_atoms_ds.shape[0]:
             n_atoms = int(self._n_atoms_ds[index])
 
         for box_key in ("cell", "pbc"):
@@ -340,9 +377,9 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         else:
             h5_sel = unique_sorted
 
-        # Bulk-read _n_atoms for per-atom slicing
+        # Bulk-read _n_atoms only when per-atom columns will be accessed
         n_atoms_map: list[int | None] = [None] * n_unique
-        if self._n_atoms_ds is not None:
+        if self._needs_n_atoms(keys):
             na_bulk = self._n_atoms_ds[h5_sel]
             for j in range(n_unique):
                 n_atoms_map[j] = int(na_bulk[j])
