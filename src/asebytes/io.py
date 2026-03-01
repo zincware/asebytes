@@ -9,6 +9,7 @@ import numpy as np
 
 from ._convert import atoms_to_dict, dict_to_atoms
 from ._backends import ReadBackend, ReadWriteBackend
+from ._schema import SchemaEntry
 from ._views import ASEColumnView, RowView
 
 
@@ -107,6 +108,23 @@ class ASEIO(MutableSequence):
     def keys(self, index: int) -> list[str]:
         """Return keys present at *index*."""
         return self._backend.keys(index)
+
+    def schema(self, index: int | None = None) -> dict[str, SchemaEntry]:
+        """Inspect column names, dtypes, and shapes."""
+        from ._schema import infer_schema
+
+        if index is None:
+            index = 0
+        # Read raw row (not converted to Atoms) to get dict schema
+        n = len(self)
+        if index < 0:
+            index += n
+        if index < 0 or index >= n:
+            raise IndexError(index)
+        row = self._read_row(index)
+        if row is None:
+            return {}
+        return infer_schema(row)
 
     # --- Internal methods used by views ---
 

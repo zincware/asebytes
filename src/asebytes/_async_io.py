@@ -12,6 +12,7 @@ import ase
 import numpy as np
 
 from ._async_backends import AsyncReadBackend, AsyncReadWriteBackend
+from ._schema import SchemaEntry
 from ._async_views import (
     AsyncASEColumnView,
     AsyncColumnView,
@@ -91,6 +92,22 @@ class AsyncASEIO:
     async def keys(self, index: int) -> list[str]:
         """Return keys present at *index*."""
         return await self._backend.keys(index)
+
+    async def schema(self, index: int | None = None) -> dict[str, SchemaEntry]:
+        """Inspect column names, dtypes, and shapes."""
+        from ._schema import infer_schema
+
+        if index is None:
+            index = 0
+        n = await self.len()
+        if index < 0:
+            index += n
+        if index < 0 or index >= n:
+            raise IndexError(index)
+        row = await self._read_row(index)
+        if row is None:
+            return {}
+        return infer_schema(row)
 
     async def _read_row(
         self, index: int, keys: list[str] | None = None

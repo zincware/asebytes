@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any, overload
 
 from ._async_backends import AsyncReadBackend, AsyncReadWriteBackend
+from ._schema import SchemaEntry
 from ._async_views import (
     AsyncColumnView,
     AsyncRowView,
@@ -87,6 +88,32 @@ class AsyncObjectIO:
     async def keys(self, index: int) -> list[str]:
         """Return keys present at *index*."""
         return await self._backend.keys(index)
+
+    async def schema(self, index: int | None = None) -> dict[str, SchemaEntry]:
+        """Inspect column names, dtypes, and shapes.
+
+        Parameters
+        ----------
+        index : int | None
+            Row to inspect. If None, inspects row 0.
+
+        Returns
+        -------
+        dict[str, SchemaEntry]
+        """
+        from ._schema import infer_schema
+
+        if index is None:
+            index = 0
+        n = await self.len()
+        if index < 0:
+            index += n
+        if index < 0 or index >= n:
+            raise IndexError(index)
+        row = await self._read_row(index)
+        if row is None:
+            return {}
+        return infer_schema(row)
 
     async def _read_row(
         self, index: int, keys: list[str] | None = None

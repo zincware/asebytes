@@ -1,6 +1,7 @@
 import importlib.metadata
 
 from ._convert import atoms_to_dict, dict_to_atoms
+from ._schema import SchemaEntry
 
 # New canonical ABCs
 from ._backends import (
@@ -96,6 +97,8 @@ __all__ = [
     "AsyncObjectIO",
     "ASEIO",
     "AsyncASEIO",
+    # Schema
+    "SchemaEntry",
     # Utilities
     "encode",
     "decode",

@@ -10,6 +10,7 @@ from collections.abc import Iterator, MutableSequence
 from typing import Any, overload
 
 from ._backends import ReadBackend, ReadWriteBackend
+from ._schema import SchemaEntry
 from ._views import ColumnView, RowView
 
 
@@ -71,6 +72,27 @@ class ObjectIO(MutableSequence):
     def keys(self, index: int) -> list[str]:
         """Return keys present at *index*."""
         return self._backend.keys(index)
+
+    def schema(self, index: int | None = None) -> dict[str, SchemaEntry]:
+        """Inspect column names, dtypes, and shapes.
+
+        Parameters
+        ----------
+        index : int | None
+            Row to inspect. If None, inspects row 0.
+
+        Returns
+        -------
+        dict[str, SchemaEntry]
+        """
+        from ._schema import infer_schema
+
+        if index is None:
+            index = 0
+        row = self[index]  # raises IndexError on empty / out-of-bounds
+        if row is None:
+            return {}
+        return infer_schema(row)
 
     # --- Internal methods used by views ---
 
