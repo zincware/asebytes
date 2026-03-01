@@ -50,6 +50,10 @@ def _sub_select(
     if isinstance(selector, int):
         if selector < 0:
             selector += len(current_indices)
+            if selector < 0:
+                raise IndexError(selector - len(current_indices))
+        if selector >= len(current_indices):
+            raise IndexError(selector)
         return current_indices[selector]
     if isinstance(selector, slice):
         return current_indices[selector]

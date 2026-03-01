@@ -134,6 +134,35 @@ class TestSyncNoneIndexing:
             sync_io["nonexistent"].to_list()
 
 
+class TestSyncAllNone:
+    """db = [None, None, None] — all placeholders."""
+
+    def test_all_none_access(self, sync_io):
+        sync_io.extend([None, None, None])
+
+        assert sync_io[0] is None
+        assert sync_io[1] is None
+        assert sync_io[2] is None
+
+        with pytest.raises(IndexError):
+            sync_io[3]
+
+    def test_all_none_row_view_slice(self, sync_io):
+        sync_io.extend([None, None, None])
+
+        assert list(sync_io[:]) == [None, None, None]
+
+    def test_all_none_keyerror(self, sync_io):
+        """All rows are None placeholders — no column exists."""
+        sync_io.extend([None, None, None])
+
+        with pytest.raises(KeyError):
+            sync_io["nonexistent"].to_list()
+
+        with pytest.raises(KeyError):
+            sync_io[:]["nonexistent"].to_list()
+
+
 # ======================================================================
 # Async
 # ======================================================================
@@ -191,3 +220,35 @@ class TestAsyncNoneIndexing:
 
         with pytest.raises(IndexError):
             await async_io["tag"][-4]
+
+
+class TestAsyncAllNone:
+    """db = [None, None, None] — all placeholders."""
+
+    @pytest.mark.anyio
+    async def test_all_none_access(self, async_io):
+        await async_io.extend([None, None, None])
+
+        assert await async_io[0] is None
+        assert await async_io[1] is None
+        assert await async_io[2] is None
+
+        with pytest.raises(IndexError):
+            await async_io[3]
+
+    @pytest.mark.anyio
+    async def test_all_none_row_view_slice(self, async_io):
+        await async_io.extend([None, None, None])
+
+        assert await async_io[:].to_list() == [None, None, None]
+
+    @pytest.mark.anyio
+    async def test_all_none_keyerror(self, async_io):
+        """All rows are None placeholders — no column exists."""
+        await async_io.extend([None, None, None])
+
+        with pytest.raises(KeyError):
+            await async_io["x"].to_list()
+
+        with pytest.raises(KeyError):
+            await async_io["nonexistent"].to_list()

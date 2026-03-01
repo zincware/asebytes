@@ -57,6 +57,10 @@ def _sub_select(
     if isinstance(selector, int):
         if selector < 0:
             selector += len(current_indices)
+            if selector < 0:
+                raise IndexError(selector - len(current_indices))
+        if selector >= len(current_indices):
+            raise IndexError(selector)
         return current_indices[selector]
     if isinstance(selector, slice):
         return current_indices[selector]
@@ -310,12 +314,14 @@ class AsyncSingleColumnView:
 
     async def _materialize(self):
         idx = self._index
+        try:
+            n = len(self._parent)
+        except TypeError:
+            n = await self._parent.len()
         if idx < 0:
-            try:
-                n = len(self._parent)
-            except TypeError:
-                n = await self._parent.len()
             idx += n
+        if idx < 0 or idx >= n:
+            raise IndexError(self._index)
         if self._single:
             values = await self._parent._read_column(self._keys[0], [idx])
             return values[0]

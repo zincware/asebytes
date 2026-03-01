@@ -99,7 +99,14 @@ class AsyncObjectIO:
         return await self._backend.get_many(indices, keys)
 
     async def _read_column(self, key: str, indices: list[int]) -> list[Any]:
-        return await self._backend.get_column(key, indices)
+        result = await self._backend.get_column(key, indices)
+        if all(v is None for v in result):
+            # Check if the key actually exists in any non-None row.
+            for i in indices:
+                if key in await self._backend.keys(i):
+                    return result
+            raise KeyError(key)
+        return result
 
     async def _write_row(self, index: int, data: Any) -> None:
         if not isinstance(self._backend, AsyncReadWriteBackend):
