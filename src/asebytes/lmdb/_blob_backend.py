@@ -117,8 +117,15 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
 
         n_blocks = struct.unpack("<I", blk_count_bytes)[0]
 
+        if n_blocks == 0:
+            self._blocks = []
+            self._block_sizes = []
+            return
+
         # Block sizes
         sizes_bytes = txn.get(b"__blk_sizes__")
+        if not sizes_bytes:
+            raise RuntimeError("Corrupt LMDB metadata: missing __blk_sizes__")
         self._block_sizes = list(struct.unpack(f"<{n_blocks}I", sizes_bytes))
 
         # Load all blocks
@@ -177,6 +184,8 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
                 b"__blk_sizes__",
                 struct.pack(f"<{n_blocks}I", *self._block_sizes),
             )
+        else:
+            txn.delete(b"__blk_sizes__")
 
     def _save_block(self, txn, block_index: int) -> None:
         """Write a single block to LMDB."""

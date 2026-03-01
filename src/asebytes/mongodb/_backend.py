@@ -104,9 +104,12 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         Parameters
         ----------
         path : str
-            MongoDB connection URI (e.g. ``mongodb://localhost:27017``).
+            MongoDB connection URI (e.g. ``mongodb://localhost:27017``
+            or ``mongodb://host:port/mydb``).  When the URI contains a
+            database path, it is used instead of the *database* parameter.
         database : str
-            Database name to list collections from.
+            Database name to list collections from.  Ignored when the
+            URI already contains a database path.
         **kwargs
             Unused, for API compatibility.
 
@@ -115,7 +118,18 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         list[str]
             List of group names (collection names) in the database.
         """
-        client = MongoClient(path)
+        # Parse database from URI path, consistent with from_uri()
+        connection_uri = path
+        if "://" in path:
+            _, after_scheme = path.split("://", 1)
+            if "/" in after_scheme:
+                host_part, path_part = after_scheme.split("/", 1)
+                parts = [p for p in path_part.split("/") if p]
+                if parts:
+                    database = parts[0]
+                    connection_uri = path.split("://")[0] + "://" + host_part
+
+        client = MongoClient(connection_uri)
         try:
             db = client[database]
             # Get all collection names, excluding system collections
