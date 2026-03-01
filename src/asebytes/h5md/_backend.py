@@ -466,7 +466,12 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         self._discover()  # Rebuild dataset cache for new/extended datasets
         return self._n_frames
 
-    def set(self, index: int, data: dict[str, Any]) -> None:
+    def set(self, index: int, data: dict[str, Any] | None) -> None:
+        if data is None:
+            raise TypeError(
+                "H5MDBackend.set() does not support None rows. "
+                "H5MD is append-only and cannot represent placeholder rows."
+            )
         index = self._check_index(index)
         for key, val in data.items():
             h5_path = self._find_dataset_path(key)

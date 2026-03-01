@@ -308,9 +308,19 @@ def get_blob_backend_cls(path: str, *, readonly: bool | None = None):
 
     from ._adapters import ObjectToBlobReadAdapter, ObjectToBlobReadWriteAdapter
 
+    # Determine whether the resolved object backend actually supports writes.
+    # When readonly is None (auto-detect), only wrap with the read-write adapter
+    # if the backend class exposes write methods.
+    def _supports_write(cls: type) -> bool:
+        return hasattr(cls, "set") and hasattr(cls, "extend")
+
+    use_read_adapter = readonly is True or (
+        readonly is None and not _supports_write(obj_cls)
+    )
+
     if scheme is not None:
         # URI-based backend: use from_uri to instantiate
-        if readonly is True:
+        if use_read_adapter:
 
             def _make_read_adapter(*args, **kwargs):
                 return ObjectToBlobReadAdapter(obj_cls.from_uri(*args, **kwargs))
@@ -322,7 +332,7 @@ def get_blob_backend_cls(path: str, *, readonly: bool | None = None):
 
         return _make_readwrite_adapter
 
-    if readonly is True:
+    if use_read_adapter:
 
         def _make_read_adapter(*args, **kwargs):
             return ObjectToBlobReadAdapter(obj_cls(*args, **kwargs))

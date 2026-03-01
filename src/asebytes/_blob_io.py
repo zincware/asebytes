@@ -228,9 +228,15 @@ class BlobIO(MutableSequence):
             yield self[i]
 
     def __enter__(self):
+        if hasattr(self._backend, "__enter__"):
+            self._backend.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if hasattr(self._backend, "__exit__"):
+            return self._backend.__exit__(exc_type, exc_val, exc_tb)
+        if hasattr(self._backend, "close"):
+            self._backend.close()
         return False
 
     def __repr__(self) -> str:

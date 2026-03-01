@@ -176,7 +176,7 @@ def test_set_sparse_index_fills_placeholders(backend, sample_row):
     assert backend.get(3)["calc.energy"] == pytest.approx(-10.5)
 
 
-def test_get_column_with_missing_key(backend, sample_row):
+def test_get_column_with_missing_key(backend):
     """get_column() should return None for rows missing the requested key."""
     # Create rows where some have the key and some don't
     row_with_key = {"calc.energy": -10.5, "info.smiles": "O"}

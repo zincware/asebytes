@@ -375,17 +375,25 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         self._invalidate_cache()
 
     def close(self) -> None:
-        """Close the MongoDB client connection (sync wrapper for compatibility)."""
-        # Note: AsyncMongoClient.close() is async, but we provide a sync method
-        # for consistency with other backends. Use aclose() for proper async cleanup.
+        """Close the MongoDB client connection (sync wrapper for compatibility).
+
+        Prefer ``aclose()`` for proper async cleanup. This sync fallback
+        schedules the close on the running event loop when possible, or
+        uses ``asyncio.run`` as a last resort.
+        """
         import asyncio
 
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(self._client.close())
+            task = loop.create_task(self._client.close())
+            task.add_done_callback(lambda t: t.result() if not t.cancelled() else None)
         except RuntimeError:
-            # No running loop - just close synchronously (best effort)
-            pass
+            # No running loop — run the close synchronously via asyncio.run
+            try:
+                asyncio.run(self._client.close())
+            except RuntimeError:
+                # Already inside an event loop that we can't use — best effort
+                pass
 
     async def aclose(self) -> None:
         """Close the MongoDB client connection asynchronously."""

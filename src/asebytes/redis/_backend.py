@@ -142,26 +142,51 @@ class RedisBlobBackend(ReadWriteBackend[bytes, bytes]):
         If only ``redis://host:port`` is given, db defaults to 0 and
         prefix defaults to ``"default"``.
         """
-        if "://" not in uri:
-            raise ValueError(f"Invalid URI: {uri!r}")
-        scheme, after_scheme = uri.split("://", 1)
-        if "/" in after_scheme:
-            host_part, path_part = after_scheme.split("/", 1)
-        else:
-            host_part, path_part = after_scheme, ""
+        from urllib.parse import urlsplit, urlunsplit
 
-        parts = [p for p in path_part.split("/") if p]
-        if len(parts) >= 2:
-            db = parts[0]
-            prefix = parts[1]
-            connection_url = f"{scheme}://{host_part}/{db}"
-        elif len(parts) == 1:
-            db = parts[0]
+        parsed = urlsplit(uri)
+        if not parsed.scheme:
+            raise ValueError(f"Invalid URI: {uri!r}")
+
+        # Path is e.g. "/0/myprefix" or "/0" or ""
+        path_parts = [p for p in parsed.path.split("/") if p]
+        if len(path_parts) >= 2:
+            db = path_parts[0]
+            prefix = path_parts[1]
+            # Rebuild the connection URL with only the db in the path
+            connection_url = urlunsplit(
+                (
+                    parsed.scheme,
+                    parsed.netloc,
+                    f"/{db}",
+                    parsed.query,
+                    parsed.fragment,
+                )
+            )
+        elif len(path_parts) == 1:
+            db = path_parts[0]
             prefix = "default"
-            connection_url = f"{scheme}://{host_part}/{db}"
+            connection_url = urlunsplit(
+                (
+                    parsed.scheme,
+                    parsed.netloc,
+                    f"/{db}",
+                    parsed.query,
+                    parsed.fragment,
+                )
+            )
         else:
             prefix = "default"
-            connection_url = uri
+            # Preserve the full URI (including query params, auth, etc.)
+            connection_url = urlunsplit(
+                (
+                    parsed.scheme,
+                    parsed.netloc,
+                    parsed.path,
+                    parsed.query,
+                    parsed.fragment,
+                )
+            )
 
         return cls(url=connection_url, prefix=prefix, **kwargs)
 

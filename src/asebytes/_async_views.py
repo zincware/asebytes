@@ -237,10 +237,17 @@ class AsyncRowView(Generic[R]):
         raise TypeError(f"Unsupported key type: {type(key)}")
 
     async def set(self, data: list[Any]) -> None:
+        if not isinstance(data, list):
+            raise TypeError(f"Row writes must be lists. Got {type(data).__name__}.")
+        if len(data) != len(self._indices):
+            raise ValueError(
+                f"Length mismatch: got {len(data)} values for "
+                f"{len(self._indices)} rows."
+            )
         if self._indices and _is_contiguous(self._indices):
             await self._parent._write_many(self._indices[0], data)
         else:
-            for idx, d in zip(self._indices, data):
+            for idx, d in zip(self._indices, data, strict=True):
                 await self._parent._write_row(idx, d)
 
     async def delete(self) -> None:
@@ -578,7 +585,12 @@ class AsyncASEColumnView(AsyncColumnView):
 
         indices = await self._aresolved_indices()
         rows = await self._parent._read_rows(indices, keys=self._keys)
-        return [None if row is None else dict_to_atoms(row) for row in rows]
+        result = []
+        for row in rows:
+            if row is None:
+                raise TypeError("Cannot build ase.Atoms from a placeholder row.")
+            result.append(dict_to_atoms(row))
+        return result
 
     async def __aiter__(self) -> AsyncIterator[ase.Atoms]:
         from ._convert import dict_to_atoms
@@ -586,7 +598,9 @@ class AsyncASEColumnView(AsyncColumnView):
         indices = await self._aresolved_indices()
         rows = await self._parent._read_rows(indices, keys=self._keys)
         for row in rows:
-            yield None if row is None else dict_to_atoms(row)
+            if row is None:
+                raise TypeError("Cannot build ase.Atoms from a placeholder row.")
+            yield dict_to_atoms(row)
 
     def __getitem__(
         self, key: int | slice | str | list[int]
@@ -704,12 +718,15 @@ class _DeferredSliceRowView(AsyncRowView[R]):
             self._resolved = True
 
     def __getitem__(self, key):
+        cv_cls = self._column_view_cls or AsyncColumnView
         if isinstance(key, (str, bytes)):
-            cv_cls = self._column_view_cls or AsyncColumnView
+            if cv_cls is AsyncASEColumnView:
+                return _DeferredSliceASEColumnView(self._parent, key, self._slice)
             if cv_cls is AsyncColumnView:
                 return _DeferredSliceColumnView(self._parent, key, self._slice)
         if isinstance(key, list) and key and isinstance(key[0], (str, bytes)):
-            cv_cls = self._column_view_cls or AsyncColumnView
+            if cv_cls is AsyncASEColumnView:
+                return _DeferredSliceASEColumnView(self._parent, key, self._slice)
             if cv_cls is AsyncColumnView:
                 return _DeferredSliceColumnView(self._parent, key, self._slice)
         return super().__getitem__(key)

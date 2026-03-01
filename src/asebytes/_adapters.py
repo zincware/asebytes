@@ -261,3 +261,13 @@ class ObjectToBlobReadWriteAdapter(
 
     def remove(self) -> None:
         self._store.remove()
+
+    def drop_keys(
+        self,
+        keys: list[bytes],
+        indices: list[int] | None = None,
+    ) -> None:
+        self._store.drop_keys(
+            [k.decode() for k in keys],
+            indices=indices,
+        )

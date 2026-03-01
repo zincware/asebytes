@@ -39,6 +39,8 @@ class MemoryObjectBackend(ReadWriteBackend[str, Any]):
         self._data[index] = value
 
     def delete(self, index: int) -> None:
+        if index < 0 or index >= len(self._data):
+            raise IndexError(index)
         del self._data[index]
 
     def extend(self, values: list[dict[str, Any] | None]) -> int:
@@ -46,6 +48,8 @@ class MemoryObjectBackend(ReadWriteBackend[str, Any]):
         return len(self._data)
 
     def insert(self, index: int, value: dict[str, Any] | None) -> None:
+        if index < 0 or index > len(self._data):
+            raise IndexError(index)
         self._data.insert(index, value)
 
     def clear(self) -> None:

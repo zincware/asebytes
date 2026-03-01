@@ -373,6 +373,8 @@ class ASEColumnView(ColumnView):
         if isinstance(key, int):
             abs_idx = _sub_select(indices, key)
             row = self._parent._read_row(abs_idx, keys=self._keys)
+            if row is None:
+                raise TypeError("Cannot build ase.Atoms from a placeholder row.")
             from ._convert import dict_to_atoms
 
             return dict_to_atoms(row)
@@ -395,6 +397,8 @@ class ASEColumnView(ColumnView):
 
         indices = self._resolved_indices()
         for row in self._parent._read_rows(indices, keys=self._keys):
+            if row is None:
+                raise TypeError("Cannot build ase.Atoms from a placeholder row.")
             yield dict_to_atoms(row)
 
     def to_list(self) -> list[ase.Atoms]:
