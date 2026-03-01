@@ -7,6 +7,7 @@ Rules:
 - Length mismatch: db["a"][:3].set([1,2]) → ValueError
 - Inner length mismatch: db[["a","b"]][:3].set([[1],[2],[3]]) → ValueError
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -107,6 +108,10 @@ class AsyncMockParent:
     async def _write_many(self, start, data):
         for i, d in enumerate(data):
             self._rows[start + i] = d
+
+    async def _keys(self, index: int) -> list[str]:
+        """Return the keys present in the row at given index."""
+        return list(self._rows[index].keys())
 
     def _build_result(self, row):
         return row
@@ -213,3 +218,16 @@ class TestAsyncColumnViewset:
         view = AsyncColumnView(parent, "a", list(range(5)))
         with pytest.raises(ValueError):
             await view[:3].set([1, 2])
+
+
+class TestAsyncMockParentProtocolCompliance:
+    """Ensure AsyncMockParent implements full AsyncViewParent protocol."""
+
+    @pytest.mark.anyio
+    async def test_keys_method_exists_and_works(self, rows):
+        """AsyncMockParent must implement _keys() for protocol compliance."""
+        parent = AsyncMockParent([dict(r) for r in rows])
+        keys = await parent._keys(0)
+        # Should return list of keys from the row
+        assert isinstance(keys, list)
+        assert set(keys) == {"a", "b", "c"}

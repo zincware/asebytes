@@ -100,20 +100,14 @@ def test_get_column(backend, sample_row):
 
 
 def test_get_column_with_indices(backend, sample_row):
-    rows = [
-        {**sample_row, "calc.energy": float(-i)}
-        for i in range(5)
-    ]
+    rows = [{**sample_row, "calc.energy": float(-i)} for i in range(5)]
     backend.extend(rows)
     energies = backend.get_column("calc.energy", indices=[0, 2, 4])
     assert energies == pytest.approx([0.0, -2.0, -4.0])
 
 
 def test_get_many(backend, sample_row):
-    rows = [
-        {**sample_row, "calc.energy": float(-i)}
-        for i in range(5)
-    ]
+    rows = [{**sample_row, "calc.energy": float(-i)} for i in range(5)]
     backend.extend(rows)
     result = backend.get_many([1, 3])
     assert len(result) == 2
@@ -160,3 +154,56 @@ def test_lmdb_object_read_backend_uses_adapter(tmp_path, sample_row):
     assert len(rb) == 1
     row = rb.get(0)
     assert row["calc.energy"] == pytest.approx(-10.5)
+
+
+def test_set_sparse_index_fills_placeholders(backend, sample_row):
+    """Setting a sparse index should fill intermediate slots with placeholders.
+
+    If we set(0, data) then set(3, data), indices 1 and 2 should exist as
+    None placeholders. This prevents metadata drift between count and blocks.
+    """
+    backend.set(0, sample_row)
+    backend.set(3, sample_row)  # Sparse - indices 1, 2 should be placeholders
+
+    assert len(backend) == 4
+
+    # Indices 1 and 2 should return None (placeholders)
+    assert backend.get(1) is None
+    assert backend.get(2) is None
+
+    # Index 0 and 3 should have data
+    assert backend.get(0)["calc.energy"] == pytest.approx(-10.5)
+    assert backend.get(3)["calc.energy"] == pytest.approx(-10.5)
+
+
+def test_get_column_with_missing_key(backend):
+    """get_column() should return None for rows missing the requested key."""
+    # Create rows where some have the key and some don't
+    row_with_key = {"calc.energy": -10.5, "info.smiles": "O"}
+    row_without_key = {"info.smiles": "H2O"}  # No calc.energy
+
+    backend.set(0, row_with_key)
+    backend.set(1, row_without_key)
+    backend.set(2, row_with_key)
+
+    # get_column should handle missing keys gracefully
+    energies = backend.get_column("calc.energy")
+    assert len(energies) == 3
+    assert energies[0] == pytest.approx(-10.5)
+    assert energies[1] is None  # Missing key should be None
+    assert energies[2] == pytest.approx(-10.5)
+
+
+def test_get_column_with_placeholders(backend, sample_row):
+    """get_column() should handle None placeholder rows."""
+    backend.set(0, sample_row)
+    backend.set(2, sample_row)  # Index 1 is a placeholder
+
+    assert len(backend) == 3
+
+    # get_column should handle placeholder rows (which return None from get)
+    energies = backend.get_column("calc.energy")
+    assert len(energies) == 3
+    assert energies[0] == pytest.approx(-10.5)
+    assert energies[1] is None  # Placeholder row
+    assert energies[2] == pytest.approx(-10.5)

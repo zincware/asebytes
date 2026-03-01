@@ -58,6 +58,7 @@ class MemoryBackend(ReadWriteBackend):
 
     def extend(self, data):
         self._rows.extend(data)
+        return len(self._rows)
 
     @staticmethod
     def list_groups(path: str, **kwargs) -> list[str]:

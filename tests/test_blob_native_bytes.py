@@ -389,8 +389,8 @@ class TestAsyncBlobIONativeBytes:
         }
 
 
-class TestAsyncBlobIONativeBytes:
-    """AsyncBlobIO must pass bytes keys directly, no encode/decode."""
+class TestAsyncBlobIONativeBytesAlternate:
+    """AsyncBlobIO must pass bytes keys directly, no encode/decode (alternate tests)."""
 
     @pytest.mark.anyio
     async def test_column_view_from_bytes_key(self):

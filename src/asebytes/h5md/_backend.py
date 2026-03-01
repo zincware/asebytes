@@ -335,6 +335,17 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         for key, (ds, h5_name, tag) in self._col_cache.items():
             if keys is not None and key not in keys:
                 continue
+            # Skip columns shorter than max requested index (backward compat)
+            max_requested = int(unique_sorted[-1])
+            if max_requested >= ds.shape[0]:
+                # Column is short - handle each index individually
+                for j in range(n_unique):
+                    idx = int(unique_sorted[j])
+                    if idx < ds.shape[0]:
+                        val = self._postprocess_typed(ds[idx], tag)
+                        if val is not None:
+                            unique_rows[j][key] = val
+                continue
             bulk = ds[h5_sel]
             for j in range(n_unique):
                 val = self._postprocess_typed(bulk[j], tag)
@@ -466,7 +477,12 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         self._discover()  # Rebuild dataset cache for new/extended datasets
         return self._n_frames
 
-    def set(self, index: int, data: dict[str, Any]) -> None:
+    def set(self, index: int, data: dict[str, Any] | None) -> None:
+        if data is None:
+            raise TypeError(
+                "H5MDBackend.set() does not support None rows. "
+                "H5MD is append-only and cannot represent placeholder rows."
+            )
         index = self._check_index(index)
         for key, val in data.items():
             h5_path = self._find_dataset_path(key)
@@ -474,12 +490,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                 continue
             ds = self._file[h5_path]["value"]
             val = self._serialize_value(val)
-            if isinstance(val, np.ndarray) and self._variable_shape:
-                if ds.ndim > 1 and val.ndim >= 1 and val.shape[0] < ds.shape[1]:
-                    padded = np.full(ds.shape[1:], np.nan, dtype=np.float64)
-                    slices = tuple(slice(0, s) for s in val.shape)
-                    padded[slices] = val
-                    val = padded
+            val = self._pad_value(val, ds)
             ds[index] = val
 
     def set_column(self, key: str, start: int, values: list[Any]) -> None:
@@ -491,7 +502,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                 self.update(start + i, {key: v})
             return
         ds = self._file[h5_path]["value"]
-        serialized = [self._serialize_value(v) for v in values]
+        serialized = [self._pad_value(self._serialize_value(v), ds) for v in values]
         ds[start : start + len(serialized)] = serialized
 
     def update_many(self, start: int, data: list[dict[str, Any]]) -> None:
@@ -511,7 +522,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                 continue
             ds = self._file[h5_path]["value"]
             offsets = [p[0] for p in pairs]
-            vals = [self._serialize_value(p[1]) for p in pairs]
+            vals = [self._pad_value(self._serialize_value(p[1]), ds) for p in pairs]
             if len(offsets) == len(data) and offsets == list(range(len(data))):
                 ds[start : start + len(vals)] = vals
             else:
@@ -1238,6 +1249,20 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         """Serialize a single value for HDF5 storage."""
         if isinstance(val, (dict, list, str)):
             return json.dumps(jsonable(val))
+        return val
+
+    def _pad_value(self, val: Any, ds: h5py.Dataset) -> Any:
+        """Pad a value to match dataset dimensions if needed.
+
+        Applies NaN padding for per-atom arrays when variable_shape is enabled,
+        ensuring consistency with single-row set() operations.
+        """
+        if isinstance(val, np.ndarray) and self._variable_shape:
+            if ds.ndim > 1 and val.ndim >= 1 and val.shape[0] < ds.shape[1]:
+                padded = np.full(ds.shape[1:], np.nan, dtype=np.float64)
+                slices = tuple(slice(0, s) for s in val.shape)
+                padded[slices] = val
+                return padded
         return val
 
 
