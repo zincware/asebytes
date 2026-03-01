@@ -159,9 +159,10 @@ class BlobIO(MutableSequence):
         index: int | slice | str | bytes | list[int] | list[str] | list[bytes],
     ) -> dict[bytes, bytes] | None | RowView[dict[bytes, bytes]] | ColumnView:
         if isinstance(index, int):
+            n = len(self)
             if index < 0:
-                index += len(self)
-            if index < 0:
+                index += n
+            if index < 0 or index >= n:
                 raise IndexError(index)
             return self._backend.get(index)
         if isinstance(index, slice):

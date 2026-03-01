@@ -209,9 +209,20 @@ class ASEIO(MutableSequence):
         index: int | slice | str | list[int] | list[str],
     ) -> ase.Atoms | RowView[ase.Atoms] | ASEColumnView:
         if isinstance(index, int):
+            try:
+                n = len(self)
+            except TypeError:
+                # Backend with unknown length (file-based, streaming).
+                # Negative indexing requires known length -- let
+                # TypeError propagate naturally from len().
+                if index < 0:
+                    len(self)  # raises TypeError
+                # Positive: delegate to backend (may raise IndexError).
+                row = self._read_row(index)
+                return dict_to_atoms(row)
             if index < 0:
-                index += len(self)  # raises TypeError if unknown
-            if index < 0:
+                index += n
+            if index < 0 or index >= n:
                 raise IndexError(index)
             row = self._read_row(index)
             return dict_to_atoms(row)

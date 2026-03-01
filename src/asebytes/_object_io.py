@@ -170,9 +170,10 @@ class ObjectIO(MutableSequence):
         index: int | slice | str | list[int] | list[str],
     ) -> dict[str, Any] | RowView[dict[str, Any]] | ColumnView:
         if isinstance(index, int):
+            n = len(self)
             if index < 0:
-                index += len(self)
-            if index < 0:
+                index += n
+            if index < 0 or index >= n:
                 raise IndexError(index)
             return self._backend.get(index)
         if isinstance(index, slice):

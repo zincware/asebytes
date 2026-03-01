@@ -100,17 +100,16 @@ class AsyncSingleRowView(Generic[R]):
         return self._materialize().__await__()
 
     async def _resolve_index(self) -> int:
-        """Resolve negative indices via len()."""
+        """Resolve negative indices and validate bounds via len()."""
         idx = self._index
+        try:
+            n = len(self._parent)
+        except TypeError:
+            n = await self._parent.len()
         if idx < 0:
-            try:
-                n = len(self._parent)
-            except TypeError:
-                # async can't do __len__
-                n = await self._parent.len()
             idx += n
-            if idx < 0:
-                raise IndexError(self._index)
+        if idx < 0 or idx >= n:
+            raise IndexError(self._index)
         return idx
 
     async def _materialize(self) -> R:
