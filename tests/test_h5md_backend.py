@@ -1065,3 +1065,38 @@ class TestErrorHandling:
             npt.assert_allclose(
                 recovered.get_positions(), water_frames[0].get_positions()
             )
+
+
+class TestShortColumns:
+    """Test handling of columns shorter than requested indices."""
+
+    def test_get_many_with_short_columns(self, h5_path, water_frames):
+        """get_many() should skip columns shorter than requested indices.
+
+        This matches the behavior of get() which skips short columns.
+        """
+        io1 = H5MDBackend(h5_path)
+        # Write 3 frames first
+        io1.extend([atoms_to_dict(a) for a in water_frames])
+        io1.close()
+
+        # Manually add a short column (only 2 entries vs 3 frames)
+        with h5py.File(h5_path, "r+") as f:
+            grp = f.create_group("observables/atoms/short_col")
+            grp.create_dataset("value", data=[1.0, 2.0])  # Only 2 values
+            grp.create_dataset("step", data=1)
+            grp.create_dataset("time", data=1.0)
+            grp.attrs["asebytes_origin"] = "calc"
+
+        # Now get_many should not crash when accessing index 2
+        io2 = H5MDBackend(h5_path, readonly=True)
+        # Reading indices 0, 1, 2 - but short_col only has indices 0, 1
+        rows = io2.get_many([0, 1, 2])
+        assert len(rows) == 3
+        # All rows should have positions
+        for row in rows:
+            assert "arrays.positions" in row
+        # The short column should only appear in rows where it exists
+        # (indices 0 and 1)
+        # Note: after the fix, rows[2] should NOT have calc.short_col
+        io2.close()

@@ -11,9 +11,15 @@ class ViewParent(Protocol[R]):
     """Protocol for objects that can serve as parent of RowView/ColumnView."""
 
     def __len__(self) -> int: ...
-    def _read_row(self, index: int, keys: list[str] | None = None) -> dict[str, Any]: ...
-    def _read_rows(self, indices: list[int], keys: list[str] | None = None) -> list[dict[str, Any]]: ...
-    def _iter_rows(self, indices: list[int], keys: list[str] | None = None) -> Iterator[dict[str, Any]]: ...
+    def _read_row(
+        self, index: int, keys: list[str] | None = None
+    ) -> dict[str, Any]: ...
+    def _read_rows(
+        self, indices: list[int], keys: list[str] | None = None
+    ) -> list[dict[str, Any]]: ...
+    def _iter_rows(
+        self, indices: list[int], keys: list[str] | None = None
+    ) -> Iterator[dict[str, Any]]: ...
     def _read_column(self, key: str, indices: list[int]) -> list[Any]: ...
     def _build_result(self, row: dict[str, Any]) -> R: ...
     def _write_row(self, index: int, data: Any) -> None: ...
@@ -98,7 +104,9 @@ class RowView(Generic[R]):
             return self._parent._build_result(row)
         if isinstance(key, slice):
             new_indices = _sub_select(self._indices, key)
-            return RowView(self._parent, new_indices, column_view_cls=self._column_view_cls)
+            return RowView(
+                self._parent, new_indices, column_view_cls=self._column_view_cls
+            )
         if isinstance(key, (str, bytes)):
             return self._column_view_cls(self._parent, key, self._indices)
         if isinstance(key, list):
@@ -106,7 +114,9 @@ class RowView(Generic[R]):
                 return RowView(self._parent, [], column_view_cls=self._column_view_cls)
             if isinstance(key[0], int):
                 new_indices = _sub_select(self._indices, key)
-                return RowView(self._parent, new_indices, column_view_cls=self._column_view_cls)
+                return RowView(
+                    self._parent, new_indices, column_view_cls=self._column_view_cls
+                )
             if isinstance(key[0], (str, bytes)):
                 return self._column_view_cls(self._parent, key, self._indices)
         raise TypeError(f"Unsupported key type: {type(key)}")
@@ -137,9 +147,7 @@ class RowView(Generic[R]):
     def set(self, data: list) -> None:
         """Overwrite rows with new data (list of dicts)."""
         if not isinstance(data, list):
-            raise TypeError(
-                f"Row writes must be lists. Got {type(data).__name__}."
-            )
+            raise TypeError(f"Row writes must be lists. Got {type(data).__name__}.")
         if len(data) != len(self._indices):
             raise ValueError(
                 f"Length mismatch: got {len(data)} values for "
@@ -161,9 +169,7 @@ class RowView(Generic[R]):
     def update(self, data: dict) -> None:
         """Merge dict into all rows in this view."""
         if not isinstance(data, dict):
-            raise TypeError(
-                f"update() requires a dict. Got {type(data).__name__}."
-            )
+            raise TypeError(f"update() requires a dict. Got {type(data).__name__}.")
         if self._indices and _is_contiguous(self._indices):
             self._parent._update_many(self._indices[0], [data] * len(self._indices))
         else:
@@ -239,24 +245,26 @@ class ColumnView:
     @overload
     def __getitem__(self, key: str) -> ColumnView: ...
 
-    def __getitem__(
-        self, key: int | slice | str | list[int]
-    ) -> Any | ColumnView:
+    def __getitem__(self, key: int | slice | str | list[int]) -> Any | ColumnView:
         indices = self._resolved_indices()
         if isinstance(key, int):
             abs_idx = _sub_select(indices, key)
             if self._single:
                 return self._parent._read_column(self._keys[0], [abs_idx])[0]
             row = self._parent._read_row(abs_idx, keys=self._keys)
-            return [row.get(k) for k in self._keys]
+            return None if row is None else [row.get(k) for k in self._keys]
         if isinstance(key, slice):
             new_indices = _sub_select(indices, key)
-            return ColumnView(self._parent, self._keys[0] if self._single else self._keys, new_indices)
+            return ColumnView(
+                self._parent, self._keys[0] if self._single else self._keys, new_indices
+            )
         if isinstance(key, (str, bytes)):
             return ColumnView(self._parent, key, indices)
         if isinstance(key, list):
             new_indices = _sub_select(indices, key)
-            return ColumnView(self._parent, self._keys[0] if self._single else self._keys, new_indices)
+            return ColumnView(
+                self._parent, self._keys[0] if self._single else self._keys, new_indices
+            )
         raise TypeError(f"Unsupported key type: {type(key)}")
 
     def __iter__(self) -> Iterator[Any]:
@@ -267,7 +275,7 @@ class ColumnView:
         else:
             # Batch read via read_rows to avoid N+1 query problem
             for row in self._parent._read_rows(indices, keys=self._keys):
-                yield [row.get(k) for k in self._keys]
+                yield None if row is None else [row.get(k) for k in self._keys]
 
     def to_list(self) -> list[Any]:
         """Materialize as list.
@@ -302,14 +310,12 @@ class ColumnView:
         """
         if not isinstance(data, list):
             raise TypeError(
-                "Column-filtered writes must be lists. "
-                f"Got {type(data).__name__}."
+                f"Column-filtered writes must be lists. Got {type(data).__name__}."
             )
         indices = self._resolved_indices()
         if len(data) != len(indices):
             raise ValueError(
-                f"Length mismatch: got {len(data)} values for "
-                f"{len(indices)} rows."
+                f"Length mismatch: got {len(data)} values for {len(indices)} rows."
             )
         if self._single:
             if _is_contiguous(indices):
@@ -336,9 +342,7 @@ class ColumnView:
                 self._parent._update_many(indices[0], dicts)
             else:
                 for idx, row_values in zip(indices, data):
-                    self._parent._update_row(
-                        idx, dict(zip(self._keys, row_values))
-                    )
+                    self._parent._update_row(idx, dict(zip(self._keys, row_values)))
 
     def __repr__(self) -> str:
         if self._single:
@@ -369,22 +373,32 @@ class ASEColumnView(ColumnView):
         if isinstance(key, int):
             abs_idx = _sub_select(indices, key)
             row = self._parent._read_row(abs_idx, keys=self._keys)
+            if row is None:
+                raise TypeError("Cannot build ase.Atoms from a placeholder row.")
             from ._convert import dict_to_atoms
+
             return dict_to_atoms(row)
         if isinstance(key, slice):
             new_indices = _sub_select(indices, key)
-            return ASEColumnView(self._parent, self._keys[0] if self._single else self._keys, new_indices)
+            return ASEColumnView(
+                self._parent, self._keys[0] if self._single else self._keys, new_indices
+            )
         if isinstance(key, str):
             return ASEColumnView(self._parent, key, indices)
         if isinstance(key, list):
             new_indices = _sub_select(indices, key)
-            return ASEColumnView(self._parent, self._keys[0] if self._single else self._keys, new_indices)
+            return ASEColumnView(
+                self._parent, self._keys[0] if self._single else self._keys, new_indices
+            )
         raise TypeError(f"Unsupported key type: {type(key)}")
 
     def __iter__(self) -> Iterator[ase.Atoms]:
         from ._convert import dict_to_atoms
+
         indices = self._resolved_indices()
         for row in self._parent._read_rows(indices, keys=self._keys):
+            if row is None:
+                raise TypeError("Cannot build ase.Atoms from a placeholder row.")
             yield dict_to_atoms(row)
 
     def to_list(self) -> list[ase.Atoms]:

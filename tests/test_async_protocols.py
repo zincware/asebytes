@@ -68,8 +68,9 @@ class MemoryAsyncRawWritable(MemoryAsyncRawReadable, AsyncReadWriteBackend):
     async def delete(self, index: int) -> None:
         del self._data[index]
 
-    async def extend(self, data: list[dict[bytes, bytes] | None]) -> None:
+    async def extend(self, data: list[dict[bytes, bytes] | None]) -> int:
         self._data.extend(data)
+        return len(self._data)
 
 
 # ── Tests: cannot instantiate abstract classes ──────────────────────────
@@ -295,6 +296,7 @@ class TestSyncToAsyncAdapter:
 
             def extend(self, data):
                 self._data.extend(data)
+                return len(self._data)
 
             @staticmethod
             def list_groups(path: str, **kwargs) -> list[str]:
@@ -382,7 +384,7 @@ class TestSyncToAsyncAdapter:
 # ── Tests: SyncToAsyncAdapter (str-level) ───────────────────────────────
 
 
-class TestSyncToAsyncAdapter:
+class TestSyncToAsyncAdapterStrKeys:
     """Test that a sync ReadWriteBackend works correctly when wrapped."""
 
     def _make_sync_backend(self, data=None):
@@ -425,6 +427,7 @@ class TestSyncToAsyncAdapter:
 
             def extend(self, data):
                 self._data.extend(data)
+                return len(self._data)
 
             @staticmethod
             def list_groups(path: str, **kwargs) -> list[str]:

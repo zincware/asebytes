@@ -133,14 +133,14 @@ class BlobIO(MutableSequence):
             raise TypeError("Backend is read-only")
         self._backend.drop_keys(keys, indices)
 
-    def _build_result(self, row: Any) -> dict[bytes, bytes]:
+    def _build_result(self, row: Any) -> dict[bytes, bytes] | None:
         """Identity transform -- returns raw dict[bytes, bytes] as-is."""
         return row
 
     # --- MutableSequence interface ---
 
     @overload
-    def __getitem__(self, index: int) -> dict[bytes, bytes]: ...
+    def __getitem__(self, index: int) -> dict[bytes, bytes] | None: ...
     @overload
     def __getitem__(self, index: slice) -> RowView[dict[bytes, bytes]]: ...
     @overload
@@ -157,7 +157,7 @@ class BlobIO(MutableSequence):
     def __getitem__(
         self,
         index: int | slice | str | bytes | list[int] | list[str] | list[bytes],
-    ) -> dict[bytes, bytes] | RowView[dict[bytes, bytes]] | ColumnView:
+    ) -> dict[bytes, bytes] | None | RowView[dict[bytes, bytes]] | ColumnView:
         if isinstance(index, int):
             if index < 0:
                 index += len(self)
@@ -244,14 +244,20 @@ class BlobIO(MutableSequence):
     def __len__(self) -> int:
         return len(self._backend)
 
-    def __iter__(self) -> Iterator[dict[bytes, bytes]]:
+    def __iter__(self) -> Iterator[dict[bytes, bytes] | None]:
         for i in range(len(self)):
             yield self[i]
 
     def __enter__(self):
+        if hasattr(self._backend, "__enter__"):
+            self._backend.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if hasattr(self._backend, "__exit__"):
+            return self._backend.__exit__(exc_type, exc_val, exc_tb)
+        if hasattr(self._backend, "close"):
+            self._backend.close()
         return False
 
     def __repr__(self) -> str:

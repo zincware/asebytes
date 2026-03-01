@@ -52,7 +52,7 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
 
         if store is not None:
             mode = "r" if readonly else "a"
-            self._root = zarr.open_group(store=store, mode=mode)
+            self._root = zarr.open_group(store=store, mode=mode, path=self.group)
             self._owns_store = False
         elif file is not None:
             mode = "r" if readonly else "a"

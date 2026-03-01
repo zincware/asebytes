@@ -115,6 +115,10 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
     ) -> list[str]:
         """Return available group names (collections) in the given database.
 
+        The ``path`` may include a database path component
+        (e.g. ``mongodb://host:port/mydb``); if present, that database is
+        used instead of the *database* parameter.
+
         Parameters
         ----------
         path : str
@@ -129,10 +133,17 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         list[str]
             List of group names (collection names) in the database.
         """
+        if "://" in path:
+            _, after_scheme = path.split("://", 1)
+            if "/" in after_scheme:
+                _, path_part = after_scheme.split("/", 1)
+                parts = [p for p in path_part.split("/") if p]
+                if parts:
+                    database = parts[0]
+
         client = MongoClient(path)
         try:
             db = client[database]
-            # Get all collection names, excluding system collections
             collections = db.list_collection_names()
             return sorted(collections)
         finally:
@@ -327,6 +338,8 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
             return
         self._ensure_cache()
         sk = self._resolve_sort_key(index)
+        # Materialize placeholder rows (data: null → data: {}) before $set
+        self._col.update_one({"_id": sk, "data": None}, {"$set": {"data": {}}})
         update_fields = {f"data.{k}": _bson_safe(v) for k, v in data.items()}
         self._col.update_one({"_id": sk}, {"$set": update_fields})
 
@@ -336,14 +349,20 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         from pymongo import UpdateOne
 
         self._ensure_cache()
+        sks = []
         ops = []
         for i, row_data in enumerate(data):
             if not row_data:
                 continue
             sk = self._resolve_sort_key(start + i)
+            sks.append(sk)
             update_fields = {f"data.{k}": _bson_safe(v) for k, v in row_data.items()}
             ops.append(UpdateOne({"_id": sk}, {"$set": update_fields}))
         if ops:
+            # Materialize placeholder rows before $set
+            self._col.update_many(
+                {"_id": {"$in": sks}, "data": None}, {"$set": {"data": {}}}
+            )
             self._col.bulk_write(ops, ordered=False)
 
     def set_column(self, key: str, start: int, values: list[Any]) -> None:
@@ -352,13 +371,19 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         from pymongo import UpdateOne
 
         self._ensure_cache()
+        sks = []
         ops = []
         for i, value in enumerate(values):
             sk = self._resolve_sort_key(start + i)
+            sks.append(sk)
             ops.append(
                 UpdateOne({"_id": sk}, {"$set": {f"data.{key}": _bson_safe(value)}})
             )
         if ops:
+            # Materialize placeholder rows before $set
+            self._col.update_many(
+                {"_id": {"$in": sks}, "data": None}, {"$set": {"data": {}}}
+            )
             self._col.bulk_write(ops, ordered=False)
 
     def drop_keys(self, keys: list[str], indices: list[int] | None = None) -> None:

@@ -93,14 +93,15 @@ class LMDBObjectReadBackend(BlobToObjectReadAdapter):
         if indices is None:
             indices = list(range(len(self)))
         byte_key = key.encode()
+        result = []
         with self._store.env.begin() as txn:
-            return [
-                msgpack.unpackb(
-                    self._store.get_with_txn(txn, i, [byte_key])[byte_key],
-                    object_hook=m.decode,
-                )
-                for i in indices
-            ]
+            for i in indices:
+                raw = self._store.get_with_txn(txn, i, None)  # Get all keys
+                if raw is None or byte_key not in raw:
+                    result.append(None)
+                else:
+                    result.append(msgpack.unpackb(raw[byte_key], object_hook=m.decode))
+        return result
 
 
 class LMDBObjectBackend(BlobToObjectReadWriteAdapter):
@@ -182,14 +183,15 @@ class LMDBObjectBackend(BlobToObjectReadWriteAdapter):
         if indices is None:
             indices = list(range(len(self)))
         byte_key = key.encode()
+        result = []
         with self._store.env.begin() as txn:
-            return [
-                msgpack.unpackb(
-                    self._store.get_with_txn(txn, i, [byte_key])[byte_key],
-                    object_hook=m.decode,
-                )
-                for i in indices
-            ]
+            for i in indices:
+                raw = self._store.get_with_txn(txn, i, None)  # Get all keys
+                if raw is None or byte_key not in raw:
+                    result.append(None)
+                else:
+                    result.append(msgpack.unpackb(raw[byte_key], object_hook=m.decode))
+        return result
 
     # -- Optimised partial update ------------------------------------------
 

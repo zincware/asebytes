@@ -91,7 +91,10 @@ class BlobToObjectReadAdapter(ReadBackend[str, Any]):
     def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
         byte_key = key.encode()
         raw_col = self._store.get_column(byte_key, indices)
-        return [msgpack.unpackb(v, object_hook=m.decode) for v in raw_col]
+        return [
+            msgpack.unpackb(v, object_hook=m.decode) if v is not None else None
+            for v in raw_col
+        ]
 
     def keys(self, index: int) -> list[str]:
         raw_keys = self._store.keys(index)
@@ -220,7 +223,9 @@ class ObjectToBlobReadAdapter(ReadBackend[bytes, bytes]):
     def get_column(self, key: bytes, indices: list[int] | None = None) -> list[bytes]:
         str_key = key.decode()
         col = self._store.get_column(str_key, indices)
-        return [msgpack.packb(v, default=m.encode) for v in col]
+        return [
+            msgpack.packb(v, default=m.encode) if v is not None else None for v in col
+        ]
 
     def keys(self, index: int) -> list[bytes]:
         str_keys = self._store.keys(index)

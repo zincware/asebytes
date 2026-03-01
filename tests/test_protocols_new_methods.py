@@ -46,8 +46,9 @@ class MemoryWritable(ReadWriteBackend):
     def delete(self, index: int) -> None:
         del self._data[index]
 
-    def extend(self, data: list[dict[str, Any] | None]) -> None:
+    def extend(self, data: list[dict[str, Any] | None]) -> int:
         self._data.extend(data)
+        return len(self._data)
 
     @staticmethod
     def list_groups(path: str, **kwargs) -> list[str]:

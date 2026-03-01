@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
-import numpy as np
 from pymongo import AsyncMongoClient
 
 from .._async_backends import AsyncReadWriteBackend
@@ -88,6 +87,10 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         Note: This is a synchronous method that uses a sync client internally,
         as listing groups is typically done outside of async contexts.
 
+        The ``path`` may include a database path component
+        (e.g. ``mongodb://host:port/mydb``); if present, that database is
+        used instead of the *database* parameter.
+
         Parameters
         ----------
         path : str
@@ -103,6 +106,14 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
             List of group names (collection names) in the database.
         """
         from pymongo import MongoClient
+
+        if "://" in path:
+            _, after_scheme = path.split("://", 1)
+            if "/" in after_scheme:
+                _, path_part = after_scheme.split("/", 1)
+                parts = [p for p in path_part.split("/") if p]
+                if parts:
+                    database = parts[0]
 
         client = MongoClient(path)
         try:
@@ -307,6 +318,10 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
             return
         await self._ensure_cache()
         sk = self._resolve_sort_key(index)
+        # Materialize placeholder rows (data: null → data: {}) before $set
+        await self._col.update_one(
+            {"_id": sk, "data": None}, {"$set": {"data": {}}}
+        )
         update_fields = {f"data.{k}": _bson_safe(v) for k, v in data.items()}
         await self._col.update_one({"_id": sk}, {"$set": update_fields})
 
@@ -316,14 +331,20 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         from pymongo import UpdateOne
 
         await self._ensure_cache()
+        sks = []
         ops = []
         for i, row_data in enumerate(data):
             if not row_data:
                 continue
             sk = self._resolve_sort_key(start + i)
+            sks.append(sk)
             update_fields = {f"data.{k}": _bson_safe(v) for k, v in row_data.items()}
             ops.append(UpdateOne({"_id": sk}, {"$set": update_fields}))
         if ops:
+            # Materialize placeholder rows before $set
+            await self._col.update_many(
+                {"_id": {"$in": sks}, "data": None}, {"$set": {"data": {}}}
+            )
             await self._col.bulk_write(ops, ordered=False)
 
     async def set_column(self, key: str, start: int, values: list[Any]) -> None:
@@ -332,13 +353,19 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         from pymongo import UpdateOne
 
         await self._ensure_cache()
+        sks = []
         ops = []
         for i, value in enumerate(values):
             sk = self._resolve_sort_key(start + i)
+            sks.append(sk)
             ops.append(
                 UpdateOne({"_id": sk}, {"$set": {f"data.{key}": _bson_safe(value)}})
             )
         if ops:
+            # Materialize placeholder rows before $set
+            await self._col.update_many(
+                {"_id": {"$in": sks}, "data": None}, {"$set": {"data": {}}}
+            )
             await self._col.bulk_write(ops, ordered=False)
 
     async def drop_keys(
@@ -372,11 +399,24 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         self._invalidate_cache()
 
     def close(self) -> None:
-        """Close the MongoDB client connection."""
-        self._client.close()
+        """Close the MongoDB client connection (best-effort from sync context).
+
+        Prefer :meth:`aclose` when inside an async context.
+        """
+        import asyncio
+
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._client.close())
+        except RuntimeError:
+            asyncio.run(self._client.close())
+
+    async def aclose(self) -> None:
+        """Async close — properly awaits the underlying client shutdown."""
+        await self._client.close()
 
     async def __aenter__(self) -> AsyncMongoObjectBackend:
         return self
 
     async def __aexit__(self, *args) -> None:
-        self.close()
+        await self.aclose()
