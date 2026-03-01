@@ -113,17 +113,17 @@ class ObjectIO(MutableSequence):
         result = self._backend.get_column(key, indices)
         if all(v is None for v in result):
             # Check if the key actually exists in any non-None row.
-            # Skip placeholder rows (keys returns []) and only check
-            # real rows to avoid O(n) backend calls on all-None data.
+            # Skip placeholder rows (keys returns []) and check all
+            # real rows to handle heterogeneous schemas.
+            found_real_row = False
             for i in indices:
                 row_keys = self._backend.keys(i)
                 if not row_keys:
                     continue  # placeholder row
+                found_real_row = True
                 if key in row_keys:
                     return result  # key exists, values are legitimately None
-                # Real row without the key — key doesn't exist
-                raise KeyError(key)
-            # All rows are placeholders — no column can exist
+            # No real row has the key (or all rows are placeholders)
             raise KeyError(key)
         return result
 

@@ -254,8 +254,6 @@ def _cross_layer_fallback(
     Called when :func:`resolve_backend` found no direct match for the
     requested *layer*.
     """
-    other_layer: Literal["blob", "object"] = "blob" if layer == "object" else "object"
-
     if layer == "object":
         # Need object-level, but only blob-level exists -> BlobToObject adapter.
         # Always resolve the other layer as sync because the adapter classes

@@ -162,7 +162,16 @@ class ASEIO(MutableSequence):
     def _read_column(self, key: str, indices: list[int]) -> list[Any]:
         if self._cache is not None:
             return [self._read_row(i, [key])[key] for i in indices]
-        return self._backend.get_column(key, indices)
+        result = self._backend.get_column(key, indices)
+        if all(v is None for v in result):
+            for i in indices:
+                row_keys = self._backend.keys(i)
+                if not row_keys:
+                    continue
+                if key in row_keys:
+                    return result
+            raise KeyError(key)
+        return result
 
     def _write_row(self, index: int, data: Any) -> None:
         if not isinstance(self._backend, ReadWriteBackend):

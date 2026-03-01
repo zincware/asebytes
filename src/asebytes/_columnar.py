@@ -36,7 +36,7 @@ def get_version() -> str:
         return "unknown"
 
 
-def get_fill_value(dtype: np.dtype) -> int | float:
+def get_fill_value(dtype: np.dtype) -> int | float | bool:
     """Return a dtype-appropriate fill value for padding."""
     if np.issubdtype(dtype, np.floating):
         return np.nan

@@ -560,6 +560,14 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
             val = self._serialize_value(val)
             val = self._pad_value(val, ds)
             ds[index] = val
+        # Update _n_atoms if per-atom data changed
+        if self._n_atoms_ds is not None:
+            pos = data.get("arrays.positions")
+            nums = data.get("arrays.numbers")
+            if pos is not None:
+                self._n_atoms_ds[index] = np.int32(len(pos))
+            elif nums is not None:
+                self._n_atoms_ds[index] = np.int32(len(nums))
 
     def set_column(self, key: str, start: int, values: list[Any]) -> None:
         if not values:

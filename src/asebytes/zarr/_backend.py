@@ -247,6 +247,8 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
 
     def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
         """Direct array access -- the flat layout's main perf advantage."""
+        if key == "_n_atoms":
+            return super().get_column(key, indices)
         if key not in self._col_cache:
             return super().get_column(key, indices)
 
@@ -376,6 +378,14 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
                     padded[slices] = val
                     val = padded
             arr[index] = val
+        # Update _n_atoms if per-atom data changed
+        if "_n_atoms" in self._col_cache:
+            pos = data.get("arrays.positions")
+            nums = data.get("arrays.numbers")
+            if pos is not None:
+                self._col_cache["_n_atoms"][index] = np.int32(len(pos))
+            elif nums is not None:
+                self._col_cache["_n_atoms"][index] = np.int32(len(nums))
 
     def set_column(self, key: str, start: int, values: list[Any]) -> None:
         if not values:
