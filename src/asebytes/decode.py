@@ -57,8 +57,11 @@ def decode(data: dict[bytes, bytes], fast: bool = True, copy: bool = True) -> as
 
     if b"pbc" in data:
         pbc_array = _unpackb(data[b"pbc"], object_hook=_m_decode)
-        if copy and isinstance(pbc_array, np.ndarray):
-            pbc_array = np.array(pbc_array, copy=True)
+        if isinstance(pbc_array, np.ndarray):
+            if copy:
+                pbc_array = np.array(pbc_array, copy=True)
+        else:
+            pbc_array = np.asarray(pbc_array, dtype=bool)
     else:
         pbc_array = np.array([False, False, False], dtype=bool)
 
