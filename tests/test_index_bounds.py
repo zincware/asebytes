@@ -4,12 +4,14 @@ All 6 facades (BlobIO, ObjectIO, ASEIO + async variants) must raise
 IndexError when db[i] is called with i >= len(db) or i < -len(db).
 None is reserved strictly for placeholder rows from reserve().
 
-Tests use a mock "permissive" backend that returns None for OOB indices
-instead of raising IndexError, to verify that the *facade* enforces bounds.
+Part 1 uses mock "permissive" backends to prove facade-level enforcement.
+Part 2 uses parametrized real backends (lmdb, memory, mongo, redis) for
+integration testing.
 """
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 import ase
@@ -522,116 +524,291 @@ class TestAsyncASEIOBoundsFacade:
 
 
 # ===========================================================================
-# Real-backend integration tests (LMDB)
+# Real-backend integration tests — parametrized across backends
+# ===========================================================================
+
+from asebytes.lmdb import LMDBObjectBackend
+from asebytes.memory._backend import MemoryObjectBackend
+from asebytes.mongodb import AsyncMongoObjectBackend, MongoObjectBackend
+
+
+# -- BlobIO factory helpers (only LMDB supports native blob) ----------------
+
+def _blob_lmdb(tmp_path, **_kw):
+    return BlobIO(str(tmp_path / f"bounds_blob_{uuid.uuid4().hex[:8]}.lmdb"))
+
+
+@pytest.fixture(params=[_blob_lmdb], ids=["lmdb"])
+def blob_io(tmp_path, request):
+    """BlobIO instance across available blob backends."""
+    return request.param(tmp_path)
+
+
+# -- ObjectIO factory helpers -----------------------------------------------
+
+def _obj_lmdb(tmp_path, **_kw):
+    return ObjectIO(LMDBObjectBackend(str(tmp_path / f"bounds_{uuid.uuid4().hex[:8]}.lmdb")))
+
+
+def _obj_memory(tmp_path, **_kw):
+    return ObjectIO(MemoryObjectBackend(group=f"bounds_{uuid.uuid4().hex[:8]}"))
+
+
+def _obj_mongo(tmp_path, *, mongo_uri, **_kw):
+    return ObjectIO(
+        MongoObjectBackend(
+            uri=mongo_uri, database="asebytes_test",
+            group=f"bounds_{uuid.uuid4().hex[:8]}",
+        )
+    )
+
+
+def _obj_redis(tmp_path, *, redis_uri, **_kw):
+    return ObjectIO(redis_uri, group=f"bounds_{uuid.uuid4().hex[:8]}")
+
+
+@pytest.fixture(
+    params=[_obj_lmdb, _obj_memory, _obj_mongo, _obj_redis],
+    ids=["lmdb", "memory", "mongo", "redis"],
+)
+def object_io(tmp_path, mongo_uri, redis_uri, request):
+    """ObjectIO instance across all available backends."""
+    return request.param(tmp_path, mongo_uri=mongo_uri, redis_uri=redis_uri)
+
+
+# -- ASEIO factory helpers --------------------------------------------------
+
+def _ase_lmdb(tmp_path, **_kw):
+    return ASEIO(str(tmp_path / f"bounds_ase_{uuid.uuid4().hex[:8]}.lmdb"))
+
+
+def _ase_memory(tmp_path, **_kw):
+    return ASEIO(MemoryObjectBackend(group=f"bounds_ase_{uuid.uuid4().hex[:8]}"))
+
+
+def _ase_mongo(tmp_path, *, mongo_uri, **_kw):
+    return ASEIO(
+        MongoObjectBackend(
+            uri=mongo_uri, database="asebytes_test",
+            group=f"bounds_ase_{uuid.uuid4().hex[:8]}",
+        )
+    )
+
+
+def _ase_redis(tmp_path, *, redis_uri, **_kw):
+    return ASEIO(redis_uri, group=f"bounds_ase_{uuid.uuid4().hex[:8]}")
+
+
+@pytest.fixture(
+    params=[_ase_lmdb, _ase_memory, _ase_mongo, _ase_redis],
+    ids=["lmdb", "memory", "mongo", "redis"],
+)
+def ase_io(tmp_path, mongo_uri, redis_uri, request):
+    """ASEIO instance across all available backends."""
+    return request.param(tmp_path, mongo_uri=mongo_uri, redis_uri=redis_uri)
+
+
+# -- AsyncObjectIO factory helpers ------------------------------------------
+
+def _async_obj_lmdb(tmp_path, **_kw):
+    return AsyncObjectIO(str(tmp_path / f"bounds_async_{uuid.uuid4().hex[:8]}.lmdb"))
+
+
+def _async_obj_memory(tmp_path, **_kw):
+    return AsyncObjectIO("memory://", group=f"bounds_async_{uuid.uuid4().hex[:8]}")
+
+
+def _async_obj_mongo(tmp_path, *, mongo_uri, **_kw):
+    return AsyncObjectIO(
+        AsyncMongoObjectBackend(
+            uri=mongo_uri, database="asebytes_test",
+            group=f"bounds_async_{uuid.uuid4().hex[:8]}",
+        )
+    )
+
+
+def _async_obj_redis(tmp_path, *, redis_uri, **_kw):
+    return AsyncObjectIO(redis_uri, group=f"bounds_async_{uuid.uuid4().hex[:8]}")
+
+
+@pytest.fixture(
+    params=[_async_obj_lmdb, _async_obj_memory, _async_obj_mongo, _async_obj_redis],
+    ids=["lmdb", "memory", "mongo", "redis"],
+)
+def async_object_io(tmp_path, mongo_uri, redis_uri, request):
+    """AsyncObjectIO instance across all available backends."""
+    return request.param(tmp_path, mongo_uri=mongo_uri, redis_uri=redis_uri)
+
+
+# ===========================================================================
+# BlobIO integration tests
 # ===========================================================================
 
 
-def _make_blob_db(tmp_path, n_rows: int = 2) -> BlobIO:
-    """Create a BlobIO with n_rows rows (LMDB)."""
-    path = str(tmp_path / "bounds_blob.lmdb")
-    db = BlobIO(path)
-    for i in range(n_rows):
-        db.append({b"k": f"v{i}".encode()})
-    return db
+class TestBlobIOBoundsIntegration:
+    """BlobIO bounds checking with real backends."""
 
+    def test_valid_positive_index(self, blob_io):
+        blob_io.extend([{b"k": b"v0"}, {b"k": b"v1"}])
+        assert blob_io[0] is not None
+        assert blob_io[1] is not None
 
-def _make_object_db(tmp_path, n_rows: int = 2) -> ObjectIO:
-    """Create an ObjectIO with n_rows rows (LMDB)."""
-    path = str(tmp_path / "bounds_object.lmdb")
-    db = ObjectIO(path)
-    for i in range(n_rows):
-        db.append({"k": f"v{i}"})
-    return db
+    def test_valid_negative_index(self, blob_io):
+        blob_io.extend([{b"k": b"v0"}, {b"k": b"v1"}])
+        assert blob_io[-1] is not None
+        assert blob_io[-2] is not None
 
-
-def _make_ase_db(tmp_path, simple_atoms, n_rows: int = 2) -> ASEIO:
-    """Create an ASEIO with n_rows rows (LMDB)."""
-    path = str(tmp_path / "bounds_ase.lmdb")
-    db = ASEIO(path)
-    for _ in range(n_rows):
-        db.append(simple_atoms)
-    return db
-
-
-class TestBlobIOBoundsLMDB:
-    """BlobIO bounds checking with real LMDB backend."""
-
-    def test_valid_positive_index(self, tmp_path):
-        db = _make_blob_db(tmp_path, 2)
-        assert db[0] is not None
-        assert db[1] is not None
-
-    def test_valid_negative_index(self, tmp_path):
-        db = _make_blob_db(tmp_path, 2)
-        assert db[-1] is not None
-        assert db[-2] is not None
-
-    def test_upper_bound_exact(self, tmp_path):
-        db = _make_blob_db(tmp_path, 2)
+    def test_upper_bound_exact(self, blob_io):
+        blob_io.extend([{b"k": b"v0"}, {b"k": b"v1"}])
         with pytest.raises(IndexError):
-            db[2]
+            blob_io[2]
 
-    def test_upper_bound_far(self, tmp_path):
-        db = _make_blob_db(tmp_path, 2)
+    def test_upper_bound_far(self, blob_io):
+        blob_io.extend([{b"k": b"v0"}, {b"k": b"v1"}])
         with pytest.raises(IndexError):
-            db[100]
+            blob_io[100]
 
-    def test_lower_bound(self, tmp_path):
-        db = _make_blob_db(tmp_path, 2)
+    def test_lower_bound(self, blob_io):
+        blob_io.extend([{b"k": b"v0"}, {b"k": b"v1"}])
         with pytest.raises(IndexError):
-            db[-3]
+            blob_io[-3]
 
-    def test_empty_db(self, tmp_path):
-        db = _make_blob_db(tmp_path, 0)
+    def test_empty_db(self, blob_io):
         with pytest.raises(IndexError):
-            db[0]
+            blob_io[0]
 
-    def test_reserve_placeholder_returns_none(self, tmp_path):
-        db = _make_blob_db(tmp_path, 1)
-        db.reserve(2)
-        assert len(db) == 3
-        assert db.get(1) is None
-        assert db.get(2) is None
+    def test_reserve_placeholder_returns_none(self, blob_io):
+        blob_io.extend([{b"k": b"v0"}])
+        blob_io.reserve(2)
+        assert len(blob_io) == 3
+        assert blob_io.get(1) is None
+        assert blob_io.get(2) is None
 
 
-class TestObjectIOBoundsLMDB:
-    """ObjectIO bounds checking with real LMDB backend."""
+# ===========================================================================
+# ObjectIO integration tests (parametrized: lmdb, memory, mongo, redis)
+# ===========================================================================
 
-    def test_valid_positive_index(self, tmp_path):
-        db = _make_object_db(tmp_path, 2)
-        assert db[0] is not None
 
-    def test_upper_bound_exact(self, tmp_path):
-        db = _make_object_db(tmp_path, 2)
+class TestObjectIOBoundsIntegration:
+    """ObjectIO bounds checking across all backends."""
+
+    def test_valid_positive_index(self, object_io):
+        object_io.extend([{"k": "v0"}, {"k": "v1"}])
+        assert object_io[0] is not None
+        assert object_io[1] is not None
+
+    def test_valid_negative_index(self, object_io):
+        object_io.extend([{"k": "v0"}, {"k": "v1"}])
+        assert object_io[-1] is not None
+        assert object_io[-2] is not None
+
+    def test_upper_bound_exact(self, object_io):
+        object_io.extend([{"k": "v0"}, {"k": "v1"}])
         with pytest.raises(IndexError):
-            db[2]
+            object_io[2]
 
-    def test_empty_db(self, tmp_path):
-        db = _make_object_db(tmp_path, 0)
+    def test_upper_bound_far(self, object_io):
+        object_io.extend([{"k": "v0"}, {"k": "v1"}])
         with pytest.raises(IndexError):
-            db[0]
+            object_io[100]
 
-
-class TestASEIOBoundsLMDB:
-    """ASEIO bounds checking with real LMDB backend."""
-
-    def test_valid_positive_index(self, tmp_path, simple_atoms):
-        db = _make_ase_db(tmp_path, simple_atoms, 2)
-        assert db[0] is not None
-
-    def test_upper_bound_exact(self, tmp_path, simple_atoms):
-        db = _make_ase_db(tmp_path, simple_atoms, 2)
+    def test_lower_bound(self, object_io):
+        object_io.extend([{"k": "v0"}, {"k": "v1"}])
         with pytest.raises(IndexError):
-            db[2]
+            object_io[-3]
 
-    def test_empty_db(self, tmp_path, simple_atoms):
-        db = _make_ase_db(tmp_path, simple_atoms, 0)
+    def test_empty_db(self, object_io):
         with pytest.raises(IndexError):
-            db[0]
+            object_io[0]
 
-    def test_reserve_placeholder_returns_none(self, tmp_path, simple_atoms):
-        db = _make_ase_db(tmp_path, simple_atoms, 1)
-        db.reserve(2)
-        assert len(db) == 3
-        assert db.get(1) is None
-        assert db.get(2) is None
+    def test_reserve_placeholder_returns_none(self, object_io):
+        object_io.extend([{"k": "v0"}])
+        object_io.reserve(2)
+        assert len(object_io) == 3
+        assert object_io.get(1) is None
+        assert object_io.get(2) is None
+
+
+# ===========================================================================
+# ASEIO integration tests (parametrized: lmdb, memory, mongo, redis)
+# ===========================================================================
+
+
+class TestASEIOBoundsIntegration:
+    """ASEIO bounds checking across all backends."""
+
+    def test_valid_positive_index(self, ase_io, simple_atoms):
+        ase_io.extend([simple_atoms, simple_atoms])
+        assert ase_io[0] is not None
+        assert ase_io[1] is not None
+
+    def test_valid_negative_index(self, ase_io, simple_atoms):
+        ase_io.extend([simple_atoms, simple_atoms])
+        assert ase_io[-1] is not None
+        assert ase_io[-2] is not None
+
+    def test_upper_bound_exact(self, ase_io, simple_atoms):
+        ase_io.extend([simple_atoms, simple_atoms])
+        with pytest.raises(IndexError):
+            ase_io[2]
+
+    def test_lower_bound(self, ase_io, simple_atoms):
+        ase_io.extend([simple_atoms, simple_atoms])
+        with pytest.raises(IndexError):
+            ase_io[-3]
+
+    def test_empty_db(self, ase_io):
+        with pytest.raises(IndexError):
+            ase_io[0]
+
+    def test_reserve_placeholder_returns_none(self, ase_io, simple_atoms):
+        ase_io.extend([simple_atoms])
+        ase_io.reserve(2)
+        assert len(ase_io) == 3
+        assert ase_io.get(1) is None
+        assert ase_io.get(2) is None
+
+
+# ===========================================================================
+# AsyncObjectIO integration tests (parametrized: lmdb, memory, mongo, redis)
+# ===========================================================================
+
+
+class TestAsyncObjectIOBoundsIntegration:
+    """AsyncObjectIO bounds checking across all backends."""
+
+    @pytest.mark.anyio
+    async def test_valid_positive_index(self, async_object_io):
+        await async_object_io.extend([{"k": "v0"}, {"k": "v1"}])
+        assert await async_object_io[0] is not None
+        assert await async_object_io[1] is not None
+
+    @pytest.mark.anyio
+    async def test_valid_negative_index(self, async_object_io):
+        await async_object_io.extend([{"k": "v0"}, {"k": "v1"}])
+        assert await async_object_io[-1] is not None
+        assert await async_object_io[-2] is not None
+
+    @pytest.mark.anyio
+    async def test_upper_bound_exact(self, async_object_io):
+        await async_object_io.extend([{"k": "v0"}, {"k": "v1"}])
+        with pytest.raises(IndexError):
+            await async_object_io[2]
+
+    @pytest.mark.anyio
+    async def test_upper_bound_far(self, async_object_io):
+        await async_object_io.extend([{"k": "v0"}, {"k": "v1"}])
+        with pytest.raises(IndexError):
+            await async_object_io[100]
+
+    @pytest.mark.anyio
+    async def test_lower_bound(self, async_object_io):
+        await async_object_io.extend([{"k": "v0"}, {"k": "v1"}])
+        with pytest.raises(IndexError):
+            await async_object_io[-3]
+
+    @pytest.mark.anyio
+    async def test_empty_db(self, async_object_io):
+        with pytest.raises(IndexError):
+            await async_object_io[0]
