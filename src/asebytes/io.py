@@ -189,7 +189,8 @@ class ASEIO(MutableSequence):
     def _build_result(self, row: dict[str, Any] | None) -> ase.Atoms | None:
         if row is None:
             return None
-        return dict_to_atoms(row)
+        copy = getattr(self._backend, '_returns_mutable', True)
+        return dict_to_atoms(row, copy=copy)
 
     # --- MutableSequence interface ---
 
@@ -219,13 +220,13 @@ class ASEIO(MutableSequence):
                     len(self)  # raises TypeError
                 # Positive: delegate to backend (may raise IndexError).
                 row = self._read_row(index)
-                return dict_to_atoms(row)
+                return self._build_result(row)
             if index < 0:
                 index += n
             if index < 0 or index >= n:
                 raise IndexError(index)
             row = self._read_row(index)
-            return dict_to_atoms(row)
+            return self._build_result(row)
         if isinstance(index, slice):
             indices = range(len(self))[index]
             return RowView(self, list(indices), column_view_cls=ASEColumnView)
@@ -280,9 +281,7 @@ class ASEIO(MutableSequence):
         or None for reserved/placeholder rows.
         """
         row = self._read_row(index, keys)
-        if row is None:
-            return None
-        return dict_to_atoms(row)
+        return self._build_result(row)
 
     def drop(self, *, keys: list[str]) -> None:
         """Remove specified columns from all rows."""

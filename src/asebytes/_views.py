@@ -379,9 +379,7 @@ class ASEColumnView(ColumnView):
             row = self._parent._read_row(abs_idx, keys=self._keys)
             if row is None:
                 raise TypeError("Cannot build ase.Atoms from a placeholder row.")
-            from ._convert import dict_to_atoms
-
-            return dict_to_atoms(row)
+            return self._parent._build_result(row)
         if isinstance(key, slice):
             new_indices = _sub_select(indices, key)
             return ASEColumnView(
@@ -397,13 +395,11 @@ class ASEColumnView(ColumnView):
         raise TypeError(f"Unsupported key type: {type(key)}")
 
     def __iter__(self) -> Iterator[ase.Atoms]:
-        from ._convert import dict_to_atoms
-
         indices = self._resolved_indices()
         for row in self._parent._read_rows(indices, keys=self._keys):
             if row is None:
                 raise TypeError("Cannot build ase.Atoms from a placeholder row.")
-            yield dict_to_atoms(row)
+            yield self._parent._build_result(row)
 
     def to_list(self) -> list[ase.Atoms]:
         return list(self)

@@ -17,6 +17,8 @@ V = TypeVar("V")
 class AsyncReadBackend(Generic[K, V], ABC):
     """Async read-only backend. Mirrors ReadBackend with a-prefix methods."""
 
+    _returns_mutable: bool = False
+
     @staticmethod
     @abstractmethod
     def list_groups(path: str, **kwargs) -> list[str]:
@@ -83,6 +85,8 @@ class AsyncReadBackend(Generic[K, V], ABC):
 
 class AsyncReadWriteBackend(AsyncReadBackend[K, V], ABC):
     """Async read-write backend. Mirrors ReadWriteBackend with a-prefix."""
+
+    _returns_mutable: bool = True
 
     @abstractmethod
     async def set(self, index: int, value: dict[K, V] | None) -> None: ...

@@ -154,7 +154,8 @@ class AsyncASEIO:
             return None
         from ._convert import dict_to_atoms
 
-        return dict_to_atoms(row)
+        copy = getattr(self._backend, '_returns_mutable', True)
+        return dict_to_atoms(row, copy=copy)
 
     # ── __getitem__ → sync, returns views ─────────────────────────────
 

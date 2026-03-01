@@ -22,6 +22,8 @@ class ReadBackend(Generic[K, V], ABC):
     Override keys, get_many, iter_rows, get_column for optimization.
     """
 
+    _returns_mutable: bool = False
+
     @staticmethod
     @abstractmethod
     def list_groups(path: str, **kwargs) -> list[str]:
@@ -88,6 +90,8 @@ class ReadWriteBackend(ReadBackend[K, V], ABC):
     Subclasses must implement everything from ReadBackend plus:
     set, delete, extend, insert.
     """
+
+    _returns_mutable: bool = True
 
     @abstractmethod
     def set(self, index: int, value: dict[K, V] | None) -> None:

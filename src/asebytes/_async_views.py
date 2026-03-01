@@ -591,26 +591,22 @@ class AsyncASEColumnView(AsyncColumnView):
     """
 
     async def to_list(self) -> list[ase.Atoms]:
-        from ._convert import dict_to_atoms
-
         indices = await self._aresolved_indices()
         rows = await self._parent._read_rows(indices, keys=self._keys)
         result = []
         for row in rows:
             if row is None:
                 raise TypeError("Cannot build ase.Atoms from a placeholder row.")
-            result.append(dict_to_atoms(row))
+            result.append(self._parent._build_result(row))
         return result
 
     async def __aiter__(self) -> AsyncIterator[ase.Atoms]:
-        from ._convert import dict_to_atoms
-
         indices = await self._aresolved_indices()
         rows = await self._parent._read_rows(indices, keys=self._keys)
         for row in rows:
             if row is None:
                 raise TypeError("Cannot build ase.Atoms from a placeholder row.")
-            yield dict_to_atoms(row)
+            yield self._parent._build_result(row)
 
     def __getitem__(
         self, key: int | slice | str | list[int]

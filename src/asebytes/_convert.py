@@ -68,7 +68,7 @@ def atoms_to_dict(atoms: ase.Atoms) -> dict[str, Any]:
     return data
 
 
-def dict_to_atoms(data: dict[str, Any], fast: bool = True) -> ase.Atoms:
+def dict_to_atoms(data: dict[str, Any], fast: bool = True, copy: bool = True) -> ase.Atoms:
     """Convert a logical dict back to an ASE Atoms object.
 
     Parameters
@@ -77,17 +77,15 @@ def dict_to_atoms(data: dict[str, Any], fast: bool = True) -> ase.Atoms:
         Dictionary with string keys and Python/numpy values.
     fast : bool, default=True
         If True, bypass Atoms constructor for ~6x speedup.
+    copy : bool, default=True
+        If True, copy numpy arrays so mutations to the returned Atoms
+        do not corrupt the source data.  Set to False when the data
+        already owns fresh arrays (e.g. after deserialization).
 
     Returns
     -------
     ase.Atoms
         Reconstructed Atoms object.
-
-    Notes
-    -----
-    Arrays are referenced, not copied. For LMDB backends this is safe
-    (deserialization creates fresh arrays). In-memory backends should
-    copy if mutation is a concern.
     """
     numbers = data.get("arrays.numbers", np.array([], dtype=int))
     if not isinstance(numbers, np.ndarray):
@@ -121,9 +119,8 @@ def dict_to_atoms(data: dict[str, Any], fast: bool = True) -> ase.Atoms:
 
         if key.startswith("arrays."):
             array_name = key[7:]  # len("arrays.") == 7
-            atoms.arrays[array_name] = (
-                value if isinstance(value, np.ndarray) else np.asarray(value)
-            )
+            arr = value if isinstance(value, np.ndarray) else np.asarray(value)
+            atoms.arrays[array_name] = np.array(arr, copy=True) if copy else arr
         elif key.startswith("info."):
             info_key = key[5:]  # len("info.") == 5
             atoms.info[info_key] = value
@@ -144,7 +141,10 @@ def dict_to_atoms(data: dict[str, Any], fast: bool = True) -> ase.Atoms:
                     _calc = SinglePointCalculator(atoms)
                     atoms.calc = _calc
             calc_key = key[5:]  # len("calc.") == 5
-            _calc.results[calc_key] = value
+            if copy and isinstance(value, np.ndarray):
+                _calc.results[calc_key] = np.array(value, copy=True)
+            else:
+                _calc.results[calc_key] = value
         elif key == "constraints":
             constraints = [
                 ase.constraints.dict2constraint(cd)
