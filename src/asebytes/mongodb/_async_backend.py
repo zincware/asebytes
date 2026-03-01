@@ -121,8 +121,6 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         self._count = None
 
     async def _ensure_cache(self) -> None:
-        if self._sort_keys is not None:
-            return
         meta = await self._col.find_one({"_id": META_ID})
         if meta is None:
             self._sort_keys = []

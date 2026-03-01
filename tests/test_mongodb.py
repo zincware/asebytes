@@ -646,3 +646,75 @@ class TestAsyncRaceConditions:
                 uri=MONGO_URI, database="asebytes_test", group=group_name
             )
             await cleanup.remove()
+
+
+# ======================================================================
+# Stale cache tests — second instance must see writes from first
+# ======================================================================
+
+
+def test_second_instance_sees_writes_from_first(sample_row):
+    """A second backend instance must see data written by a different instance.
+
+    Simulates two replicas behind a load balancer: replica B loads cache
+    while empty, then replica A writes data. B must see the new rows on
+    its next read, not serve stale len()=0 forever.
+    """
+    group_name = f"test_stale_{uuid.uuid4().hex[:8]}"
+    try:
+        # Replica B connects first, loads cache (empty)
+        replica_b = MongoObjectBackend(
+            uri=MONGO_URI, database="asebytes_test", group=group_name
+        )
+        assert len(replica_b) == 0  # cache loaded: empty
+
+        # Replica A writes 3 rows via a separate instance
+        replica_a = MongoObjectBackend(
+            uri=MONGO_URI, database="asebytes_test", group=group_name
+        )
+        replica_a.extend([sample_row, sample_row, sample_row])
+        assert len(replica_a) == 3
+        replica_a.close()
+
+        # Replica B must now see the 3 rows — NOT stale 0
+        assert len(replica_b) == 3
+        assert replica_b.get(0) is not None
+        assert replica_b.get(2) is not None
+        replica_b.close()
+    finally:
+        cleanup = MongoObjectBackend(
+            uri=MONGO_URI, database="asebytes_test", group=group_name
+        )
+        cleanup.remove()
+
+
+class TestAsyncStaleCache:
+    @pytest.mark.anyio
+    async def test_second_instance_sees_writes_from_first(self, sample_row):
+        """Async: a second backend instance must see data written by another."""
+        group_name = f"test_async_stale_{uuid.uuid4().hex[:8]}"
+        try:
+            # Replica B loads cache (empty)
+            replica_b = AsyncMongoObjectBackend(
+                uri=MONGO_URI, database="asebytes_test", group=group_name
+            )
+            assert await replica_b.len() == 0
+
+            # Replica A writes 3 rows
+            replica_a = AsyncMongoObjectBackend(
+                uri=MONGO_URI, database="asebytes_test", group=group_name
+            )
+            await replica_a.extend([sample_row, sample_row, sample_row])
+            assert await replica_a.len() == 3
+            replica_a.close()
+
+            # Replica B must see the new data
+            assert await replica_b.len() == 3
+            assert (await replica_b.get(0)) is not None
+            assert (await replica_b.get(2)) is not None
+            replica_b.close()
+        finally:
+            cleanup = AsyncMongoObjectBackend(
+                uri=MONGO_URI, database="asebytes_test", group=group_name
+            )
+            await cleanup.remove()
