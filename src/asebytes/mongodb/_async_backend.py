@@ -386,7 +386,9 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
         try:
             loop = asyncio.get_running_loop()
             task = loop.create_task(self._client.close())
-            task.add_done_callback(lambda t: t.result() if not t.cancelled() else None)
+            task.add_done_callback(
+                lambda t: t.exception() if not t.cancelled() else None
+            )
         except RuntimeError:
             # No running loop — run the close synchronously via asyncio.run
             try:

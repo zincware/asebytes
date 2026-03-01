@@ -20,7 +20,7 @@ class MemoryObjectBackend(ReadWriteBackend[str, Any]):
     @classmethod
     def from_uri(cls, uri: str, **kwargs: Any) -> MemoryObjectBackend:
         """Create from a ``memory://`` URI. The path is ignored."""
-        return cls(**kwargs)
+        return cls()
 
     def __len__(self) -> int:
         return len(self._data)
