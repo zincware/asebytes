@@ -28,7 +28,9 @@ from ._backends import ReadBackend, ReadWriteBackend
 
 
 def _deserialize_row(raw: dict[bytes, bytes]) -> dict[str, Any]:
-    return {k.decode(): msgpack.unpackb(v, object_hook=m.decode) for k, v in raw.items()}
+    return {
+        k.decode(): msgpack.unpackb(v, object_hook=m.decode) for k, v in raw.items()
+    }
 
 
 def _serialize_row(data: dict[str, Any]) -> dict[bytes, bytes]:
@@ -48,12 +50,21 @@ class BlobToObjectReadAdapter(ReadBackend[str, Any]):
     def __init__(self, store: ReadBackend[bytes, bytes]) -> None:
         self._store = store
 
+    @staticmethod
+    def list_groups(path: str, **kwargs: Any) -> list[str]:
+        """Adapters don't have direct path access; raise NotImplementedError.
+
+        Use the underlying backend's list_groups directly instead.
+        """
+        raise NotImplementedError(
+            "BlobToObjectReadAdapter wraps an existing backend instance. "
+            "Call list_groups on the underlying backend class instead."
+        )
+
     def __len__(self) -> int:
         return len(self._store)
 
-    def get(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any] | None:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any] | None:
         byte_keys = [k.encode() for k in keys] if keys is not None else None
         raw = self._store.get(index, byte_keys)
         if raw is None:
@@ -65,10 +76,7 @@ class BlobToObjectReadAdapter(ReadBackend[str, Any]):
     ) -> list[dict[str, Any] | None]:
         byte_keys = [k.encode() for k in keys] if keys is not None else None
         raw_rows = self._store.get_many(indices, byte_keys)
-        return [
-            None if row is None else _deserialize_row(row)
-            for row in raw_rows
-        ]
+        return [None if row is None else _deserialize_row(row) for row in raw_rows]
 
     def iter_rows(
         self, indices: list[int], keys: list[str] | None = None
@@ -116,10 +124,9 @@ class BlobToObjectReadWriteAdapter(BlobToObjectReadAdapter, ReadWriteBackend[str
         self._store.delete(index)
 
     def extend(self, values: list[dict[str, Any] | None]) -> int:
-        return self._store.extend([
-            _serialize_row(v) if v is not None else None
-            for v in values
-        ])
+        return self._store.extend(
+            [_serialize_row(v) if v is not None else None for v in values]
+        )
 
     def insert(self, index: int, value: dict[str, Any] | None) -> None:
         if value is None:
@@ -135,7 +142,8 @@ class BlobToObjectReadWriteAdapter(BlobToObjectReadAdapter, ReadWriteBackend[str
 
     def set_column(self, key: str, start: int, values: list[Any]) -> None:
         self._store.set_column(
-            key.encode(), start,
+            key.encode(),
+            start,
             [msgpack.packb(v, default=m.encode) for v in values],
         )
 
@@ -169,6 +177,17 @@ class ObjectToBlobReadAdapter(ReadBackend[bytes, bytes]):
     def __init__(self, store: ReadBackend[str, Any]) -> None:
         self._store = store
 
+    @staticmethod
+    def list_groups(path: str, **kwargs: Any) -> list[str]:
+        """Adapters don't have direct path access; raise NotImplementedError.
+
+        Use the underlying backend's list_groups directly instead.
+        """
+        raise NotImplementedError(
+            "ObjectToBlobReadAdapter wraps an existing backend instance. "
+            "Call list_groups on the underlying backend class instead."
+        )
+
     def __len__(self) -> int:
         return len(self._store)
 
@@ -186,10 +205,7 @@ class ObjectToBlobReadAdapter(ReadBackend[bytes, bytes]):
     ) -> list[dict[bytes, bytes] | None]:
         str_keys = [k.decode() for k in keys] if keys is not None else None
         rows = self._store.get_many(indices, str_keys)
-        return [
-            None if row is None else _serialize_row(row)
-            for row in rows
-        ]
+        return [None if row is None else _serialize_row(row) for row in rows]
 
     def iter_rows(
         self, indices: list[int], keys: list[bytes] | None = None
@@ -214,7 +230,9 @@ class ObjectToBlobReadAdapter(ReadBackend[bytes, bytes]):
 # ── ObjectToBlob read-write adapter ──────────────────────────────────────
 
 
-class ObjectToBlobReadWriteAdapter(ObjectToBlobReadAdapter, ReadWriteBackend[bytes, bytes]):
+class ObjectToBlobReadWriteAdapter(
+    ObjectToBlobReadAdapter, ReadWriteBackend[bytes, bytes]
+):
     """Wraps a ReadWriteBackend[str, Any] and exposes ReadWriteBackend[bytes, bytes].
 
     Inherits all read methods from ObjectToBlobReadAdapter.
@@ -237,10 +255,9 @@ class ObjectToBlobReadWriteAdapter(ObjectToBlobReadAdapter, ReadWriteBackend[byt
         self._store.delete(index)
 
     def extend(self, values: list[dict[bytes, bytes] | None]) -> int:
-        return self._store.extend([
-            _deserialize_row(v) if v is not None else None
-            for v in values
-        ])
+        return self._store.extend(
+            [_deserialize_row(v) if v is not None else None for v in values]
+        )
 
     def insert(self, index: int, value: dict[bytes, bytes] | None) -> None:
         if value is None:
@@ -256,6 +273,23 @@ class ObjectToBlobReadWriteAdapter(ObjectToBlobReadAdapter, ReadWriteBackend[byt
 
     def set_column(self, key: bytes, start: int, values: list[bytes]) -> None:
         self._store.set_column(
-            key.decode(), start,
+            key.decode(),
+            start,
             [msgpack.unpackb(v, object_hook=m.decode) for v in values],
+        )
+
+    def clear(self) -> None:
+        self._store.clear()
+
+    def remove(self) -> None:
+        self._store.remove()
+
+    def drop_keys(
+        self,
+        keys: list[bytes],
+        indices: list[int] | None = None,
+    ) -> None:
+        self._store.drop_keys(
+            [k.decode() for k in keys],
+            indices=indices,
         )

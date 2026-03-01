@@ -18,17 +18,29 @@ class ReadBackend(Generic[K, V], ABC):
     - K: key type (bytes for blob level, str for object level)
     - V: value type (bytes for blob level, Any for object level)
 
-    Subclasses must implement: __len__, get.
+    Subclasses must implement: __len__, get, list_groups.
     Override keys, get_many, iter_rows, get_column for optimization.
     """
+
+    @staticmethod
+    @abstractmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        """Return available group names at the given path.
+
+        Args:
+            path: File path or URI to the storage location.
+            **kwargs: Backend-specific options (e.g., credentials).
+
+        Returns:
+            List of group names available at the path.
+        """
+        ...
 
     @abstractmethod
     def __len__(self) -> int: ...
 
     @abstractmethod
-    def get(
-        self, index: int, keys: list[K] | None = None
-    ) -> dict[K, V] | None:
+    def get(self, index: int, keys: list[K] | None = None) -> dict[K, V] | None:
         """Read one row. Returns None for placeholders."""
         ...
 
@@ -65,7 +77,6 @@ class ReadBackend(Generic[K, V], ABC):
         if row is None:
             return []
         return list(row.keys())
-
 
 
 # ── Generic read-write backend ───────────────────────────────────────────
@@ -112,9 +123,7 @@ class ReadWriteBackend(ReadBackend[K, V], ABC):
         for i in range(stop - 1, start - 1, -1):
             self.delete(i)
 
-    def drop_keys(
-        self, keys: list[K], indices: list[int] | None = None
-    ) -> None:
+    def drop_keys(self, keys: list[K], indices: list[int] | None = None) -> None:
         """Remove specific keys from rows. Default: read-modify-write."""
         if indices is None:
             indices = list(range(len(self)))
@@ -165,7 +174,6 @@ class ReadWriteBackend(ReadBackend[K, V], ABC):
     def remove(self) -> None:
         """Remove the entire container. No default -- backend-specific."""
         raise NotImplementedError
-
 
 
 # ── Type aliases ─────────────────────────────────────────────────────────

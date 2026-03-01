@@ -7,7 +7,7 @@ import numpy as np
 from pymongo import AsyncMongoClient
 
 from .._async_backends import AsyncReadWriteBackend
-from ._backend import _bson_safe
+from ._backend import _bson_safe, DEFAULT_GROUP
 
 META_ID = "__meta__"
 
@@ -18,30 +18,49 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
     Uses ``pymongo.AsyncMongoClient`` (GA since PyMongo 4.13) for native
     non-blocking I/O.  Same sort-key array design as :class:`MongoObjectBackend`.
 
+    Each group is stored in a separate MongoDB collection within the database.
+
     Parameters
     ----------
     uri : str
-        MongoDB connection URI.
+        MongoDB connection URI (e.g. ``mongodb://localhost:27017``).
+        Should NOT include database or collection in the path.
     database : str
         Database name.
-    collection : str
-        Collection name (one collection = one dataset).
+    group : str | None
+        Group name (maps to MongoDB collection). Defaults to ``"default"``.
     """
 
     def __init__(
         self,
         uri: str = "mongodb://localhost:27017",
         database: str = "asebytes",
-        collection: str = "default",
+        group: str | None = None,
     ):
         self._client = AsyncMongoClient(uri)
-        self._col = self._client[database][collection]
+        self.group = group if group is not None else DEFAULT_GROUP
+        self._col = self._client[database][self.group]
         self._sort_keys: list[int] | None = None
         self._count: int | None = None
 
     @classmethod
-    def from_uri(cls, uri: str, **kwargs) -> AsyncMongoObjectBackend:
-        """Construct from a URI like ``mongodb://host:port/database/collection``."""
+    def from_uri(
+        cls, uri: str, group: str | None = None, **kwargs
+    ) -> AsyncMongoObjectBackend:
+        """Construct from a URI like ``mongodb://host:port/database``.
+
+        The path after the host is the database name. Group (collection) is
+        passed separately via the ``group`` parameter.
+
+        Parameters
+        ----------
+        uri : str
+            MongoDB URI with database path (e.g. ``mongodb://host:port/mydb``).
+        group : str | None
+            Group name (maps to collection). Defaults to ``"default"``.
+        **kwargs
+            Additional arguments passed to the constructor.
+        """
         if "://" not in uri:
             raise ValueError(f"Invalid URI: {uri!r}")
         _, after_scheme = uri.split("://", 1)
@@ -51,22 +70,47 @@ class AsyncMongoObjectBackend(AsyncReadWriteBackend[str, Any]):
             host_part, path_part = after_scheme, ""
 
         parts = [p for p in path_part.split("/") if p]
-        if len(parts) >= 2:
+        if len(parts) >= 1:
             database = parts[0]
-            collection = parts[1]
-            connection_uri = uri.split("://")[0] + "://" + host_part
-        elif len(parts) == 1:
-            database = parts[0]
-            collection = "default"
             connection_uri = uri.split("://")[0] + "://" + host_part
         else:
             database = "asebytes"
-            collection = "default"
             connection_uri = uri
 
-        return cls(
-            uri=connection_uri, database=database, collection=collection, **kwargs
-        )
+        return cls(uri=connection_uri, database=database, group=group, **kwargs)
+
+    @staticmethod
+    def list_groups(
+        path: str = "mongodb://localhost:27017", database: str = "asebytes", **kwargs
+    ) -> list[str]:
+        """Return available group names (collections) in the given database.
+
+        Note: This is a synchronous method that uses a sync client internally,
+        as listing groups is typically done outside of async contexts.
+
+        Parameters
+        ----------
+        path : str
+            MongoDB connection URI (e.g. ``mongodb://localhost:27017``).
+        database : str
+            Database name to list collections from.
+        **kwargs
+            Unused, for API compatibility.
+
+        Returns
+        -------
+        list[str]
+            List of group names (collection names) in the database.
+        """
+        from pymongo import MongoClient
+
+        client = MongoClient(path)
+        try:
+            db = client[database]
+            collections = db.list_collection_names()
+            return sorted(collections)
+        finally:
+            client.close()
 
     # ------------------------------------------------------------------
     # Cache management

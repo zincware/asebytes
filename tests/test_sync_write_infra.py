@@ -3,6 +3,7 @@
 Phase 2: ViewParent protocol gains _write_row and _update_row;
 ObjectIO and BlobIO implement them.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -49,6 +50,10 @@ class MemoryObjectBackend(ReadWriteBackend):
     def extend(self, data):
         self._rows.extend(data)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 # ── In-memory blob-level backend ────────────────────────────────────────
 
@@ -85,6 +90,10 @@ class MemoryBlobBackend(ReadWriteBackend):
     def extend(self, data):
         self._rows.extend(data)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 # ── ObjectIO write tests ────────────────────────────────────────────────
 
@@ -116,10 +125,12 @@ class TestBlobIOWrite:
     @pytest.fixture
     def io(self):
         b = MemoryBlobBackend()
-        b.extend([
-            {b"a": b"1", b"b": b"2"},
-            {b"a": b"3", b"b": b"4"},
-        ])
+        b.extend(
+            [
+                {b"a": b"1", b"b": b"2"},
+                {b"a": b"3", b"b": b"4"},
+            ]
+        )
         return BlobIO(b)
 
     def test_write_row(self, io):

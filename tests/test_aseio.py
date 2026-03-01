@@ -7,7 +7,7 @@ import asebytes
 
 @pytest.fixture
 def io(tmp_path):
-    return asebytes.ASEIO(str(tmp_path / "test.lmdb"), prefix=b"atoms/")
+    return asebytes.ASEIO(str(tmp_path / "test.lmdb"), group="atoms")
 
 
 def test_set_get(io, ethanol):

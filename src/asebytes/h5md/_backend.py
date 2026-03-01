@@ -52,7 +52,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         file: str | Path | None = None,
         *,
         file_handle: h5py.File | None = None,
-        particles_group: str | None = None,
+        group: str | None = None,
         readonly: bool = False,
         compression: str | None = "gzip",
         compression_opts: int | None = None,
@@ -83,7 +83,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         self._author_email = author_email
 
         # Resolve particles group name
-        self._grp_name = self._resolve_particles_group(particles_group)
+        self._grp_name = self._resolve_particles_group(group)
 
         self._n_frames = 0
         self._max_atoms = 0
@@ -104,9 +104,20 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         return "atoms"
 
     @staticmethod
-    def list_groups(file: str | Path) -> list[str]:
-        """List particles group names in an H5MD file."""
-        with h5py.File(file, "r") as f:
+    def list_groups(path: str, **kwargs) -> list[str]:
+        """List particles group names in an H5MD file.
+
+        Args:
+            path: Path to the H5MD file.
+            **kwargs: Unused, for API compatibility.
+
+        Returns:
+            List of group names (particles groups in the file).
+        """
+        path_obj = Path(path)
+        if not path_obj.exists():
+            return []
+        with h5py.File(path, "r") as f:
             if "particles" not in f:
                 return []
             return list(f["particles"].keys())
@@ -316,9 +327,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                 for row in unique_rows:
                     row[box_key] = val
             elif kind == "boundary":
-                pbc = np.array(
-                    [b not in ("none", b"none") for b in ref], dtype=bool
-                )
+                pbc = np.array([b not in ("none", b"none") for b in ref], dtype=bool)
                 for row in unique_rows:
                     row[box_key] = pbc
 
@@ -483,12 +492,13 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
             return
         ds = self._file[h5_path]["value"]
         serialized = [self._serialize_value(v) for v in values]
-        ds[start:start + len(serialized)] = serialized
+        ds[start : start + len(serialized)] = serialized
 
     def update_many(self, start: int, data: list[dict[str, Any]]) -> None:
         if not data:
             return
         from collections import defaultdict
+
         columns: dict[str, list[tuple[int, Any]]] = defaultdict(list)
         for i, row_data in enumerate(data):
             for key, value in row_data.items():
@@ -503,7 +513,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
             offsets = [p[0] for p in pairs]
             vals = [self._serialize_value(p[1]) for p in pairs]
             if len(offsets) == len(data) and offsets == list(range(len(data))):
-                ds[start:start + len(vals)] = vals
+                ds[start : start + len(vals)] = vals
             else:
                 for offset, val in zip(offsets, vals):
                     ds[start + offset] = val
@@ -536,9 +546,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         if index < 0:
             index += self._n_frames
         if index < 0 or index >= self._n_frames:
-            raise IndexError(
-                f"Index {index} out of range for {self._n_frames} frames"
-            )
+            raise IndexError(f"Index {index} out of range for {self._n_frames} frames")
         return index
 
     def _h5_to_key(self, h5_name: str, grp: h5py.Group) -> str:
@@ -713,8 +721,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         if orders is not None:
             orders = orders[valid]
             return [
-                [int(b[0]), int(b[1]), float(orders[i])]
-                for i, b in enumerate(bonds)
+                [int(b[0]), int(b[1]), float(orders[i])] for i, b in enumerate(bonds)
             ]
         return [[int(b[0]), int(b[1])] for b in bonds]
 
@@ -832,9 +839,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         if bonds_path in self._file:
             self._extend_connectivity_ds(bonds_path, bonds_arr, -1)
         else:
-            self._create_connectivity_ds(
-                bonds_path, bonds_arr, np.int32, -1, grp_name
-            )
+            self._create_connectivity_ds(bonds_path, bonds_arr, np.int32, -1, grp_name)
 
         # Write or extend connectivity/{grp}/bond_orders
         if orders_arr is not None:
@@ -873,9 +878,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         ds[self._n_frames :] = data
 
         # H5MD spec: object reference to particles group
-        grp.attrs["particles_group"] = self._file[
-            f"particles/{particles_group}"
-        ].ref
+        grp.attrs["particles_group"] = self._file[f"particles/{particles_group}"].ref
 
         # Linear step/time
         grp.create_dataset("step", data=1)
@@ -993,9 +996,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         is_box = h5_path.endswith("/box/edges") or h5_path.endswith("/box/pbc")
         is_pbc = h5_path.endswith("/box/pbc")
         ppath = f"/particles/{self._grp_name}/"
-        is_per_atom = (
-            h5_path.startswith(ppath) and not is_box
-        )
+        is_per_atom = h5_path.startswith(ppath) and not is_box
 
         # Ensure box group exists with attributes
         if is_box:
@@ -1081,9 +1082,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                 if v is None:
                     serialized.append("")
                 else:
-                    serialized.append(
-                        json.dumps(jsonable(v))
-                    )
+                    serialized.append(json.dumps(jsonable(v)))
             return serialized, h5py.string_dtype(), ""
 
         # --- Numeric ndarray ---
@@ -1095,9 +1094,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                 if v is not None:
                     processed.append(np.asarray(v, dtype=np.float64))
                 else:
-                    processed.append(
-                        np.full_like(ref, np.nan, dtype=np.float64)
-                    )
+                    processed.append(np.full_like(ref, np.nan, dtype=np.float64))
             return (
                 concat_varying(processed, np.nan),
                 np.float64,
@@ -1133,9 +1130,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         if self._chunk_size is None:
             return True
         if isinstance(self._chunk_size, int):
-            return tuple(
-                [min(self._chunk_size, shape[0])] + list(shape[1:])
-            )
+            return tuple([min(self._chunk_size, shape[0])] + list(shape[1:]))
         if isinstance(self._chunk_size, (list, tuple)):
             chunks = []
             for i, s in enumerate(shape):
@@ -1198,9 +1193,7 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         time_ds = grp.create_dataset("time", data=1.0)
         time_ds.attrs["unit"] = "fs"
 
-    def _extend_dataset(
-        self, h5_path: str, data: Any, fillvalue: Any
-    ) -> None:
+    def _extend_dataset(self, h5_path: str, data: Any, fillvalue: Any) -> None:
         """Extend an existing H5MD element."""
         grp = self._file[h5_path]
         ds = grp["value"]

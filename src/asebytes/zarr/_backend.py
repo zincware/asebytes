@@ -9,6 +9,7 @@ Append-only: ``insert_row`` and ``delete_row`` raise
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,8 @@ import zarr
 from asebytes._columnar import concat_varying, get_version, jsonable, strip_nan_padding
 from asebytes._backends import ReadWriteBackend
 
+DEFAULT_GROUP = "default"
+
 
 class ZarrBackend(ReadWriteBackend[str, Any]):
     """Read-write Zarr backend using zarr-python v3.
@@ -27,6 +30,9 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
     array (e.g. ``arrays.positions/``, ``calc.energy/``).  Supports Blosc
     compression for fast I/O.  Append-only: ``insert_row`` and
     ``delete_row`` raise ``NotImplementedError``.
+
+    Each group is stored in a separate subdirectory within the base path:
+    - {file}/{group}/
     """
 
     def __init__(
@@ -34,6 +40,7 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         file: str | Path | None = None,
         *,
         store: Any | None = None,
+        group: str | None = None,
         readonly: bool = False,
         compressor: str = "lz4",
         clevel: int = 5,
@@ -41,14 +48,19 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         variable_shape: bool = True,
         chunk_frames: int = 64,
     ):
+        self.group = group if group is not None else DEFAULT_GROUP
+
         if store is not None:
             mode = "r" if readonly else "a"
             self._root = zarr.open_group(store=store, mode=mode)
             self._owns_store = False
         elif file is not None:
             mode = "r" if readonly else "a"
-            self._root = zarr.open_group(store=str(file), mode=mode)
+            # Build path: {file}/{group}/
+            group_path = os.path.join(str(file), self.group)
+            self._root = zarr.open_group(store=group_path, mode=mode)
             self._owns_store = True
+            self._base_path = str(file)
         else:
             raise ValueError("Provide either file or store")
 
@@ -64,6 +76,29 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         self._col_cache: dict[str, zarr.Array] = {}
         self._columns: list[str] = []
         self._discover()
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        """Return available group names at the given path.
+
+        Args:
+            path: Base directory path containing group subdirectories.
+            **kwargs: Unused, for API compatibility.
+
+        Returns:
+            List of group names (subdirectories that contain Zarr data).
+        """
+        base = Path(path)
+        if not base.exists():
+            return []
+
+        groups = []
+        for entry in base.iterdir():
+            if entry.is_dir():
+                # Check if it looks like a Zarr group (has .zgroup or .zarray files)
+                if (entry / ".zgroup").exists() or (entry / "zarr.json").exists():
+                    groups.append(entry.name)
+        return sorted(groups)
 
     # ------------------------------------------------------------------
     # Initialisation helpers
@@ -291,12 +326,13 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         arr = self._col_cache[key]
         serialized = [self._serialize_value(v) for v in values]
         # Use direct slice assignment for vectorized write
-        arr[start:start + len(serialized)] = serialized
+        arr[start : start + len(serialized)] = serialized
 
     def update_many(self, start: int, data: list[dict[str, Any]]) -> None:
         if not data:
             return
         from collections import defaultdict
+
         # Group by key for vectorized per-column writes
         columns: dict[str, list[tuple[int, Any]]] = defaultdict(list)
         for i, row_data in enumerate(data):
@@ -311,7 +347,7 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
             offsets = [p[0] for p in pairs]
             vals = [self._serialize_value(p[1]) for p in pairs]
             if len(offsets) == len(data) and offsets == list(range(len(data))):
-                arr[start:start + len(vals)] = vals
+                arr[start : start + len(vals)] = vals
             else:
                 for offset, val in zip(offsets, vals):
                     arr[start + offset] = val
@@ -343,9 +379,7 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
         if index < 0:
             index += self._n_frames
         if index < 0 or index >= self._n_frames:
-            raise IndexError(
-                f"Index {index} out of range for {self._n_frames} frames"
-            )
+            raise IndexError(f"Index {index} out of range for {self._n_frames} frames")
         return index
 
     def _postprocess(self, val: Any, col_name: str) -> Any:
@@ -354,7 +388,11 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
             val = val.decode() if isinstance(val, bytes) else str(val)
 
         # zarr v3 returns 0-d StringDType arrays for single string elements
-        if isinstance(val, np.ndarray) and val.ndim == 0 and val.dtype.kind in ("U", "T"):
+        if (
+            isinstance(val, np.ndarray)
+            and val.ndim == 0
+            and val.dtype.kind in ("U", "T")
+        ):
             val = str(val)
 
         if isinstance(val, str):
@@ -495,9 +533,7 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
                 if v is None:
                     serialized.append("")
                 else:
-                    serialized.append(
-                        json.dumps(jsonable(v))
-                    )
+                    serialized.append(json.dumps(jsonable(v)))
             return serialized, str, ""
 
         # --- Numeric ndarray ---
@@ -509,9 +545,7 @@ class ZarrBackend(ReadWriteBackend[str, Any]):
                 if v is not None:
                     processed.append(np.asarray(v, dtype=np.float64))
                 else:
-                    processed.append(
-                        np.full_like(ref, np.nan, dtype=np.float64)
-                    )
+                    processed.append(np.full_like(ref, np.nan, dtype=np.float64))
             return (
                 concat_varying(processed, np.nan),
                 np.float64,

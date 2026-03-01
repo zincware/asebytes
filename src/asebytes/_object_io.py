@@ -47,15 +47,34 @@ class ObjectIO(MutableSequence):
         else:
             self._backend = backend
 
+    @staticmethod
+    def list_groups(path: str, **kwargs: Any) -> list[str]:
+        """List available groups at the given path.
+
+        Parameters
+        ----------
+        path : str
+            File path or URI to the storage location.
+        **kwargs
+            Backend-specific options (e.g., credentials).
+
+        Returns
+        -------
+        list[str]
+            List of group names available at the path.
+        """
+        from ._registry import get_backend_cls
+
+        cls = get_backend_cls(path, readonly=True)
+        return cls.list_groups(path, **kwargs)
+
     def keys(self, index: int) -> list[str]:
         """Return keys present at *index*."""
         return self._backend.keys(index)
 
     # --- Internal methods used by views ---
 
-    def _read_row(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any]:
+    def _read_row(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         return self._backend.get(index, keys)
 
     def _read_rows(
@@ -182,9 +201,7 @@ class ObjectIO(MutableSequence):
             raise TypeError("Backend is read-only")
         return self._backend.extend(list(values))
 
-    def get(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any] | None:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any] | None:
         """Read a single row, optionally filtering to specific keys."""
         return self._backend.get(index, keys)
 

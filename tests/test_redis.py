@@ -36,8 +36,8 @@ pytestmark = pytest.mark.skipif(
 def backend():
     from asebytes.redis import RedisBlobBackend
 
-    prefix = f"test_{uuid.uuid4().hex[:8]}"
-    b = RedisBlobBackend(url=REDIS_URI, prefix=prefix)
+    group = f"test_{uuid.uuid4().hex[:8]}"
+    b = RedisBlobBackend(url=REDIS_URI, group=group)
     yield b
     b.remove()
 
@@ -444,13 +444,107 @@ def test_from_uri_default_prefix():
         b.remove()
 
 
-def test_from_uri_with_db_and_prefix():
+def test_from_uri_with_db_only():
+    """Test from_uri with database in path uses default group."""
     from asebytes.redis import RedisBlobBackend
 
-    prefix = f"test_{uuid.uuid4().hex[:8]}"
-    b = RedisBlobBackend.from_uri(f"redis://localhost:6379/0/{prefix}")
+    b = RedisBlobBackend.from_uri("redis://localhost:6379/0")
     try:
-        assert b._prefix == prefix
+        assert b._prefix == "default"
+        assert b.group == "default"
+    finally:
+        b.remove()
+
+
+# ======================================================================
+# Group parameter tests (sync)
+# ======================================================================
+
+
+def test_group_parameter_default():
+    """Test that group parameter defaults to 'default'."""
+    from asebytes.redis import RedisBlobBackend
+
+    b = RedisBlobBackend(url=REDIS_URI)
+    try:
+        assert b.group == "default"
+    finally:
+        b.close()
+
+
+def test_group_parameter_custom():
+    """Test that custom group parameter creates separate namespaces."""
+    from asebytes.redis import RedisBlobBackend
+
+    group_name = f"test_group_{uuid.uuid4().hex[:8]}"
+    b = RedisBlobBackend(url=REDIS_URI, group=group_name)
+    try:
+        assert b.group == group_name
+        b.extend([{b"x": b"1"}])
+        assert len(b) == 1
+    finally:
+        b.remove()
+
+
+def test_groups_are_isolated():
+    """Test that different groups are isolated from each other."""
+    from asebytes.redis import RedisBlobBackend
+
+    base_name = f"test_iso_{uuid.uuid4().hex[:8]}"
+    group_a = f"{base_name}_a"
+    group_b = f"{base_name}_b"
+
+    b_a = RedisBlobBackend(url=REDIS_URI, group=group_a)
+    b_b = RedisBlobBackend(url=REDIS_URI, group=group_b)
+
+    try:
+        b_a.extend([{b"v": b"a1"}, {b"v": b"a2"}])
+        b_b.extend([{b"v": b"b1"}])
+
+        assert len(b_a) == 2
+        assert len(b_b) == 1
+        assert b_a.get(0)[b"v"] == b"a1"
+        assert b_b.get(0)[b"v"] == b"b1"
+    finally:
+        b_a.remove()
+        b_b.remove()
+
+
+def test_list_groups():
+    """Test list_groups returns available groups in Redis."""
+    from asebytes.redis import RedisBlobBackend
+
+    base_name = f"test_lg_{uuid.uuid4().hex[:8]}"
+    group_a = f"{base_name}_a"
+    group_b = f"{base_name}_b"
+
+    b_a = RedisBlobBackend(url=REDIS_URI, group=group_a)
+    b_b = RedisBlobBackend(url=REDIS_URI, group=group_b)
+
+    try:
+        # Write something so the keys exist
+        b_a.extend([{b"x": b"1"}])
+        b_b.extend([{b"x": b"2"}])
+
+        groups = RedisBlobBackend.list_groups(path=REDIS_URI)
+        assert group_a in groups
+        assert group_b in groups
+    finally:
+        b_a.remove()
+        b_b.remove()
+
+
+def test_from_uri_with_group():
+    """Test from_uri with group parameter."""
+    from asebytes.redis import RedisBlobBackend
+
+    group_name = f"test_uri_grp_{uuid.uuid4().hex[:8]}"
+    # URI with db, group passed separately
+    b = RedisBlobBackend.from_uri("redis://localhost:6379/0", group=group_name)
+    try:
+        assert b.group == group_name
+        b.extend([{b"x": b"1"}])
+        assert len(b) == 1
     finally:
         b.remove()
 
@@ -466,8 +560,8 @@ from asebytes._async_backends import AsyncReadBackend, AsyncReadWriteBackend
 async def async_backend():
     from asebytes.redis import AsyncRedisBlobBackend
 
-    prefix = f"test_async_{uuid.uuid4().hex[:8]}"
-    b = AsyncRedisBlobBackend(url=REDIS_URI, prefix=prefix)
+    group = f"test_async_{uuid.uuid4().hex[:8]}"
+    b = AsyncRedisBlobBackend(url=REDIS_URI, group=group)
     yield b
     await b.remove()
 
@@ -731,12 +825,13 @@ class TestAsyncRedisBlobBackend:
         finally:
             await b.remove()
 
-    async def test_from_uri_with_db_and_prefix(self):
+    async def test_from_uri_with_db_only(self):
+        """Test from_uri with database in path uses default group."""
         from asebytes.redis import AsyncRedisBlobBackend
 
-        prefix = f"test_async_{uuid.uuid4().hex[:8]}"
-        b = AsyncRedisBlobBackend.from_uri(f"redis://localhost:6379/0/{prefix}")
+        b = AsyncRedisBlobBackend.from_uri("redis://localhost:6379/0")
         try:
-            assert b._prefix == prefix
+            assert b._prefix == "default"
+            assert b.group == "default"
         finally:
             await b.remove()

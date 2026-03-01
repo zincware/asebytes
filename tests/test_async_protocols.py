@@ -48,6 +48,10 @@ class MemoryAsyncRawReadable(AsyncReadBackend):
             return {k: row[k] for k in keys if k in row}
         return dict(row)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 class MemoryAsyncRawWritable(MemoryAsyncRawReadable, AsyncReadWriteBackend):
     async def set(self, index: int, data: dict[bytes, bytes] | None) -> None:
@@ -176,10 +180,15 @@ class TestAsyncRawWritable:
 
     @pytest.mark.anyio
     async def test_delete_many_default(self):
-        backend = MemoryAsyncRawWritable([
-            {b"a": b"0"}, {b"a": b"1"}, {b"a": b"2"},
-            {b"a": b"3"}, {b"a": b"4"},
-        ])
+        backend = MemoryAsyncRawWritable(
+            [
+                {b"a": b"0"},
+                {b"a": b"1"},
+                {b"a": b"2"},
+                {b"a": b"3"},
+                {b"a": b"4"},
+            ]
+        )
         await backend.delete_many(1, 4)
         assert await backend.len() == 2
         assert await backend.get(0) == {b"a": b"0"}
@@ -195,21 +204,25 @@ class TestAsyncRawWritable:
 
     @pytest.mark.anyio
     async def test_drop_keys_default(self):
-        backend = MemoryAsyncRawWritable([
-            {b"a": b"1", b"b": b"2"},
-            {b"a": b"3", b"b": b"4"},
-        ])
+        backend = MemoryAsyncRawWritable(
+            [
+                {b"a": b"1", b"b": b"2"},
+                {b"a": b"3", b"b": b"4"},
+            ]
+        )
         await backend.drop_keys([b"b"])
         assert await backend.get(0) == {b"a": b"1"}
         assert await backend.get(1) == {b"a": b"3"}
 
     @pytest.mark.anyio
     async def test_drop_keys_with_indices(self):
-        backend = MemoryAsyncRawWritable([
-            {b"a": b"1", b"b": b"2"},
-            {b"a": b"3", b"b": b"4"},
-            {b"a": b"5", b"b": b"6"},
-        ])
+        backend = MemoryAsyncRawWritable(
+            [
+                {b"a": b"1", b"b": b"2"},
+                {b"a": b"3", b"b": b"4"},
+                {b"a": b"5", b"b": b"6"},
+            ]
+        )
         await backend.drop_keys([b"b"], indices=[0, 2])
         assert await backend.get(0) == {b"a": b"1"}
         assert await backend.get(1) == {b"a": b"3", b"b": b"4"}
@@ -282,6 +295,10 @@ class TestSyncToAsyncAdapter:
 
             def extend(self, data):
                 self._data.extend(data)
+
+            @staticmethod
+            def list_groups(path: str, **kwargs) -> list[str]:
+                return []
 
         return MemorySyncRaw(data)
 
@@ -408,6 +425,10 @@ class TestSyncToAsyncAdapter:
 
             def extend(self, data):
                 self._data.extend(data)
+
+            @staticmethod
+            def list_groups(path: str, **kwargs) -> list[str]:
+                return []
 
         return MemorySyncStr(data)
 

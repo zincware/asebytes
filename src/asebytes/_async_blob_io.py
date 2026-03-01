@@ -36,7 +36,11 @@ class AsyncBlobIO:
         **kwargs: Any,
     ):
         if isinstance(backend, str):
-            from ._registry import get_async_blob_backend_cls, get_blob_backend_cls, parse_uri
+            from ._registry import (
+                get_async_blob_backend_cls,
+                get_blob_backend_cls,
+                parse_uri,
+            )
             from ._async_backends import sync_to_async, AsyncReadBackend as _AsyncRB
 
             scheme, _remainder = parse_uri(backend)
@@ -56,6 +60,27 @@ class AsyncBlobIO:
         else:
             self._backend = backend
 
+    @staticmethod
+    def list_groups(path: str, **kwargs: Any) -> list[str]:
+        """List available groups at the given path.
+
+        Parameters
+        ----------
+        path : str
+            File path or URI to the storage location.
+        **kwargs
+            Backend-specific options (e.g., credentials).
+
+        Returns
+        -------
+        list[str]
+            List of group names available at the path.
+        """
+        from ._registry import get_async_blob_backend_cls
+
+        cls = get_async_blob_backend_cls(path, readonly=True)
+        return cls.list_groups(path, **kwargs)
+
     # -- AsyncViewParent implementation ------------------------------------
 
     def __len__(self) -> int:
@@ -66,9 +91,7 @@ class AsyncBlobIO:
     async def len(self) -> int:
         return await self._backend.len()
 
-    async def _read_row(
-        self, index: int, keys: list[bytes] | None = None
-    ) -> Any:
+    async def _read_row(self, index: int, keys: list[bytes] | None = None) -> Any:
         return await self._backend.get(index, keys)
 
     async def _read_rows(
@@ -129,11 +152,15 @@ class AsyncBlobIO:
     # -- __getitem__ -> sync, returns views ---------------------------------
 
     @overload
-    def __getitem__(self, index: int) -> AsyncSingleRowView[dict[bytes, bytes] | None]: ...
+    def __getitem__(
+        self, index: int
+    ) -> AsyncSingleRowView[dict[bytes, bytes] | None]: ...
     @overload
     def __getitem__(self, index: slice) -> AsyncRowView[dict[bytes, bytes] | None]: ...
     @overload
-    def __getitem__(self, index: list[int]) -> AsyncRowView[dict[bytes, bytes] | None]: ...
+    def __getitem__(
+        self, index: list[int]
+    ) -> AsyncRowView[dict[bytes, bytes] | None]: ...
     @overload
     def __getitem__(self, index: str) -> AsyncColumnView: ...
     @overload
@@ -146,7 +173,11 @@ class AsyncBlobIO:
     def __getitem__(
         self,
         index: int | slice | str | bytes | list[int] | list[str] | list[bytes],
-    ) -> AsyncSingleRowView[dict[bytes, bytes] | None] | AsyncRowView[dict[bytes, bytes] | None] | AsyncColumnView:
+    ) -> (
+        AsyncSingleRowView[dict[bytes, bytes] | None]
+        | AsyncRowView[dict[bytes, bytes] | None]
+        | AsyncColumnView
+    ):
         if isinstance(index, int):
             return AsyncSingleRowView(self, index)
         if isinstance(index, slice):

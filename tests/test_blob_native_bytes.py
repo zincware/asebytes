@@ -5,6 +5,7 @@ to the backend WITHOUT encoding/decoding. Views accept bytes keys natively.
 
 These tests verify the encoding bridge is fully removed.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -69,6 +70,10 @@ class TestBlobIONativeBytes:
             def insert(self, index, data):
                 self._rows.insert(index, data)
 
+            @staticmethod
+            def list_groups(path: str, **kwargs) -> list[str]:
+                return []
+
         backend = MemBlob()
         db = BlobIO(backend)
 
@@ -126,6 +131,10 @@ class TestBlobIONativeBytes:
             def insert(self, index, data):
                 self._rows.insert(index, data)
 
+            @staticmethod
+            def list_groups(path: str, **kwargs) -> list[str]:
+                return []
+
         db = BlobIO(MemBlob())
         assert db[b"name"][0] == b"alice"
 
@@ -178,6 +187,10 @@ class TestBlobIONativeBytes:
 
             def insert(self, index, data):
                 self._rows.insert(index, data)
+
+            @staticmethod
+            def list_groups(path: str, **kwargs) -> list[str]:
+                return []
 
         db = BlobIO(MemBlob())
         rv = db[0:2]
@@ -233,6 +246,10 @@ class TestBlobIONativeBytes:
 
             def insert(self, index, data):
                 self._rows.insert(index, data)
+
+            @staticmethod
+            def list_groups(path: str, **kwargs) -> list[str]:
+                return []
 
         db = BlobIO(MemBlob())
         result = db[[b"name", b"age"]].to_dict()
@@ -308,10 +325,12 @@ class TestAsyncBlobIONativeBytes:
         """ablobdb[b"name"] returns column values as bytes."""
         from asebytes._async_blob_io import AsyncBlobIO
 
-        backend = AsyncMemBlob([
-            {b"name": b"alice", b"age": b"30"},
-            {b"name": b"bob", b"age": b"25"},
-        ])
+        backend = AsyncMemBlob(
+            [
+                {b"name": b"alice", b"age": b"30"},
+                {b"name": b"bob", b"age": b"25"},
+            ]
+        )
         db = AsyncBlobIO(backend)
         result = await db[b"name"].to_list()
         assert result == [b"alice", b"bob"]
@@ -330,9 +349,15 @@ class TestAsyncBlobIONativeBytes:
         """ablobdb[0:2][b"name"] returns ColumnView with bytes values."""
         from asebytes._async_blob_io import AsyncBlobIO
 
-        db = AsyncBlobIO(AsyncMemBlob([
-            {b"x": b"1"}, {b"x": b"2"}, {b"x": b"3"},
-        ]))
+        db = AsyncBlobIO(
+            AsyncMemBlob(
+                [
+                    {b"x": b"1"},
+                    {b"x": b"2"},
+                    {b"x": b"3"},
+                ]
+            )
+        )
         result = await db[0:2][b"x"].to_list()
         assert result == [b"1", b"2"]
 
@@ -350,9 +375,13 @@ class TestAsyncBlobIONativeBytes:
         """ablobdb[[b"name", b"age"]] returns multi-column ColumnView."""
         from asebytes._async_blob_io import AsyncBlobIO
 
-        db = AsyncBlobIO(AsyncMemBlob([
-            {b"name": b"alice", b"age": b"30"},
-        ]))
+        db = AsyncBlobIO(
+            AsyncMemBlob(
+                [
+                    {b"name": b"alice", b"age": b"30"},
+                ]
+            )
+        )
         result = await db[[b"name", b"age"]].to_dict()
         assert result == {
             b"name": [b"alice"],
@@ -368,10 +397,12 @@ class TestAsyncBlobIONativeBytes:
         """ablobdb[b"name"] returns column values as bytes."""
         from asebytes._async_blob_io import AsyncBlobIO
 
-        backend = AsyncMemBlob([
-            {b"name": b"alice", b"age": b"30"},
-            {b"name": b"bob", b"age": b"25"},
-        ])
+        backend = AsyncMemBlob(
+            [
+                {b"name": b"alice", b"age": b"30"},
+                {b"name": b"bob", b"age": b"25"},
+            ]
+        )
         db = AsyncBlobIO(backend)
         result = await db[b"name"].to_list()
         assert result == [b"alice", b"bob"]
@@ -399,9 +430,13 @@ class TestAsyncBlobIONativeBytes:
         """ablobdb[[b"name", b"age"]] returns multi-column ColumnView."""
         from asebytes._async_blob_io import AsyncBlobIO
 
-        db = AsyncBlobIO(AsyncMemBlob([
-            {b"name": b"alice", b"age": b"30"},
-        ]))
+        db = AsyncBlobIO(
+            AsyncMemBlob(
+                [
+                    {b"name": b"alice", b"age": b"30"},
+                ]
+            )
+        )
         result = await db[[b"name", b"age"]].to_dict()
         assert result == {
             b"name": [b"alice"],

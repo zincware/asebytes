@@ -40,11 +40,34 @@ class BlobIO(MutableSequence):
             scheme, _remainder = parse_uri(backend)
             cls = get_blob_backend_cls(backend, readonly=readonly)
             if scheme is not None and hasattr(cls, "from_uri"):
-                self._backend: ReadBackend[bytes, bytes] = cls.from_uri(backend, **kwargs)
+                self._backend: ReadBackend[bytes, bytes] = cls.from_uri(
+                    backend, **kwargs
+                )
             else:
                 self._backend = cls(backend, **kwargs)
         else:
             self._backend = backend
+
+    @staticmethod
+    def list_groups(path: str, **kwargs: Any) -> list[str]:
+        """List available groups at the given path.
+
+        Parameters
+        ----------
+        path : str
+            File path or URI to the storage location.
+        **kwargs
+            Backend-specific options (e.g., credentials).
+
+        Returns
+        -------
+        list[str]
+            List of group names available at the path.
+        """
+        from ._registry import get_blob_backend_cls
+
+        cls = get_blob_backend_cls(path, readonly=True)
+        return cls.list_groups(path, **kwargs)
 
     def keys(self, index: int) -> list[bytes]:
         """Return keys present at *index*."""

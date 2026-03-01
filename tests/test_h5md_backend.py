@@ -131,7 +131,9 @@ class TestBasicRoundTrip:
         assert len(io2) == 1
         row = io2.get(0)
         recovered = dict_to_atoms(row)
-        npt.assert_array_equal(recovered.get_atomic_numbers(), atoms.get_atomic_numbers())
+        npt.assert_array_equal(
+            recovered.get_atomic_numbers(), atoms.get_atomic_numbers()
+        )
         npt.assert_allclose(recovered.get_positions(), atoms.get_positions())
         io2.close()
 
@@ -291,9 +293,7 @@ class TestPBCAndCell:
         for i, atoms in enumerate(pbc_frames):
             row = io2.get(i)
             recovered = dict_to_atoms(row)
-            npt.assert_allclose(
-                recovered.get_cell().array, atoms.get_cell().array
-            )
+            npt.assert_allclose(recovered.get_cell().array, atoms.get_cell().array)
             npt.assert_array_equal(recovered.get_pbc(), atoms.get_pbc())
         io2.close()
 
@@ -307,9 +307,7 @@ class TestPBCAndCell:
             row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_array_equal(recovered.get_pbc(), atoms.get_pbc())
-            npt.assert_allclose(
-                recovered.get_cell().array, atoms.get_cell().array
-            )
+            npt.assert_allclose(recovered.get_cell().array, atoms.get_cell().array)
         io2.close()
 
 
@@ -341,9 +339,7 @@ class TestInfoAndArrays:
                 atoms.arrays["mlip_forces"],
             )
             # Velocities
-            npt.assert_allclose(
-                recovered.get_velocities(), atoms.get_velocities()
-            )
+            npt.assert_allclose(recovered.get_velocities(), atoms.get_velocities())
         io2.close()
 
 
@@ -463,7 +459,7 @@ class TestH5MDStructure:
 
     def test_list_groups(self, h5_path, water_frames):
         """list_groups returns available particles groups."""
-        io1 = H5MDBackend(h5_path, particles_group="atoms")
+        io1 = H5MDBackend(h5_path, group="atoms")
         io1.extend([atoms_to_dict(water_frames[0])])
         io1.close()
 
@@ -473,9 +469,9 @@ class TestH5MDStructure:
     def test_list_groups_multiple(self, h5_path, water_frames):
         """list_groups returns multiple groups when present."""
         with h5py.File(h5_path, "a") as f:
-            io1 = H5MDBackend(file_handle=f, particles_group="atoms")
+            io1 = H5MDBackend(file_handle=f, group="atoms")
             io1.extend([atoms_to_dict(water_frames[0])])
-            io2 = H5MDBackend(file_handle=f, particles_group="solvent")
+            io2 = H5MDBackend(file_handle=f, group="solvent")
             io2.extend([atoms_to_dict(water_frames[0])])
 
         groups = H5MDBackend.list_groups(h5_path)
@@ -1040,9 +1036,7 @@ class TestErrorHandling:
         io2 = H5MDBackend(h5_path, readonly=True)
         row = io2.get(-1)
         recovered = dict_to_atoms(row)
-        npt.assert_allclose(
-            recovered.get_positions(), water_frames[-1].get_positions()
-        )
+        npt.assert_allclose(recovered.get_positions(), water_frames[-1].get_positions())
         io2.close()
 
     def test_insert_not_implemented(self, h5_path):

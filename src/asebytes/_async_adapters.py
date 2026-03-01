@@ -38,6 +38,17 @@ class AsyncBlobToObjectReadAdapter(AsyncReadBackend[str, Any]):
     def __init__(self, store: AsyncReadBackend[bytes, bytes]) -> None:
         self._store = store
 
+    @staticmethod
+    def list_groups(path: str, **kwargs: Any) -> list[str]:
+        """Adapters don't have direct path access; raise NotImplementedError.
+
+        Use the underlying backend's list_groups directly instead.
+        """
+        raise NotImplementedError(
+            "AsyncBlobToObjectReadAdapter wraps an existing backend instance. "
+            "Call list_groups on the underlying backend class instead."
+        )
+
     async def len(self) -> int:
         return await self._store.len()
 
@@ -157,6 +168,17 @@ class AsyncObjectToBlobReadAdapter(AsyncReadBackend[bytes, bytes]):
 
     def __init__(self, store: AsyncReadBackend[str, Any]) -> None:
         self._store = store
+
+    @staticmethod
+    def list_groups(path: str, **kwargs: Any) -> list[str]:
+        """Adapters don't have direct path access; raise NotImplementedError.
+
+        Use the underlying backend's list_groups directly instead.
+        """
+        raise NotImplementedError(
+            "AsyncObjectToBlobReadAdapter wraps an existing backend instance. "
+            "Call list_groups on the underlying backend class instead."
+        )
 
     async def len(self) -> int:
         return await self._store.len()

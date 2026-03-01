@@ -2,6 +2,7 @@
 
 Phase 1: await db[0] should return ase.Atoms, not dict.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -47,6 +48,10 @@ class MemoryBackend(ReadWriteBackend):
 
     def extend(self, data):
         self._rows.extend(data)
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
 
 
 def _make_row(i: int) -> dict[str, Any]:

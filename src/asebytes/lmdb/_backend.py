@@ -27,9 +27,9 @@ class LMDBObjectReadBackend(BlobToObjectReadAdapter):
     Parameters
     ----------
     file : str
-        Path to LMDB database file.
-    prefix : bytes
-        Key prefix for namespacing.
+        Path to LMDB database directory.
+    group : str | None
+        Group name for namespacing. If None, uses "default".
     map_size : int
         Maximum LMDB size in bytes (default 10GB).
     **lmdb_kwargs
@@ -39,11 +39,18 @@ class LMDBObjectReadBackend(BlobToObjectReadAdapter):
     def __init__(
         self,
         file: str,
-        prefix: bytes = b"",
+        group: str | None = None,
         map_size: int = 10737418240,
         **lmdb_kwargs,
     ):
-        super().__init__(LMDBBlobBackend(file, prefix, map_size, readonly=True, **lmdb_kwargs))
+        super().__init__(
+            LMDBBlobBackend(file, group, map_size, readonly=True, **lmdb_kwargs)
+        )
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        """Return available group names at the given path."""
+        return LMDBBlobBackend.list_groups(path, **kwargs)
 
     @property
     def env(self):
@@ -56,9 +63,7 @@ class LMDBObjectReadBackend(BlobToObjectReadAdapter):
 
     # -- LMDB-specific overrides -------------------------------------------
 
-    def get(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any] | None:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any] | None:
         self._check_index(index)
         return super().get(index, keys)
 
@@ -78,14 +83,13 @@ class LMDBObjectReadBackend(BlobToObjectReadAdapter):
         byte_keys = [k.encode() for k in keys] if keys is not None else None
         with self._store.env.begin() as txn:
             return [
-                None if (raw := self._store.get_with_txn(txn, i, byte_keys)) is None
+                None
+                if (raw := self._store.get_with_txn(txn, i, byte_keys)) is None
                 else _deserialize_row(raw)
                 for i in indices
             ]
 
-    def get_column(
-        self, key: str, indices: list[int] | None = None
-    ) -> list[Any]:
+    def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
         if indices is None:
             indices = list(range(len(self)))
         byte_key = key.encode()
@@ -109,9 +113,9 @@ class LMDBObjectBackend(BlobToObjectReadWriteAdapter):
     Parameters
     ----------
     file : str
-        Path to LMDB database file.
-    prefix : bytes
-        Key prefix for namespacing.
+        Path to LMDB database directory.
+    group : str | None
+        Group name for namespacing. If None, uses "default".
     map_size : int
         Maximum LMDB size in bytes (default 10GB).
     readonly : bool
@@ -123,12 +127,19 @@ class LMDBObjectBackend(BlobToObjectReadWriteAdapter):
     def __init__(
         self,
         file: str,
-        prefix: bytes = b"",
+        group: str | None = None,
         map_size: int = 10737418240,
         readonly: bool = False,
         **lmdb_kwargs,
     ):
-        super().__init__(LMDBBlobBackend(file, prefix, map_size, readonly, **lmdb_kwargs))
+        super().__init__(
+            LMDBBlobBackend(file, group, map_size, readonly, **lmdb_kwargs)
+        )
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        """Return available group names at the given path."""
+        return LMDBBlobBackend.list_groups(path, **kwargs)
 
     @property
     def env(self):
@@ -141,9 +152,7 @@ class LMDBObjectBackend(BlobToObjectReadWriteAdapter):
 
     # -- LMDB-specific overrides -------------------------------------------
 
-    def get(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any] | None:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any] | None:
         self._check_index(index)
         return super().get(index, keys)
 
@@ -163,14 +172,13 @@ class LMDBObjectBackend(BlobToObjectReadWriteAdapter):
         byte_keys = [k.encode() for k in keys] if keys is not None else None
         with self._store.env.begin() as txn:
             return [
-                None if (raw := self._store.get_with_txn(txn, i, byte_keys)) is None
+                None
+                if (raw := self._store.get_with_txn(txn, i, byte_keys)) is None
                 else _deserialize_row(raw)
                 for i in indices
             ]
 
-    def get_column(
-        self, key: str, indices: list[int] | None = None
-    ) -> list[Any]:
+    def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
         if indices is None:
             indices = list(range(len(self)))
         byte_key = key.encode()

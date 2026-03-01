@@ -9,9 +9,7 @@ from asebytes._backends import ReadBackend, ReadWriteBackend
 from asebytes._async_backends import AsyncReadBackend, AsyncReadWriteBackend
 from asebytes.mongodb import AsyncMongoObjectBackend, MongoObjectBackend
 
-MONGO_URI = os.environ.get(
-    "MONGO_URI", "mongodb://root:example@localhost:27017"
-)
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://root:example@localhost:27017")
 
 
 def _mongo_available():
@@ -31,12 +29,12 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture
 def backend():
-    """Create a backend with a unique collection, drop it after the test."""
-    col_name = f"test_{uuid.uuid4().hex[:8]}"
+    """Create a backend with a unique group, drop it after the test."""
+    group_name = f"test_{uuid.uuid4().hex[:8]}"
     b = MongoObjectBackend(
         uri=MONGO_URI,
         database="asebytes_test",
-        collection=col_name,
+        group=group_name,
     )
     yield b
     b.remove()
@@ -191,6 +189,116 @@ def test_from_uri():
         b.remove()
 
 
+# ======================================================================
+# Group parameter tests (sync)
+# ======================================================================
+
+
+def test_group_parameter_default():
+    """Test that group parameter defaults to 'default'."""
+    b = MongoObjectBackend(
+        uri=MONGO_URI,
+        database="asebytes_test",
+    )
+    # Should use "default" as the collection name
+    assert b.group == "default"
+    b.close()
+
+
+def test_group_parameter_custom():
+    """Test that custom group parameter creates separate collections."""
+    group_name = f"test_group_{uuid.uuid4().hex[:8]}"
+    b = MongoObjectBackend(
+        uri=MONGO_URI,
+        database="asebytes_test",
+        group=group_name,
+    )
+    try:
+        assert b.group == group_name
+        b.extend([{"x": 1}])
+        assert len(b) == 1
+    finally:
+        b.remove()
+
+
+def test_groups_are_isolated():
+    """Test that different groups are isolated from each other."""
+    base_name = f"test_iso_{uuid.uuid4().hex[:8]}"
+    group_a = f"{base_name}_a"
+    group_b = f"{base_name}_b"
+
+    b_a = MongoObjectBackend(
+        uri=MONGO_URI,
+        database="asebytes_test",
+        group=group_a,
+    )
+    b_b = MongoObjectBackend(
+        uri=MONGO_URI,
+        database="asebytes_test",
+        group=group_b,
+    )
+
+    try:
+        b_a.extend([{"value": "a1"}, {"value": "a2"}])
+        b_b.extend([{"value": "b1"}])
+
+        assert len(b_a) == 2
+        assert len(b_b) == 1
+        assert b_a.get(0)["value"] == "a1"
+        assert b_b.get(0)["value"] == "b1"
+    finally:
+        b_a.remove()
+        b_b.remove()
+
+
+def test_list_groups():
+    """Test list_groups returns available groups in a database."""
+    base_name = f"test_lg_{uuid.uuid4().hex[:8]}"
+    group_a = f"{base_name}_a"
+    group_b = f"{base_name}_b"
+
+    b_a = MongoObjectBackend(
+        uri=MONGO_URI,
+        database="asebytes_test",
+        group=group_a,
+    )
+    b_b = MongoObjectBackend(
+        uri=MONGO_URI,
+        database="asebytes_test",
+        group=group_b,
+    )
+
+    try:
+        # Write something so the collections exist
+        b_a.extend([{"x": 1}])
+        b_b.extend([{"x": 2}])
+
+        groups = MongoObjectBackend.list_groups(
+            path=MONGO_URI,
+            database="asebytes_test",
+        )
+        assert group_a in groups
+        assert group_b in groups
+    finally:
+        b_a.remove()
+        b_b.remove()
+
+
+def test_from_uri_with_group():
+    """Test from_uri with group parameter (URI contains only database)."""
+    group_name = f"test_uri_grp_{uuid.uuid4().hex[:8]}"
+    after_scheme = MONGO_URI.split("://", 1)[1]
+    # URI now only contains database, NOT collection
+    uri = f"mongodb://{after_scheme}/asebytes_test"
+    b = MongoObjectBackend.from_uri(uri, group=group_name)
+    try:
+        assert b.group == group_name
+        b.extend([{"x": 1}])
+        assert len(b) == 1
+    finally:
+        b.remove()
+
+
 def test_insert_at_beginning(backend, sample_row):
     rows = [{**sample_row, "energy": float(-i)} for i in range(3)]
     backend.extend(rows)
@@ -222,11 +330,11 @@ def test_delete_last(backend, sample_row):
 
 @pytest.fixture
 async def async_backend():
-    col_name = f"test_async_{uuid.uuid4().hex[:8]}"
+    group_name = f"test_async_{uuid.uuid4().hex[:8]}"
     b = AsyncMongoObjectBackend(
         uri=MONGO_URI,
         database="asebytes_test",
-        collection=col_name,
+        group=group_name,
     )
     yield b
     await b.remove()

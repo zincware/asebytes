@@ -31,9 +31,7 @@ class MemoryBackend(ReadWriteBackend):
     def __len__(self) -> int:
         return len(self._rows)
 
-    def get(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any] | None:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any] | None:
         if index < 0 or index >= len(self._rows):
             raise IndexError(index)
         row = self._rows[index]
@@ -60,6 +58,10 @@ class MemoryBackend(ReadWriteBackend):
     def extend(self, data: list[dict[str, Any] | None]) -> int:
         self._rows.extend(data)
         return len(self._rows)
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
 
 
 def _make_row(i: int) -> dict[str, Any]:
@@ -200,9 +202,11 @@ class TestWriteOps:
     @pytest.mark.anyio
     async def test_insert(self, db, backend):
         import ase
+
         atoms = ase.Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
         atoms.calc = ase.calculators.singlepoint.SinglePointCalculator(
-            atoms, energy=-55.0,
+            atoms,
+            energy=-55.0,
         )
         await db.insert(0, atoms)
         assert len(backend._rows) == 11

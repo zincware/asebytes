@@ -54,9 +54,11 @@ async def test_async_aseio_insert_converts_atoms_to_dict():
 
 def test_sync_get_column_handles_none_reserved_rows():
     """ReadBackend.get_column() should return None for reserved (None) rows."""
+    import uuid
     from asebytes.memory import MemoryObjectBackend
 
-    backend = MemoryObjectBackend()
+    # Use unique group for test isolation
+    backend = MemoryObjectBackend(group=f"test_{uuid.uuid4().hex[:8]}")
     backend.extend([{"x": 1}, None, {"x": 3}])
 
     # get_column should handle the None row gracefully, not crash
@@ -75,9 +77,7 @@ pymongo = pytest.importorskip("pymongo")
 
 from asebytes.mongodb import MongoObjectBackend, AsyncMongoObjectBackend
 
-MONGO_URI = os.environ.get(
-    "MONGO_URI", "mongodb://root:example@localhost:27017"
-)
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://root:example@localhost:27017")
 
 
 def _mongo_available():
@@ -99,7 +99,9 @@ def test_mongodb_extend_empty_returns_int_not_none():
     """MongoDB extend([]) on a fresh backend should return 0, not None."""
     col_name = f"test_{uuid.uuid4().hex[:8]}"
     backend = MongoObjectBackend(
-        uri=MONGO_URI, database="asebytes_test", collection=col_name,
+        uri=MONGO_URI,
+        database="asebytes_test",
+        group=col_name,
     )
     try:
         # extend([]) BEFORE any other operation — _count is still None
@@ -117,7 +119,9 @@ def test_mongodb_extend_empty_returns_current_count():
     """MongoDB extend([]) after data exists should return current count."""
     col_name = f"test_{uuid.uuid4().hex[:8]}"
     backend = MongoObjectBackend(
-        uri=MONGO_URI, database="asebytes_test", collection=col_name,
+        uri=MONGO_URI,
+        database="asebytes_test",
+        group=col_name,
     )
     try:
         backend.extend([{"a": 1}, {"a": 2}])
@@ -133,7 +137,9 @@ async def test_async_mongodb_extend_empty_returns_int_not_none():
     """Async MongoDB extend([]) on a fresh backend should return 0, not None."""
     col_name = f"test_{uuid.uuid4().hex[:8]}"
     backend = AsyncMongoObjectBackend(
-        uri=MONGO_URI, database="asebytes_test", collection=col_name,
+        uri=MONGO_URI,
+        database="asebytes_test",
+        group=col_name,
     )
     try:
         result = await backend.extend([])

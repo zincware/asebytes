@@ -9,6 +9,7 @@ from pymongo import MongoClient
 from .._backends import ReadWriteBackend
 
 META_ID = "__meta__"
+DEFAULT_GROUP = "default"
 
 
 def _bson_safe(value: Any) -> Any:
@@ -30,37 +31,52 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
     Each row is a separate document with ``_id`` = sort_key (int) and a
     ``data`` subdocument holding the field values.
 
+    Each group is stored in a separate MongoDB collection within the database.
+
     Parameters
     ----------
     uri : str
-        MongoDB connection URI.
+        MongoDB connection URI (e.g. ``mongodb://localhost:27017``).
+        Should NOT include database or collection in the path.
     database : str
         Database name.
-    collection : str
-        Collection name (one collection = one dataset).
+    group : str | None
+        Group name (maps to MongoDB collection). Defaults to ``"default"``.
     """
 
     def __init__(
         self,
         uri: str = "mongodb://localhost:27017",
         database: str = "asebytes",
-        collection: str = "default",
+        group: str | None = None,
     ):
         self._client = MongoClient(uri)
-        self._col = self._client[database][collection]
+        self.group = group if group is not None else DEFAULT_GROUP
+        self._col = self._client[database][self.group]
         self._sort_keys: list[int] | None = None
         self._count: int | None = None
 
     @classmethod
-    def from_uri(cls, uri: str, **kwargs) -> MongoObjectBackend:
-        """Construct from a URI like ``mongodb://host:port/database/collection``.
+    def from_uri(
+        cls, uri: str, group: str | None = None, **kwargs
+    ) -> MongoObjectBackend:
+        """Construct from a URI like ``mongodb://host:port/database``.
 
-        The path after the host is split into database and collection.
-        If only a database is given, collection defaults to ``"default"``.
+        The path after the host is the database name. Group (collection) is
+        passed separately via the ``group`` parameter.
+
+        Parameters
+        ----------
+        uri : str
+            MongoDB URI with database path (e.g. ``mongodb://host:port/mydb``).
+        group : str | None
+            Group name (maps to collection). Defaults to ``"default"``.
+        **kwargs
+            Additional arguments passed to the constructor.
         """
         if "://" not in uri:
             raise ValueError(f"Invalid URI: {uri!r}")
-        # Extract path from URI: mongodb://host:port/database/collection
+        # Extract path from URI: mongodb://host:port/database
         _, after_scheme = uri.split("://", 1)
         # Split host from path
         if "/" in after_scheme:
@@ -69,23 +85,44 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
             host_part, path_part = after_scheme, ""
 
         parts = [p for p in path_part.split("/") if p]
-        if len(parts) >= 2:
+        if len(parts) >= 1:
             database = parts[0]
-            collection = parts[1]
-            # Rebuild connection URI without database/collection path
-            connection_uri = uri.split("://")[0] + "://" + host_part
-        elif len(parts) == 1:
-            database = parts[0]
-            collection = "default"
+            # Rebuild connection URI without database path
             connection_uri = uri.split("://")[0] + "://" + host_part
         else:
             database = "asebytes"
-            collection = "default"
             connection_uri = uri
 
-        return cls(
-            uri=connection_uri, database=database, collection=collection, **kwargs
-        )
+        return cls(uri=connection_uri, database=database, group=group, **kwargs)
+
+    @staticmethod
+    def list_groups(
+        path: str = "mongodb://localhost:27017", database: str = "asebytes", **kwargs
+    ) -> list[str]:
+        """Return available group names (collections) in the given database.
+
+        Parameters
+        ----------
+        path : str
+            MongoDB connection URI (e.g. ``mongodb://localhost:27017``).
+        database : str
+            Database name to list collections from.
+        **kwargs
+            Unused, for API compatibility.
+
+        Returns
+        -------
+        list[str]
+            List of group names (collection names) in the database.
+        """
+        client = MongoClient(path)
+        try:
+            db = client[database]
+            # Get all collection names, excluding system collections
+            collections = db.list_collection_names()
+            return sorted(collections)
+        finally:
+            client.close()
 
     # ------------------------------------------------------------------
     # Cache management

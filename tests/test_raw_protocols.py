@@ -43,6 +43,10 @@ class MemoryRawReadable(ReadBackend):
             return {k: row[k] for k in keys if k in row}
         return dict(row)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
+
 
 class MemoryRawWritable(MemoryRawReadable, ReadWriteBackend):
     """In-memory implementation of the read-write bytes-level protocol."""
@@ -91,10 +95,12 @@ class TestRawReadable:
         assert len(backend) == 0
 
     def test_get_keys(self):
-        backend = MemoryRawReadable([
-            {b"a": b"1", b"b": b"2"},
-            {b"b": b"3", b"c": b"4"},
-        ])
+        backend = MemoryRawReadable(
+            [
+                {b"a": b"1", b"b": b"2"},
+                {b"b": b"3", b"c": b"4"},
+            ]
+        )
         assert backend.keys(0) == [b"a", b"b"]
 
     def test_get_keys_skips_none_placeholders(self):
@@ -209,10 +215,15 @@ class TestRawWritable:
 
     def test_delete_many_default(self):
         """Default delete_many deletes contiguous range [start, stop)."""
-        backend = MemoryRawWritable([
-            {b"a": b"0"}, {b"a": b"1"}, {b"a": b"2"},
-            {b"a": b"3"}, {b"a": b"4"},
-        ])
+        backend = MemoryRawWritable(
+            [
+                {b"a": b"0"},
+                {b"a": b"1"},
+                {b"a": b"2"},
+                {b"a": b"3"},
+                {b"a": b"4"},
+            ]
+        )
         backend.delete_many(1, 4)  # delete indices 1, 2, 3
         assert len(backend) == 2
         assert backend.get(0) == {b"a": b"0"}
@@ -228,21 +239,25 @@ class TestRawWritable:
 
     def test_drop_keys_default(self):
         """Default drop_keys removes specific keys from all rows."""
-        backend = MemoryRawWritable([
-            {b"a": b"1", b"b": b"2", b"c": b"3"},
-            {b"a": b"4", b"b": b"5", b"c": b"6"},
-        ])
+        backend = MemoryRawWritable(
+            [
+                {b"a": b"1", b"b": b"2", b"c": b"3"},
+                {b"a": b"4", b"b": b"5", b"c": b"6"},
+            ]
+        )
         backend.drop_keys([b"b", b"c"])
         assert backend.get(0) == {b"a": b"1"}
         assert backend.get(1) == {b"a": b"4"}
 
     def test_drop_keys_with_indices(self):
         """drop_keys with indices only affects specified rows."""
-        backend = MemoryRawWritable([
-            {b"a": b"1", b"b": b"2"},
-            {b"a": b"3", b"b": b"4"},
-            {b"a": b"5", b"b": b"6"},
-        ])
+        backend = MemoryRawWritable(
+            [
+                {b"a": b"1", b"b": b"2"},
+                {b"a": b"3", b"b": b"4"},
+                {b"a": b"5", b"b": b"6"},
+            ]
+        )
         backend.drop_keys([b"b"], indices=[0, 2])
         assert backend.get(0) == {b"a": b"1"}
         assert backend.get(1) == {b"a": b"3", b"b": b"4"}  # untouched
