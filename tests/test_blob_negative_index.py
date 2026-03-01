@@ -1,4 +1,5 @@
 """Test BlobIO negative index handling."""
+
 from __future__ import annotations
 
 import pytest
@@ -9,8 +10,10 @@ from asebytes._blob_io import BlobIO
 class MemoryRW(ReadWriteBackend):
     def __init__(self, data=None):
         self._data = data or []
+
     def __len__(self):
         return len(self._data)
+
     def get(self, index, keys=None):
         if index < 0 or index >= len(self._data):
             raise IndexError(index)
@@ -20,6 +23,7 @@ class MemoryRW(ReadWriteBackend):
         if keys is not None:
             return {k: row[k] for k in keys if k in row}
         return dict(row)
+
     def set(self, index, value):
         if index < len(self._data):
             self._data[index] = value
@@ -27,10 +31,14 @@ class MemoryRW(ReadWriteBackend):
             self._data.append(value)
         else:
             raise IndexError(index)
+
     def delete(self, index):
         del self._data[index]
+
     def extend(self, values):
         self._data.extend(values)
+        return len(self._data)
+
     def insert(self, index, value):
         self._data.insert(index, value)
 

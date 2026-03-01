@@ -11,7 +11,15 @@ __await__ semantics (single-element only):
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, AsyncIterator, Generic, Protocol, TypeVar, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncIterator,
+    Generic,
+    Protocol,
+    TypeVar,
+    overload,
+)
 
 if TYPE_CHECKING:
     import ase
@@ -25,7 +33,9 @@ class AsyncViewParent(Protocol[R]):
     def __len__(self) -> int: ...
     async def len(self) -> int: ...
     async def _read_row(self, index: int, keys: list[str] | None = None) -> Any: ...
-    async def _read_rows(self, indices: list[int], keys: list[str] | None = None) -> list[Any]: ...
+    async def _read_rows(
+        self, indices: list[int], keys: list[str] | None = None
+    ) -> list[Any]: ...
     async def _read_column(self, key: str, indices: list[int]) -> list[Any]: ...
     async def _write_row(self, index: int, data: Any) -> None: ...
     async def _delete_row(self, index: int) -> None: ...
@@ -156,7 +166,9 @@ class AsyncRowView(Generic[R]):
     ):
         self._parent = parent
         self._indices = indices
-        self._contiguous = contiguous if contiguous is not None else _is_contiguous(indices)
+        self._contiguous = (
+            contiguous if contiguous is not None else _is_contiguous(indices)
+        )
         self._column_view_cls = column_view_cls or AsyncColumnView
 
     def __len__(self) -> int:
@@ -202,15 +214,24 @@ class AsyncRowView(Generic[R]):
             return AsyncSingleRowView(self._parent, abs_idx)
         if isinstance(key, slice):
             new_indices = _sub_select(self._indices, key)
-            return AsyncRowView(self._parent, new_indices, column_view_cls=self._column_view_cls)
+            return AsyncRowView(
+                self._parent, new_indices, column_view_cls=self._column_view_cls
+            )
         if isinstance(key, (str, bytes)):
             return self._column_view_cls(self._parent, key, self._indices)
         if isinstance(key, list):
             if not key:
-                return AsyncRowView(self._parent, [], column_view_cls=self._column_view_cls)
+                return AsyncRowView(
+                    self._parent, [], column_view_cls=self._column_view_cls
+                )
             if isinstance(key[0], int):
                 new_indices = _sub_select(self._indices, key)
-                return AsyncRowView(self._parent, new_indices, contiguous=False, column_view_cls=self._column_view_cls)
+                return AsyncRowView(
+                    self._parent,
+                    new_indices,
+                    contiguous=False,
+                    column_view_cls=self._column_view_cls,
+                )
             if isinstance(key[0], (str, bytes)):
                 return self._column_view_cls(self._parent, key, self._indices)
         raise TypeError(f"Unsupported key type: {type(key)}")
@@ -235,7 +256,9 @@ class AsyncRowView(Generic[R]):
 
     async def update(self, data: dict) -> None:
         if self._indices and _is_contiguous(self._indices):
-            await self._parent._update_many(self._indices[0], [data] * len(self._indices))
+            await self._parent._update_many(
+                self._indices[0], [data] * len(self._indices)
+            )
         else:
             for idx in self._indices:
                 await self._parent._update_row(idx, data)
@@ -353,12 +376,16 @@ class AsyncColumnView:
         if self._single:
             return await self._parent._read_column(self._keys[0], indices)
         rows = await self._parent._read_rows(indices, keys=self._keys)
-        return [[row.get(k) for k in self._keys] for row in rows]
+        return [
+            None if row is None else [row.get(k) for k in self._keys] for row in rows
+        ]
 
     async def to_dict(self) -> dict[str, list[Any]]:
         indices = await self._aresolved_indices()
         if self._single:
-            return {self._keys[0]: await self._parent._read_column(self._keys[0], indices)}
+            return {
+                self._keys[0]: await self._parent._read_column(self._keys[0], indices)
+            }
         rows = await self._parent._read_rows(indices, keys=self._keys)
         result: dict[str, list[Any]] = {k: [] for k in self._keys}
         for row in rows:
@@ -375,7 +402,7 @@ class AsyncColumnView:
         else:
             rows = await self._parent._read_rows(indices, keys=self._keys)
             for row in rows:
-                yield [row.get(k) for k in self._keys]
+                yield None if row is None else [row.get(k) for k in self._keys]
 
     @overload
     def __getitem__(self, key: int) -> AsyncSingleColumnView: ...
@@ -397,7 +424,10 @@ class AsyncColumnView:
             # to defer or compute.
             if isinstance(key, int):
                 return AsyncSingleColumnView(
-                    self._parent, self._keys, self._single, key,
+                    self._parent,
+                    self._keys,
+                    self._single,
+                    key,
                 )
             if isinstance(key, slice):
                 # Defer: create a column view with a deferred slice
@@ -419,7 +449,10 @@ class AsyncColumnView:
         if isinstance(key, int):
             abs_idx = _sub_select(indices, key)
             return AsyncSingleColumnView(
-                self._parent, self._keys, self._single, abs_idx,
+                self._parent,
+                self._keys,
+                self._single,
+                abs_idx,
             )
         if isinstance(key, slice):
             new_indices = _sub_select(indices, key)
@@ -447,14 +480,12 @@ class AsyncColumnView:
         """
         if not isinstance(data, list):
             raise TypeError(
-                "Column-filtered writes must be lists. "
-                f"Got {type(data).__name__}."
+                f"Column-filtered writes must be lists. Got {type(data).__name__}."
             )
         indices = await self._aresolved_indices()
         if len(data) != len(indices):
             raise ValueError(
-                f"Length mismatch: got {len(data)} values for "
-                f"{len(indices)} rows."
+                f"Length mismatch: got {len(data)} values for {len(indices)} rows."
             )
         if self._single:
             if _is_contiguous(indices):
@@ -547,7 +578,7 @@ class AsyncASEColumnView(AsyncColumnView):
 
         indices = await self._aresolved_indices()
         rows = await self._parent._read_rows(indices, keys=self._keys)
-        return [dict_to_atoms(row) for row in rows]
+        return [None if row is None else dict_to_atoms(row) for row in rows]
 
     async def __aiter__(self) -> AsyncIterator[ase.Atoms]:
         from ._convert import dict_to_atoms
@@ -555,7 +586,7 @@ class AsyncASEColumnView(AsyncColumnView):
         indices = await self._aresolved_indices()
         rows = await self._parent._read_rows(indices, keys=self._keys)
         for row in rows:
-            yield dict_to_atoms(row)
+            yield None if row is None else dict_to_atoms(row)
 
     def __getitem__(
         self, key: int | slice | str | list[int]

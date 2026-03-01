@@ -43,7 +43,9 @@ class LMDBObjectReadBackend(BlobToObjectReadAdapter):
         map_size: int = 10737418240,
         **lmdb_kwargs,
     ):
-        super().__init__(LMDBBlobBackend(file, prefix, map_size, readonly=True, **lmdb_kwargs))
+        super().__init__(
+            LMDBBlobBackend(file, prefix, map_size, readonly=True, **lmdb_kwargs)
+        )
 
     @property
     def env(self):
@@ -56,9 +58,7 @@ class LMDBObjectReadBackend(BlobToObjectReadAdapter):
 
     # -- LMDB-specific overrides -------------------------------------------
 
-    def get(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any] | None:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any] | None:
         self._check_index(index)
         return super().get(index, keys)
 
@@ -78,25 +78,25 @@ class LMDBObjectReadBackend(BlobToObjectReadAdapter):
         byte_keys = [k.encode() for k in keys] if keys is not None else None
         with self._store.env.begin() as txn:
             return [
-                None if (raw := self._store.get_with_txn(txn, i, byte_keys)) is None
+                None
+                if (raw := self._store.get_with_txn(txn, i, byte_keys)) is None
                 else _deserialize_row(raw)
                 for i in indices
             ]
 
-    def get_column(
-        self, key: str, indices: list[int] | None = None
-    ) -> list[Any]:
+    def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
         if indices is None:
             indices = list(range(len(self)))
         byte_key = key.encode()
+        result = []
         with self._store.env.begin() as txn:
-            return [
-                msgpack.unpackb(
-                    self._store.get_with_txn(txn, i, [byte_key])[byte_key],
-                    object_hook=m.decode,
-                )
-                for i in indices
-            ]
+            for i in indices:
+                raw = self._store.get_with_txn(txn, i, None)  # Get all keys
+                if raw is None or byte_key not in raw:
+                    result.append(None)
+                else:
+                    result.append(msgpack.unpackb(raw[byte_key], object_hook=m.decode))
+        return result
 
 
 class LMDBObjectBackend(BlobToObjectReadWriteAdapter):
@@ -128,7 +128,9 @@ class LMDBObjectBackend(BlobToObjectReadWriteAdapter):
         readonly: bool = False,
         **lmdb_kwargs,
     ):
-        super().__init__(LMDBBlobBackend(file, prefix, map_size, readonly, **lmdb_kwargs))
+        super().__init__(
+            LMDBBlobBackend(file, prefix, map_size, readonly, **lmdb_kwargs)
+        )
 
     @property
     def env(self):
@@ -141,9 +143,7 @@ class LMDBObjectBackend(BlobToObjectReadWriteAdapter):
 
     # -- LMDB-specific overrides -------------------------------------------
 
-    def get(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any] | None:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any] | None:
         self._check_index(index)
         return super().get(index, keys)
 
@@ -163,25 +163,25 @@ class LMDBObjectBackend(BlobToObjectReadWriteAdapter):
         byte_keys = [k.encode() for k in keys] if keys is not None else None
         with self._store.env.begin() as txn:
             return [
-                None if (raw := self._store.get_with_txn(txn, i, byte_keys)) is None
+                None
+                if (raw := self._store.get_with_txn(txn, i, byte_keys)) is None
                 else _deserialize_row(raw)
                 for i in indices
             ]
 
-    def get_column(
-        self, key: str, indices: list[int] | None = None
-    ) -> list[Any]:
+    def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
         if indices is None:
             indices = list(range(len(self)))
         byte_key = key.encode()
+        result = []
         with self._store.env.begin() as txn:
-            return [
-                msgpack.unpackb(
-                    self._store.get_with_txn(txn, i, [byte_key])[byte_key],
-                    object_hook=m.decode,
-                )
-                for i in indices
-            ]
+            for i in indices:
+                raw = self._store.get_with_txn(txn, i, None)  # Get all keys
+                if raw is None or byte_key not in raw:
+                    result.append(None)
+                else:
+                    result.append(msgpack.unpackb(raw[byte_key], object_hook=m.decode))
+        return result
 
     # -- Optimised partial update ------------------------------------------
 

@@ -147,7 +147,11 @@ class AsyncObjectIO:
     def __getitem__(
         self,
         index: int | slice | str | list[int] | list[str],
-    ) -> AsyncSingleRowView[dict[str, Any] | None] | AsyncRowView[dict[str, Any] | None] | AsyncColumnView:
+    ) -> (
+        AsyncSingleRowView[dict[str, Any] | None]
+        | AsyncRowView[dict[str, Any] | None]
+        | AsyncColumnView
+    ):
         if isinstance(index, int):
             return AsyncSingleRowView(self, index)
         if isinstance(index, slice):
@@ -221,6 +225,11 @@ class AsyncObjectIO:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        # Try aclose() first (async close), then close() (sync close)
+        if hasattr(self._backend, "aclose"):
+            await self._backend.aclose()
+        elif hasattr(self._backend, "close"):
+            self._backend.close()
         return False
 
     def __repr__(self) -> str:

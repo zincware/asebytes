@@ -205,7 +205,6 @@ class RedisBlobBackend(ReadWriteBackend[bytes, bytes]):
         results: list[dict[bytes, bytes] | None] = []
         if keys is not None:
             pos = 0
-            step = 1 + len(keys)
             for _ in sks:
                 exists = raw[pos]
                 pos += 1

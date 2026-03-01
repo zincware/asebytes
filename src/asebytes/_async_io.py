@@ -151,21 +151,29 @@ class AsyncASEIO:
     def __getitem__(
         self,
         index: int | slice | str | list[int] | list[str],
-    ) -> AsyncSingleRowView[ase.Atoms | None] | AsyncRowView[ase.Atoms | None] | AsyncColumnView:
+    ) -> (
+        AsyncSingleRowView[ase.Atoms | None]
+        | AsyncRowView[ase.Atoms | None]
+        | AsyncColumnView
+    ):
         if isinstance(index, int):
             # For negative indices we need len, but len is async.
             # Store the raw index; _read_row will handle IndexError at
             # the backend level.
             return AsyncSingleRowView(self, index)
         if isinstance(index, slice):
-            return _ASEIODeferredSliceRowView(self, index, column_view_cls=AsyncASEColumnView)
+            return _ASEIODeferredSliceRowView(
+                self, index, column_view_cls=AsyncASEColumnView
+            )
         if isinstance(index, str):
             return AsyncASEColumnView(self, index)
         if isinstance(index, list):
             if not index:
                 return AsyncRowView(self, [])
             if isinstance(index[0], int):
-                return AsyncRowView(self, index, contiguous=False, column_view_cls=AsyncASEColumnView)
+                return AsyncRowView(
+                    self, index, contiguous=False, column_view_cls=AsyncASEColumnView
+                )
             if isinstance(index[0], str):
                 return AsyncASEColumnView(self, index)
         raise TypeError(f"Unsupported index type: {type(index)}")
@@ -190,9 +198,7 @@ class AsyncASEIO:
 
             await self._backend.insert(index, atoms_to_dict(value))
 
-    async def get(
-        self, index: int, keys: list[str] | None = None
-    ) -> ase.Atoms | None:
+    async def get(self, index: int, keys: list[str] | None = None) -> ase.Atoms | None:
         """Read a single row, optionally filtering to specific keys.
 
         Returns an ase.Atoms object (applies dict_to_atoms conversion).
@@ -287,6 +293,11 @@ class AsyncASEIO:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        # Try aclose() first (async close), then close() (sync close)
+        if hasattr(self._backend, "aclose"):
+            await self._backend.aclose()
+        elif hasattr(self._backend, "close"):
+            self._backend.close()
         return False
 
     def __repr__(self) -> str:
@@ -356,7 +367,7 @@ class _DeferredSubColumnFromSlice:
             self._parent._parent_row_view._indices,
         )
         sub = view[self._key]
-        if hasattr(sub, 'to_list'):
+        if hasattr(sub, "to_list"):
             return await sub.to_list()
         return sub
 
@@ -369,7 +380,7 @@ class _DeferredSubColumnFromSlice:
             self._parent._parent_row_view._indices,
         )
         sub = view[self._key]
-        if hasattr(sub, '__aiter__'):
+        if hasattr(sub, "__aiter__"):
             async for item in sub:
                 yield item
 

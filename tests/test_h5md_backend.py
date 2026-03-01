@@ -131,7 +131,9 @@ class TestBasicRoundTrip:
         assert len(io2) == 1
         row = io2.get(0)
         recovered = dict_to_atoms(row)
-        npt.assert_array_equal(recovered.get_atomic_numbers(), atoms.get_atomic_numbers())
+        npt.assert_array_equal(
+            recovered.get_atomic_numbers(), atoms.get_atomic_numbers()
+        )
         npt.assert_allclose(recovered.get_positions(), atoms.get_positions())
         io2.close()
 
@@ -291,9 +293,7 @@ class TestPBCAndCell:
         for i, atoms in enumerate(pbc_frames):
             row = io2.get(i)
             recovered = dict_to_atoms(row)
-            npt.assert_allclose(
-                recovered.get_cell().array, atoms.get_cell().array
-            )
+            npt.assert_allclose(recovered.get_cell().array, atoms.get_cell().array)
             npt.assert_array_equal(recovered.get_pbc(), atoms.get_pbc())
         io2.close()
 
@@ -307,9 +307,7 @@ class TestPBCAndCell:
             row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_array_equal(recovered.get_pbc(), atoms.get_pbc())
-            npt.assert_allclose(
-                recovered.get_cell().array, atoms.get_cell().array
-            )
+            npt.assert_allclose(recovered.get_cell().array, atoms.get_cell().array)
         io2.close()
 
 
@@ -341,9 +339,7 @@ class TestInfoAndArrays:
                 atoms.arrays["mlip_forces"],
             )
             # Velocities
-            npt.assert_allclose(
-                recovered.get_velocities(), atoms.get_velocities()
-            )
+            npt.assert_allclose(recovered.get_velocities(), atoms.get_velocities())
         io2.close()
 
 
@@ -1040,9 +1036,7 @@ class TestErrorHandling:
         io2 = H5MDBackend(h5_path, readonly=True)
         row = io2.get(-1)
         recovered = dict_to_atoms(row)
-        npt.assert_allclose(
-            recovered.get_positions(), water_frames[-1].get_positions()
-        )
+        npt.assert_allclose(recovered.get_positions(), water_frames[-1].get_positions())
         io2.close()
 
     def test_insert_not_implemented(self, h5_path):
@@ -1071,3 +1065,38 @@ class TestErrorHandling:
             npt.assert_allclose(
                 recovered.get_positions(), water_frames[0].get_positions()
             )
+
+
+class TestShortColumns:
+    """Test handling of columns shorter than requested indices."""
+
+    def test_get_many_with_short_columns(self, h5_path, water_frames):
+        """get_many() should skip columns shorter than requested indices.
+
+        This matches the behavior of get() which skips short columns.
+        """
+        io1 = H5MDBackend(h5_path)
+        # Write 3 frames first
+        io1.extend([atoms_to_dict(a) for a in water_frames])
+        io1.close()
+
+        # Manually add a short column (only 2 entries vs 3 frames)
+        with h5py.File(h5_path, "r+") as f:
+            grp = f.create_group("observables/atoms/short_col")
+            grp.create_dataset("value", data=[1.0, 2.0])  # Only 2 values
+            grp.create_dataset("step", data=1)
+            grp.create_dataset("time", data=1.0)
+            grp.attrs["asebytes_origin"] = "calc"
+
+        # Now get_many should not crash when accessing index 2
+        io2 = H5MDBackend(h5_path, readonly=True)
+        # Reading indices 0, 1, 2 - but short_col only has indices 0, 1
+        rows = io2.get_many([0, 1, 2])
+        assert len(rows) == 3
+        # All rows should have positions
+        for row in rows:
+            assert "arrays.positions" in row
+        # The short column should only appear in rows where it exists
+        # (indices 0 and 1)
+        # Note: after the fix, rows[2] should NOT have calc.short_col
+        io2.close()

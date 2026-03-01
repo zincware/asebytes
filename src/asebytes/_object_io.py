@@ -53,9 +53,7 @@ class ObjectIO(MutableSequence):
 
     # --- Internal methods used by views ---
 
-    def _read_row(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any]:
+    def _read_row(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         return self._backend.get(index, keys)
 
     def _read_rows(
@@ -182,9 +180,7 @@ class ObjectIO(MutableSequence):
             raise TypeError("Backend is read-only")
         return self._backend.extend(list(values))
 
-    def get(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any] | None:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any] | None:
         """Read a single row, optionally filtering to specific keys."""
         return self._backend.get(index, keys)
 
@@ -229,6 +225,8 @@ class ObjectIO(MutableSequence):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if hasattr(self._backend, "close"):
+            self._backend.close()
         return False
 
     def __repr__(self) -> str:

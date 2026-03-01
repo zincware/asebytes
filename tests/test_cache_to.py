@@ -67,8 +67,9 @@ class InMemoryWritable(ReadWriteBackend):
     def delete(self, index: int) -> None:
         del self._rows[index]
 
-    def extend(self, data: list[dict[str, Any]]) -> None:
+    def extend(self, data: list[dict[str, Any]]) -> int:
         self._rows.extend(data)
+        return len(self._rows)
 
 
 # ---------------------------------------------------------------------------

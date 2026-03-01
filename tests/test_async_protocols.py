@@ -64,8 +64,9 @@ class MemoryAsyncRawWritable(MemoryAsyncRawReadable, AsyncReadWriteBackend):
     async def delete(self, index: int) -> None:
         del self._data[index]
 
-    async def extend(self, data: list[dict[bytes, bytes] | None]) -> None:
+    async def extend(self, data: list[dict[bytes, bytes] | None]) -> int:
         self._data.extend(data)
+        return len(self._data)
 
 
 # ── Tests: cannot instantiate abstract classes ──────────────────────────
@@ -176,10 +177,15 @@ class TestAsyncRawWritable:
 
     @pytest.mark.anyio
     async def test_delete_many_default(self):
-        backend = MemoryAsyncRawWritable([
-            {b"a": b"0"}, {b"a": b"1"}, {b"a": b"2"},
-            {b"a": b"3"}, {b"a": b"4"},
-        ])
+        backend = MemoryAsyncRawWritable(
+            [
+                {b"a": b"0"},
+                {b"a": b"1"},
+                {b"a": b"2"},
+                {b"a": b"3"},
+                {b"a": b"4"},
+            ]
+        )
         await backend.delete_many(1, 4)
         assert await backend.len() == 2
         assert await backend.get(0) == {b"a": b"0"}
@@ -195,21 +201,25 @@ class TestAsyncRawWritable:
 
     @pytest.mark.anyio
     async def test_drop_keys_default(self):
-        backend = MemoryAsyncRawWritable([
-            {b"a": b"1", b"b": b"2"},
-            {b"a": b"3", b"b": b"4"},
-        ])
+        backend = MemoryAsyncRawWritable(
+            [
+                {b"a": b"1", b"b": b"2"},
+                {b"a": b"3", b"b": b"4"},
+            ]
+        )
         await backend.drop_keys([b"b"])
         assert await backend.get(0) == {b"a": b"1"}
         assert await backend.get(1) == {b"a": b"3"}
 
     @pytest.mark.anyio
     async def test_drop_keys_with_indices(self):
-        backend = MemoryAsyncRawWritable([
-            {b"a": b"1", b"b": b"2"},
-            {b"a": b"3", b"b": b"4"},
-            {b"a": b"5", b"b": b"6"},
-        ])
+        backend = MemoryAsyncRawWritable(
+            [
+                {b"a": b"1", b"b": b"2"},
+                {b"a": b"3", b"b": b"4"},
+                {b"a": b"5", b"b": b"6"},
+            ]
+        )
         await backend.drop_keys([b"b"], indices=[0, 2])
         assert await backend.get(0) == {b"a": b"1"}
         assert await backend.get(1) == {b"a": b"3", b"b": b"4"}
@@ -282,6 +292,7 @@ class TestSyncToAsyncAdapter:
 
             def extend(self, data):
                 self._data.extend(data)
+                return len(self._data)
 
         return MemorySyncRaw(data)
 
@@ -365,7 +376,7 @@ class TestSyncToAsyncAdapter:
 # ── Tests: SyncToAsyncAdapter (str-level) ───────────────────────────────
 
 
-class TestSyncToAsyncAdapter:
+class TestSyncToAsyncAdapterStrKeys:
     """Test that a sync ReadWriteBackend works correctly when wrapped."""
 
     def _make_sync_backend(self, data=None):
@@ -408,6 +419,7 @@ class TestSyncToAsyncAdapter:
 
             def extend(self, data):
                 self._data.extend(data)
+                return len(self._data)
 
         return MemorySyncStr(data)
 

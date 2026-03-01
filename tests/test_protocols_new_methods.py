@@ -22,9 +22,7 @@ class MemoryWritable(ReadWriteBackend):
     def __len__(self) -> int:
         return len(self._data)
 
-    def get(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any] | None:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any] | None:
         if index < 0 or index >= len(self._data):
             raise IndexError(index)
         row = self._data[index]
@@ -48,17 +46,24 @@ class MemoryWritable(ReadWriteBackend):
     def delete(self, index: int) -> None:
         del self._data[index]
 
-    def extend(self, data: list[dict[str, Any] | None]) -> None:
+    def extend(self, data: list[dict[str, Any] | None]) -> int:
         self._data.extend(data)
+        return len(self._data)
 
 
 class TestReadWriteBackendNewMethods:
     """Test the new default methods added to ReadWriteBackend."""
 
     def test_delete_many(self):
-        backend = MemoryWritable([
-            {"a": 0}, {"a": 1}, {"a": 2}, {"a": 3}, {"a": 4},
-        ])
+        backend = MemoryWritable(
+            [
+                {"a": 0},
+                {"a": 1},
+                {"a": 2},
+                {"a": 3},
+                {"a": 4},
+            ]
+        )
         backend.delete_many(1, 4)  # delete indices 1, 2, 3
         assert len(backend) == 2
         assert backend.get(0) == {"a": 0}
@@ -84,20 +89,24 @@ class TestReadWriteBackendNewMethods:
         assert backend.get(2) == {"a": 2}
 
     def test_drop_keys_all_rows(self):
-        backend = MemoryWritable([
-            {"a": 1, "b": 2, "c": 3},
-            {"a": 4, "b": 5, "c": 6},
-        ])
+        backend = MemoryWritable(
+            [
+                {"a": 1, "b": 2, "c": 3},
+                {"a": 4, "b": 5, "c": 6},
+            ]
+        )
         backend.drop_keys(["b", "c"])
         assert backend.get(0) == {"a": 1}
         assert backend.get(1) == {"a": 4}
 
     def test_drop_keys_specific_indices(self):
-        backend = MemoryWritable([
-            {"a": 1, "b": 2},
-            {"a": 3, "b": 4},
-            {"a": 5, "b": 6},
-        ])
+        backend = MemoryWritable(
+            [
+                {"a": 1, "b": 2},
+                {"a": 3, "b": 4},
+                {"a": 5, "b": 6},
+            ]
+        )
         backend.drop_keys(["b"], indices=[0, 2])
         assert backend.get(0) == {"a": 1}
         assert backend.get(1) == {"a": 3, "b": 4}

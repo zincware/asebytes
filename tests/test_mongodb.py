@@ -9,9 +9,7 @@ from asebytes._backends import ReadBackend, ReadWriteBackend
 from asebytes._async_backends import AsyncReadBackend, AsyncReadWriteBackend
 from asebytes.mongodb import AsyncMongoObjectBackend, MongoObjectBackend
 
-MONGO_URI = os.environ.get(
-    "MONGO_URI", "mongodb://root:example@localhost:27017"
-)
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://root:example@localhost:27017")
 
 
 def _mongo_available():
@@ -394,3 +392,82 @@ class TestAsyncMongoBackend:
             assert await b.len() == 1
         finally:
             await b.remove()
+
+    @pytest.mark.anyio
+    async def test_concurrent_extend_no_duplicate_sort_keys(self, sample_row):
+        """Test that concurrent extend calls don't produce duplicate sort keys.
+
+        This tests the race condition fix: atomic sort-key allocation using
+        find_one_and_update with $inc instead of separate read-then-write.
+        """
+        import asyncio
+
+        col_name = f"test_concurrent_{uuid.uuid4().hex[:8]}"
+        backend = AsyncMongoObjectBackend(
+            uri=MONGO_URI,
+            database="asebytes_test",
+            collection=col_name,
+        )
+        try:
+            # Run 10 concurrent extend calls, each adding 5 rows
+            tasks = [
+                backend.extend([{**sample_row, "batch": i, "idx": j} for j in range(5)])
+                for i in range(10)
+            ]
+            await asyncio.gather(*tasks)
+
+            # Should have 50 total rows
+            total_len = await backend.len()
+            assert total_len == 50, f"Expected 50 rows, got {total_len}"
+
+            # Verify all sort keys are unique by checking we can fetch all 50 rows
+            # and that the underlying _sort_keys list has no duplicates
+            await backend._ensure_cache()
+            sort_keys = backend._sort_keys
+            assert sort_keys is not None, (
+                "sort_keys should be populated after _ensure_cache"
+            )
+            assert len(sort_keys) == 50, f"Expected 50 sort keys, got {len(sort_keys)}"
+            assert len(set(sort_keys)) == 50, (
+                f"Duplicate sort keys found! Unique: {len(set(sort_keys))}, Total: {len(sort_keys)}"
+            )
+        finally:
+            await backend.remove()
+
+    @pytest.mark.anyio
+    async def test_concurrent_insert_no_duplicate_sort_keys(self, sample_row):
+        """Test that concurrent insert calls don't produce duplicate sort keys."""
+        import asyncio
+
+        col_name = f"test_concurrent_insert_{uuid.uuid4().hex[:8]}"
+        backend = AsyncMongoObjectBackend(
+            uri=MONGO_URI,
+            database="asebytes_test",
+            collection=col_name,
+        )
+        try:
+            # Seed with one row first
+            await backend.extend([sample_row])
+
+            # Run 10 concurrent insert calls at index 0
+            tasks = [
+                backend.insert(0, {**sample_row, "insert_id": i}) for i in range(10)
+            ]
+            await asyncio.gather(*tasks)
+
+            # Should have 11 total rows
+            total_len = await backend.len()
+            assert total_len == 11, f"Expected 11 rows, got {total_len}"
+
+            # Verify all sort keys are unique
+            await backend._ensure_cache()
+            sort_keys = backend._sort_keys
+            assert sort_keys is not None, (
+                "sort_keys should be populated after _ensure_cache"
+            )
+            assert len(sort_keys) == 11, f"Expected 11 sort keys, got {len(sort_keys)}"
+            assert len(set(sort_keys)) == 11, (
+                f"Duplicate sort keys found! Unique: {len(set(sort_keys))}, Total: {len(sort_keys)}"
+            )
+        finally:
+            await backend.remove()

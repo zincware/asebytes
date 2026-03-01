@@ -1,6 +1,5 @@
 import struct
 from collections.abc import Iterator
-from typing import Any
 
 import lmdb
 
@@ -206,9 +205,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
         with self.env.begin() as txn:
             return self._get_count(txn)
 
-    def get(
-        self, index: int, keys: list[bytes] | None = None
-    ) -> dict[bytes, bytes]:
+    def get(self, index: int, keys: list[bytes] | None = None) -> dict[bytes, bytes]:
         """Get data at index, optionally filtering to specific keys."""
         with self.env.begin() as txn:
             return self.get_with_txn(txn, index, keys)
@@ -233,15 +230,13 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
         if keys_to_fetch:
             cursor = txn.cursor()
             for key, value in cursor.getmulti(keys_to_fetch):
-                field_name = key[len(prefix):]
+                field_name = key[len(prefix) :]
                 result[field_name] = value
 
         if keys_set is not None and len(result) != len(keys_set):
             retrieved_keys = set(result.keys())
             invalid_keys = keys_set - retrieved_keys
-            raise KeyError(
-                f"Invalid keys at index {index}: {sorted(invalid_keys)}"
-            )
+            raise KeyError(f"Invalid keys at index {index}: {sorted(invalid_keys)}")
 
         # If caller didn't request specific keys and got nothing, it's a None placeholder
         if keys_set is None and not result:
@@ -261,7 +256,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
             if keys_to_check:
                 cursor = txn.cursor()
                 for key, _ in cursor.getmulti(keys_to_check):
-                    result.append(key[len(prefix):])
+                    result.append(key[len(prefix) :])
             return result
 
     def get_many(
@@ -301,7 +296,17 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
                 for field in self._schema_cache:
                     txn.delete(prefix + field)
             else:
-                # Append new entry
+                # Fill intermediate slots with placeholders first
+                modified_blocks: set[int] = set()
+                for _ in range(current_count, index):
+                    placeholder_key = self._allocate_sort_key(txn)
+                    if not self._blocks or len(self._blocks[-1]) >= BLOCK_SIZE:
+                        self._blocks.append([placeholder_key])
+                    else:
+                        self._blocks[-1].append(placeholder_key)
+                    modified_blocks.add(len(self._blocks) - 1)
+
+                # Append the actual entry
                 sort_key = self._allocate_sort_key(txn)
 
                 # Add sort_key to blocks
@@ -309,9 +314,11 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
                     self._blocks.append([sort_key])
                 else:
                     self._blocks[-1].append(sort_key)
+                modified_blocks.add(len(self._blocks) - 1)
 
-                # Save affected block + metadata
-                self._save_block(txn, len(self._blocks) - 1)
+                # Save affected blocks + metadata
+                for blk_idx in modified_blocks:
+                    self._save_block(txn, blk_idx)
                 self._save_block_metadata(txn)
 
             # Write new data
@@ -343,9 +350,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
             if index < 0:
                 index += current_count
             if index < 0 or index >= current_count:
-                raise IndexError(
-                    f"Index {index} out of range [0, {current_count})"
-                )
+                raise IndexError(f"Index {index} out of range [0, {current_count})")
 
             # Find block and sort_key
             blk_idx, local = self._find_block(index)
@@ -465,10 +470,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
                 sort_key_str = str(sort_key).encode()
 
                 # Add sort_key to blocks
-                if (
-                    not self._blocks
-                    or len(self._blocks[-1]) >= BLOCK_SIZE
-                ):
+                if not self._blocks or len(self._blocks[-1]) >= BLOCK_SIZE:
                     self._blocks.append([sort_key])
                     modified_blocks.add(len(self._blocks) - 1)
                 else:
@@ -485,12 +487,8 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
             # Save modified blocks into the putmulti batch
             for blk_idx in modified_blocks:
                 blk = self._blocks[blk_idx]
-                blk_key = (
-                    self.prefix + b"__blk__" + struct.pack("<I", blk_idx)
-                )
-                all_items.append(
-                    (blk_key, struct.pack(f"<{len(blk)}Q", *blk))
-                )
+                blk_key = self.prefix + b"__blk__" + struct.pack("<I", blk_idx)
+                all_items.append((blk_key, struct.pack(f"<{len(blk)}Q", *blk)))
 
             # Block metadata
             n_blocks = len(self._blocks)
@@ -505,9 +503,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
                 all_items.append(
                     (
                         self.prefix + b"__blk_sizes__",
-                        struct.pack(
-                            f"<{n_blocks}I", *self._block_sizes
-                        ),
+                        struct.pack(f"<{n_blocks}I", *self._block_sizes),
                     )
                 )
 
@@ -542,8 +538,7 @@ class LMDBBlobBackend(ReadWriteBackend[bytes, bytes]):
             prefix = self.prefix + sort_key_str + b"-"
 
             items_to_update = [
-                (prefix + field_key, value)
-                for field_key, value in data.items()
+                (prefix + field_key, value) for field_key, value in data.items()
             ]
 
             if items_to_update:

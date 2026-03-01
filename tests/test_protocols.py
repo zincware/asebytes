@@ -41,8 +41,9 @@ class MinimalWritable(MinimalReadable, ReadWriteBackend):
     def delete(self, index: int) -> None:
         del self._data[index]
 
-    def extend(self, data: list[dict[str, Any]]) -> None:
+    def extend(self, data: list[dict[str, Any]]) -> int:
         self._data.extend(data)
+        return len(self._data)
 
 
 def test_readable_instantiation():

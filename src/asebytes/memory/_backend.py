@@ -25,9 +25,7 @@ class MemoryObjectBackend(ReadWriteBackend[str, Any]):
     def __len__(self) -> int:
         return len(self._data)
 
-    def get(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any] | None:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any] | None:
         if index < 0 or index >= len(self._data):
             raise IndexError(index)
         row = self._data[index]
@@ -36,6 +34,8 @@ class MemoryObjectBackend(ReadWriteBackend[str, Any]):
         return {k: row[k] for k in keys if k in row}
 
     def set(self, index: int, value: dict[str, Any] | None) -> None:
+        if index < 0 or index >= len(self._data):
+            raise IndexError(index)
         self._data[index] = value
 
     def delete(self, index: int) -> None:

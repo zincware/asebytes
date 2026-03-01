@@ -2,6 +2,7 @@
 
 BlobIO uses bytes keys natively (K=bytes). All column access must use bytes keys.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -50,6 +51,7 @@ class MemoryBlobBackend(ReadWriteBackend):
 
     def extend(self, data):
         self._rows.extend(data)
+        return len(self._rows)
 
     def get_column(self, key, indices=None):
         if indices is None:
@@ -60,11 +62,13 @@ class MemoryBlobBackend(ReadWriteBackend):
 @pytest.fixture
 def blob_backend():
     b = MemoryBlobBackend()
-    b.extend([
-        {b"name": b"alice", b"age": b"30"},
-        {b"name": b"bob", b"age": b"25"},
-        {b"name": b"carol", b"age": b"35"},
-    ])
+    b.extend(
+        [
+            {b"name": b"alice", b"age": b"30"},
+            {b"name": b"bob", b"age": b"25"},
+            {b"name": b"carol", b"age": b"35"},
+        ]
+    )
     return b
 
 

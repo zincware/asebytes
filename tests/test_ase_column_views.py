@@ -7,6 +7,7 @@
 
 ASEIO column access wraps ObjectIO's dimensionality through dict_to_atoms().
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -57,6 +58,7 @@ class MemoryBackend(ReadWriteBackend):
 
     def extend(self, data):
         self._rows.extend(data)
+        return len(self._rows)
 
     def get_column(self, key, indices=None):
         if indices is None:

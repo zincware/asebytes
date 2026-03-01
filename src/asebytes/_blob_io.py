@@ -40,7 +40,9 @@ class BlobIO(MutableSequence):
             scheme, _remainder = parse_uri(backend)
             cls = get_blob_backend_cls(backend, readonly=readonly)
             if scheme is not None and hasattr(cls, "from_uri"):
-                self._backend: ReadBackend[bytes, bytes] = cls.from_uri(backend, **kwargs)
+                self._backend: ReadBackend[bytes, bytes] = cls.from_uri(
+                    backend, **kwargs
+                )
             else:
                 self._backend = cls(backend, **kwargs)
         else:
@@ -110,14 +112,14 @@ class BlobIO(MutableSequence):
             raise TypeError("Backend is read-only")
         self._backend.drop_keys(keys, indices)
 
-    def _build_result(self, row: Any) -> dict[bytes, bytes]:
+    def _build_result(self, row: Any) -> dict[bytes, bytes] | None:
         """Identity transform -- returns raw dict[bytes, bytes] as-is."""
         return row
 
     # --- MutableSequence interface ---
 
     @overload
-    def __getitem__(self, index: int) -> dict[bytes, bytes]: ...
+    def __getitem__(self, index: int) -> dict[bytes, bytes] | None: ...
     @overload
     def __getitem__(self, index: slice) -> RowView[dict[bytes, bytes]]: ...
     @overload
@@ -134,7 +136,7 @@ class BlobIO(MutableSequence):
     def __getitem__(
         self,
         index: int | slice | str | bytes | list[int] | list[str] | list[bytes],
-    ) -> dict[bytes, bytes] | RowView[dict[bytes, bytes]] | ColumnView:
+    ) -> dict[bytes, bytes] | None | RowView[dict[bytes, bytes]] | ColumnView:
         if isinstance(index, int):
             if index < 0:
                 index += len(self)
@@ -221,7 +223,7 @@ class BlobIO(MutableSequence):
     def __len__(self) -> int:
         return len(self._backend)
 
-    def __iter__(self) -> Iterator[dict[bytes, bytes]]:
+    def __iter__(self) -> Iterator[dict[bytes, bytes] | None]:
         for i in range(len(self)):
             yield self[i]
 
