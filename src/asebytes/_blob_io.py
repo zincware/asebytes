@@ -263,3 +263,26 @@ class BlobIO(MutableSequence):
 
     def __repr__(self) -> str:
         return f"BlobIO(backend={self._backend!r})"
+
+    def __add__(self, other: Any) -> "ConcatView":
+        from ._concat import ConcatView
+
+        if isinstance(other, ConcatView):
+            if type(other._sources[0]) is not type(self):
+                raise TypeError(
+                    f"Cannot concat {type(self).__name__} "
+                    f"with {type(other._sources[0]).__name__}"
+                )
+            return ConcatView([self] + other._sources)
+        if type(other) is not type(self):
+            raise TypeError(
+                f"Cannot concat {type(self).__name__} with {type(other).__name__}"
+            )
+        return ConcatView([self, other])
+
+    def __radd__(self, other: Any) -> "ConcatView":
+        if other == []:
+            from ._concat import ConcatView
+
+            return ConcatView([self])
+        return NotImplemented
