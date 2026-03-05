@@ -45,6 +45,9 @@ from ._async_object_io import AsyncObjectIO
 from ._async_io import AsyncASEIO
 from .io import ASEIO
 
+# Concat
+from ._concat import ConcatView
+
 # Views
 from ._views import ASEColumnView, ColumnView, RowView, ViewParent
 from ._async_views import (
@@ -105,6 +108,8 @@ __all__ = [
     "get_metadata",
     "atoms_to_dict",
     "dict_to_atoms",
+    # Concat
+    "ConcatView",
     # Views
     "RowView",
     "ColumnView",
