@@ -129,3 +129,134 @@ def test_object_concat_read_rows_preserves_order(three_object_ios):
     # Interleaved: indices 0 (src0), 2 (src1), 1 (src0), 4 (src2), 3 (src1)
     view = cat[[0, 2, 1, 4, 3]]
     assert [row["x"] for row in view] == [0, 2, 1, 4, 3]
+
+
+# ---------------------------------------------------------------------------
+# ASEIO concat
+# ---------------------------------------------------------------------------
+
+import ase
+
+
+def _fresh_ase_io(atoms_list: list, tmp_path_factory) -> "asebytes.ASEIO":
+    from asebytes import ASEIO
+
+    p = str(tmp_path_factory.mktemp("aseio") / "data.lmdb")
+    io = ASEIO(p)
+    io.extend(atoms_list)
+    return io
+
+
+@pytest.fixture
+def three_ase_ios(tmp_path_factory):
+    a1 = ase.Atoms("H", positions=[[0, 0, 0]])
+    a2 = ase.Atoms("H", positions=[[1, 0, 0]])
+    a3 = ase.Atoms("H", positions=[[2, 0, 0]])
+    io1 = _fresh_ase_io([a1, a2], tmp_path_factory)
+    io2 = _fresh_ase_io([a3], tmp_path_factory)
+    return io1, io2
+
+
+def test_ase_concat_sum(three_ase_ios):
+    io1, io2 = three_ase_ios
+    cat = sum([io1, io2], [])
+    assert isinstance(cat, ConcatView)
+    assert len(cat) == 3
+
+
+def test_ase_concat_iter(three_ase_ios):
+    io1, io2 = three_ase_ios
+    cat = io1 + io2
+    atoms = list(cat)
+    assert all(isinstance(a, ase.Atoms) for a in atoms)
+    assert len(atoms) == 3
+
+
+def test_ase_concat_getitem_int(three_ase_ios):
+    io1, io2 = three_ase_ios
+    cat = io1 + io2
+    a = cat[2]
+    assert isinstance(a, ase.Atoms)
+    assert a.positions[0][0] == pytest.approx(2.0)
+
+
+def test_ase_concat_getitem_slice(three_ase_ios):
+    io1, io2 = three_ase_ios
+    cat = io1 + io2
+    view = cat[1:]
+    assert len(view) == 2
+    atoms = list(view)
+    assert all(isinstance(a, ase.Atoms) for a in atoms)
+
+
+def test_ase_concat_flat(three_ase_ios):
+    io1, io2 = three_ase_ios
+    cat = io1 + io2
+    assert len(cat._sources) == 2
+
+
+def test_ase_concat_column_view_type(three_ase_ios):
+    from asebytes._views import ASEColumnView
+
+    io1, io2 = three_ase_ios
+    cat = io1 + io2
+    assert cat._column_view_cls is ASEColumnView
+
+
+# ---------------------------------------------------------------------------
+# BlobIO concat
+# ---------------------------------------------------------------------------
+
+from asebytes import BlobIO
+
+
+def _fresh_blob_io(rows: list[dict], tmp_path_factory) -> BlobIO:
+    from asebytes.lmdb import LMDBBlobBackend
+
+    p = str(tmp_path_factory.mktemp("blobio") / "data.lmdb")
+    backend = LMDBBlobBackend(p)
+    io = BlobIO(backend)
+    for row in rows:
+        io.append(row)
+    return io
+
+
+@pytest.fixture
+def three_blob_ios(tmp_path_factory):
+    io1 = _fresh_blob_io([{b"k": b"0"}, {b"k": b"1"}], tmp_path_factory)
+    io2 = _fresh_blob_io([{b"k": b"2"}], tmp_path_factory)
+    return io1, io2
+
+
+def test_blob_concat_sum(three_blob_ios):
+    io1, io2 = three_blob_ios
+    cat = sum([io1, io2], [])
+    assert isinstance(cat, ConcatView)
+    assert len(cat) == 3
+
+
+def test_blob_concat_iter(three_blob_ios):
+    io1, io2 = three_blob_ios
+    cat = io1 + io2
+    rows = list(cat)
+    assert rows == [{b"k": b"0"}, {b"k": b"1"}, {b"k": b"2"}]
+
+
+def test_blob_concat_getitem_int(three_blob_ios):
+    io1, io2 = three_blob_ios
+    cat = io1 + io2
+    assert cat[0] == {b"k": b"0"}
+    assert cat[-1] == {b"k": b"2"}
+
+
+def test_blob_concat_getitem_slice(three_blob_ios):
+    io1, io2 = three_blob_ios
+    cat = io1 + io2
+    view = cat[1:]
+    assert len(view) == 2
+
+
+def test_blob_concat_flat(three_blob_ios):
+    io1, io2 = three_blob_ios
+    cat = io1 + io2
+    assert len(cat._sources) == 2
