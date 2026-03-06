@@ -12,7 +12,7 @@ This roadmap delivers a clean, fast, fully-tested asebytes package through four 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Backend Architecture** - Extract BaseColumnarBackend, split padded/ragged variants, remove legacy Zarr, clean dead code
+- [x] **Phase 1: Backend Architecture** - Extract BaseColumnarBackend, split padded/ragged variants, remove legacy Zarr, clean dead code
 - [ ] **Phase 2: H5MD Compliance** - Full H5MD 1.1 spec compliance with znh5md interop, dependency version fixes
 - [ ] **Phase 3: Contract Test Suite** - Unified parametrized test suite covering all backends through all facades
 - [ ] **Phase 4: Benchmarks & Performance** - Establish benchmark baselines with pytest-benchmark, then optimize hot paths
@@ -28,12 +28,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Opening a file with a ragged extension (e.g. `.h5`) creates a RaggedColumnarBackend, and a padded extension (e.g. `.h5p`) creates a PaddedColumnarBackend -- no ambiguity in registry resolution
   3. Legacy Zarr backend directory (`src/asebytes/zarr/`) is deleted and no imports reference it
   4. Existing tests pass against the new backend classes without behavior changes
-**Plans:** 1/3 plans executed
+**Plans:** 3/3 plans executed
 
 Plans:
-- [ ] 01-01-PLAN.md — Extract BaseColumnarBackend + RaggedColumnarBackend, move utilities
-- [ ] 01-02-PLAN.md — Create PaddedColumnarBackend with padded storage
-- [ ] 01-03-PLAN.md — Update registry, delete legacy zarr, clean dead code
+- [x] 01-01-PLAN.md — Extract BaseColumnarBackend + RaggedColumnarBackend, move utilities
+- [x] 01-02-PLAN.md — Create PaddedColumnarBackend with padded storage
+- [x] 01-03-PLAN.md — Update registry, delete legacy zarr, clean dead code
 
 ### Phase 2: H5MD Compliance
 **Goal**: H5MDBackend reads and writes H5MD 1.1 compliant files with full znh5md interop, sharing logic with PaddedColumnarBackend where possible
@@ -90,7 +90,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Backend Architecture | 1/3 | In Progress|  |
+| 1. Backend Architecture | 3/3 | Complete | 2026-03-06 |
 | 2. H5MD Compliance | 0/2 | Not started | - |
 | 3. Contract Test Suite | 0/3 | Not started | - |
 | 4. Benchmarks & Performance | 0/2 | Not started | - |
