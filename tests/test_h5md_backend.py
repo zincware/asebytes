@@ -1100,3 +1100,213 @@ class TestShortColumns:
         # (indices 0 and 1)
         # Note: after the fix, rows[2] should NOT have calc.short_col
         io2.close()
+
+
+# ---------------------------------------------------------------------------
+# Auto-infer variable shape
+# ---------------------------------------------------------------------------
+
+
+class TestAutoInferVariableShape:
+    """Verify that fixed-shape data stays compact and variable-shape auto-upgrades."""
+
+    def test_fixed_shape_no_padding(self, h5_path):
+        """Write 2 batches of same-size atoms (3 each). No NaN padding."""
+        io1 = H5MDBackend(h5_path)
+        batch1 = [atoms_to_dict(molecule("H2O")) for _ in range(2)]
+        io1.extend(batch1)
+        batch2 = [atoms_to_dict(molecule("H2O")) for _ in range(2)]
+        io1.extend(batch2)
+        io1.close()
+
+        with h5py.File(h5_path, "r") as f:
+            pos = f["particles/atoms/position/value"]
+            assert pos.shape == (4, 3, 3), f"Expected (4,3,3), got {pos.shape}"
+            assert not np.any(np.isnan(pos[:])), "No NaN padding expected"
+
+    def test_auto_upgrade_to_variable(self, h5_path):
+        """Write 3-atom batch, then 5-atom batch. Axis-1 grows, old data padded."""
+        io1 = H5MDBackend(h5_path)
+        batch1 = [atoms_to_dict(molecule("H2O")) for _ in range(2)]  # 3 atoms
+        io1.extend(batch1)
+        batch2 = [atoms_to_dict(molecule("CH4")) for _ in range(2)]  # 5 atoms
+        io1.extend(batch2)
+        io1.close()
+
+        with h5py.File(h5_path, "r") as f:
+            pos = f["particles/atoms/position/value"]
+            assert pos.shape[1] == 5, f"Expected axis-1 == 5, got {pos.shape[1]}"
+            # First batch padded with NaN at atom positions 3-4
+            assert np.all(np.isnan(pos[0, 3:5, :])), "Expected NaN padding"
+            assert np.all(np.isnan(pos[1, 3:5, :])), "Expected NaN padding"
+            # Second batch should have real data
+            assert not np.any(np.isnan(pos[2, :5, :])), "No NaN in 5-atom frame"
+            assert not np.any(np.isnan(pos[3, :5, :])), "No NaN in 5-atom frame"
+
+    def test_mixed_in_single_batch(self, h5_path):
+        """Write single batch with 3 and 5 atom frames -- variable detected immediately."""
+        io1 = H5MDBackend(h5_path)
+        batch = [
+            atoms_to_dict(molecule("H2O")),   # 3 atoms
+            atoms_to_dict(molecule("CH4")),   # 5 atoms
+        ]
+        io1.extend(batch)
+        io1.close()
+
+        with h5py.File(h5_path, "r") as f:
+            pos = f["particles/atoms/position/value"]
+            assert pos.shape[1] == 5, f"Expected axis-1 == 5, got {pos.shape[1]}"
+            # Frame 0 (3 atoms) padded at positions 3-4
+            assert np.all(np.isnan(pos[0, 3:5, :])), "Expected NaN padding"
+
+        # Verify round-trip reads correct atom count
+        io2 = H5MDBackend(h5_path, readonly=True)
+        row0 = io2.get(0)
+        row1 = io2.get(1)
+        r0 = dict_to_atoms(row0)
+        r1 = dict_to_atoms(row1)
+        assert len(r0) == 3
+        assert len(r1) == 5
+        io2.close()
+
+
+# ---------------------------------------------------------------------------
+# Constraint round-trip
+# ---------------------------------------------------------------------------
+
+
+class TestConstraintRoundTrip:
+    """Verify ASE constraints survive write/read through H5MDBackend."""
+
+    def test_write_read_constraints(self, h5_path):
+        """FixAtoms constraint round-trips."""
+        from ase.constraints import FixAtoms
+
+        atoms = molecule("H2O")
+        atoms.set_constraint(FixAtoms(indices=[0]))
+
+        io1 = H5MDBackend(h5_path)
+        io1.extend([atoms_to_dict(atoms)])
+        io1.close()
+
+        io2 = H5MDBackend(h5_path, readonly=True)
+        row = io2.get(0)
+        recovered = dict_to_atoms(row)
+        assert len(recovered.constraints) == 1
+        c = recovered.constraints[0]
+        assert isinstance(c, FixAtoms)
+        npt.assert_array_equal(c.index, [0])
+        io2.close()
+
+    def test_empty_constraints(self, h5_path):
+        """Atoms without constraints read back without constraints."""
+        atoms = molecule("H2O")
+
+        io1 = H5MDBackend(h5_path)
+        io1.extend([atoms_to_dict(atoms)])
+        io1.close()
+
+        io2 = H5MDBackend(h5_path, readonly=True)
+        row = io2.get(0)
+        recovered = dict_to_atoms(row)
+        assert recovered.constraints == []
+        io2.close()
+
+    def test_multiple_constraints(self, h5_path):
+        """FixAtoms + FixedLine both survive round-trip."""
+        from ase.constraints import FixAtoms, FixedLine
+
+        atoms = molecule("H2O")
+        c1 = FixAtoms(indices=[0])
+        c2 = FixedLine(1, direction=[0, 0, 1])
+        atoms.set_constraint([c1, c2])
+
+        io1 = H5MDBackend(h5_path)
+        io1.extend([atoms_to_dict(atoms)])
+        io1.close()
+
+        io2 = H5MDBackend(h5_path, readonly=True)
+        row = io2.get(0)
+        recovered = dict_to_atoms(row)
+        assert len(recovered.constraints) == 2
+        types = {type(c).__name__ for c in recovered.constraints}
+        assert "FixAtoms" in types
+        assert "FixedLine" in types
+        io2.close()
+
+
+# ---------------------------------------------------------------------------
+# Unit attributes
+# ---------------------------------------------------------------------------
+
+
+class TestUnitAttributes:
+    """Verify unit attributes are written on H5MD value datasets."""
+
+    def test_position_unit(self, h5_path, water_frames):
+        """positions/value has unit=Angstrom."""
+        io1 = H5MDBackend(h5_path)
+        io1.extend([atoms_to_dict(water_frames[0])])
+        io1.close()
+
+        with h5py.File(h5_path, "r") as f:
+            ds = f["particles/atoms/position/value"]
+            assert ds.attrs["unit"] == "Angstrom"
+
+    def test_force_unit(self, h5_path, water_frames):
+        """force/value has unit=eV/Angstrom."""
+        io1 = H5MDBackend(h5_path)
+        io1.extend([atoms_to_dict(water_frames[0])])
+        io1.close()
+
+        with h5py.File(h5_path, "r") as f:
+            ds = f["particles/atoms/force/value"]
+            assert ds.attrs["unit"] == "eV/Angstrom"
+
+    def test_energy_unit(self, h5_path, water_frames):
+        """potential_energy/value has unit=eV."""
+        io1 = H5MDBackend(h5_path)
+        io1.extend([atoms_to_dict(water_frames[0])])
+        io1.close()
+
+        with h5py.File(h5_path, "r") as f:
+            ds = f["observables/atoms/potential_energy/value"]
+            assert ds.attrs["unit"] == "eV"
+
+
+# ---------------------------------------------------------------------------
+# File handle support
+# ---------------------------------------------------------------------------
+
+
+class TestFileHandle:
+    """Verify file_handle parameter for external h5py.File management."""
+
+    def test_write_with_file_handle(self, h5_path, water_frames):
+        """Write via file_handle, then verify data is readable."""
+        with h5py.File(h5_path, "a") as f:
+            io1 = H5MDBackend(file_handle=f)
+            io1.extend([atoms_to_dict(a) for a in water_frames])
+
+        io2 = H5MDBackend(h5_path, readonly=True)
+        assert len(io2) == 3
+        row = io2.get(0)
+        recovered = dict_to_atoms(row)
+        npt.assert_allclose(recovered.get_positions(), water_frames[0].get_positions())
+        io2.close()
+
+    def test_read_with_file_handle(self, h5_path, water_frames):
+        """Write normally, reopen with file_handle for reading."""
+        io1 = H5MDBackend(h5_path)
+        io1.extend([atoms_to_dict(a) for a in water_frames])
+        io1.close()
+
+        with h5py.File(h5_path, "r") as f:
+            io2 = H5MDBackend(file_handle=f, readonly=True)
+            assert len(io2) == 3
+            for i, atoms in enumerate(water_frames):
+                row = io2.get(i)
+                recovered = dict_to_atoms(row)
+                npt.assert_allclose(
+                    recovered.get_positions(), atoms.get_positions()
+                )
