@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-06T15:15:04Z"
-last_activity: 2026-03-06 -- Completed Plan 03-01 (Contract Test Foundation)
+stopped_at: Completed 03-04-PLAN.md
+last_updated: "2026-03-06T15:19:15Z"
+last_activity: 2026-03-06 -- Completed Plan 03-04 (Read-Only Contract Tests)
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 10
-  completed_plans: 8
-  percent: 80
+  completed_plans: 9
+  percent: 90
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-06)
 ## Current Position
 
 Phase: 3 of 4 (Contract Test Suite)
-Plan: 1 of 3 in current phase -- COMPLETE
-Status: Plan 03-01 complete
-Last activity: 2026-03-06 -- Completed Plan 03-01 (Contract Test Foundation)
+Plan: 2 of 3 in current phase -- COMPLETE
+Status: Plan 03-04 complete
+Last activity: 2026-03-06 -- Completed Plan 03-04 (Read-Only Contract Tests)
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [████████░░] 80%
 *Updated after each plan completion*
 | Phase 02 P04 | 4min | 2 tasks | 2 files |
 | Phase 03 P01 | 8min | 2 tasks | 7 files |
+| Phase 03 P04 | 2min | 1 task | 2 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,9 @@ Recent decisions affecting current work:
 - 03-01: Capability marks gate tests via request.node.get_closest_marker() + pytest.skip
 - 03-01: Columnar backends excluded from supports_constraints (constraints are list-of-dicts)
 - 03-01: assert_atoms_equal checks actual keys against expected (tolerates backends dropping unsupported types)
+- 03-04: ASEReadOnlyBackend requires count_frames() before len() works; readonly_aseio fixture calls it automatically
+- 03-04: HuggingFace tests use synthetic datasets.Dataset from s22 data (no network/auth, satisfies TEST-06)
+- 03-04: All read-only test data uses s22 collection (22 frames) as canonical test data
 
 ### Pending Todos
 
@@ -101,6 +105,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T15:15:04Z
-Stopped at: Completed 03-01-PLAN.md
-Resume file: .planning/phases/03-contract-test-suite/03-01-SUMMARY.md
+Last session: 2026-03-06T15:19:15Z
+Stopped at: Completed 03-04-PLAN.md
+Resume file: .planning/phases/03-contract-test-suite/03-04-SUMMARY.md
