@@ -134,10 +134,7 @@ def bench_mongodb(dataset, mongo_uri):
     name, frames = dataset
     uri = f"{mongo_uri}/bench_{name}_{uuid.uuid4().hex[:8]}"
     aseio = ASEIO(uri)
-    try:
-        aseio.extend(frames)
-    except Exception:
-        pytest.skip("MongoDB not available")
+    aseio.extend(frames)
     objectio = ObjectIO(uri)
     yield BenchDB(aseio=aseio, objectio=objectio, frames=frames, name=name)
     aseio.remove()
@@ -149,10 +146,7 @@ def bench_redis(dataset, redis_uri):
     prefix = f"bench_{name}_{uuid.uuid4().hex[:8]}"
     uri = f"{redis_uri}/{prefix}"
     aseio = ASEIO(uri)
-    try:
-        aseio.extend(frames)
-    except Exception:
-        pytest.skip("Redis not available")
+    aseio.extend(frames)
     objectio = ObjectIO(uri)
     yield BenchDB(aseio=aseio, objectio=objectio, frames=frames, name=name)
     aseio.remove()
