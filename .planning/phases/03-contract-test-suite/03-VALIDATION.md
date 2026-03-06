@@ -2,7 +2,7 @@
 phase: 3
 slug: contract-test-suite
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-03-06
 ---
@@ -21,7 +21,7 @@ created: 2026-03-06
 | **Config file** | pyproject.toml [tool.pytest.ini_options] |
 | **Quick run command** | `uv run pytest tests/contract/ -x --timeout=60` |
 | **Full suite command** | `uv run pytest tests/contract/ -v` |
-| **Estimated runtime** | ~30 seconds (excluding MongoDB/Redis) |
+| **Estimated runtime** | ~30 seconds (excluding MongoDB/Redis/HF) |
 
 ---
 
@@ -38,16 +38,14 @@ created: 2026-03-06
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 03-01-01 | 01 | 1 | TEST-01 | integration | `uv run pytest tests/contract/conftest.py --co` | ❌ W0 | ⬜ pending |
-| 03-01-02 | 01 | 1 | TEST-08, TEST-09 | integration | `uv run pytest tests/contract/ -m mongodb -x` | ❌ W0 | ⬜ pending |
-| 03-02-01 | 02 | 1 | TEST-01 | integration | `uv run pytest tests/contract/test_blob_contract.py -x` | ❌ W0 | ⬜ pending |
-| 03-02-02 | 02 | 1 | TEST-01 | integration | `uv run pytest tests/contract/test_object_contract.py -x` | ❌ W0 | ⬜ pending |
-| 03-02-03 | 02 | 1 | TEST-01 | integration | `uv run pytest tests/contract/test_ase_contract.py -x` | ❌ W0 | ⬜ pending |
-| 03-02-04 | 02 | 1 | TEST-02 | integration | `uv run pytest tests/contract/ -k "edge" -x` | ❌ W0 | ⬜ pending |
-| 03-03-01 | 03 | 2 | TEST-03, QUAL-06 | integration | `uv run pytest tests/contract/test_async_*.py -x` | ❌ W0 | ⬜ pending |
-| 03-03-02 | 03 | 2 | TEST-04 | integration | `uv run pytest tests/contract/test_h5md_compliance.py -x` | ❌ W0 | ⬜ pending |
+| 03-01-T1 | 01 | 1 | TEST-01, TEST-08, TEST-09 | integration | `uv run pytest tests/contract/ --collect-only` | tests/contract/conftest.py | pending |
+| 03-01-T2 | 01 | 1 | TEST-01, TEST-02, TEST-06 | integration | `uv run pytest tests/contract/test_blob_contract.py tests/contract/test_object_contract.py tests/contract/test_ase_contract.py -x -m "not mongodb and not redis"` | tests/contract/test_*_contract.py | pending |
+| 03-02-T1 | 02 | 2 | TEST-03, QUAL-06 | integration | `uv run pytest tests/contract/test_async_*.py -x -m "not mongodb and not redis"` | tests/contract/test_async_*_contract.py | pending |
+| 03-02-T2 | 02 | 2 | TEST-04 | integration | `uv run pytest tests/contract/test_h5md_compliance.py -x` | tests/contract/test_h5md_compliance.py | pending |
+| 03-03-T1 | 03 | 3 | TEST-01, TEST-09 | integration | `uv run pytest tests/ -x -m "not mongodb and not redis and not benchmark and not hf"` | tests/ (cleaned) | pending |
+| 03-04-T1 | 04 | 2 | TEST-01, TEST-02, TEST-06 | integration | `uv run pytest tests/contract/test_readonly_contract.py -x -m "not hf"` | tests/contract/test_readonly_contract.py | pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: pending / green / red / flaky*
 
 ---
 
@@ -71,11 +69,11 @@ created: 2026-03-06
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
 - [ ] No watch-mode flags
 - [ ] Feedback latency < 60s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending

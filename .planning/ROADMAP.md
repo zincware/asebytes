@@ -63,12 +63,14 @@ Plans:
   3. Async facades (AsyncBlobIO, AsyncObjectIO, AsyncASEIO) have mirrored parametrized tests using `@pytest.mark.anyio`
   4. H5MD spec compliance tests verify file structure, and interop tests validate cross-tool read/write with znh5md
   5. Tests against MongoDB and Redis run against real services via CI containers and fail (not skip) when services are unavailable
-**Plans:** 3 plans
+  6. Read-only backends (ASE .traj/.xyz/.extxyz, HuggingFace) are tested with a read-only contract subset (get, slice, keys, len, iteration)
+**Plans:** 4 plans
 
 Plans:
 - [ ] 03-01-PLAN.md — Contract conftest, docker-compose, markers, and sync facade tests (BlobIO, ObjectIO, ASEIO)
 - [ ] 03-02-PLAN.md — Async facade contract tests and H5MD compliance/interop tests
 - [ ] 03-03-PLAN.md — Delete overlapping tests, remove importorskip patterns, clean conftest
+- [ ] 03-04-PLAN.md — Read-only backend contract tests (ASE .traj/.xyz/.extxyz, HuggingFace)
 
 ### Phase 4: Benchmarks & Performance
 **Goal**: Measurable performance baselines exist for all file-based backends, and targeted optimizations improve hot paths
@@ -94,5 +96,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Backend Architecture | 3/3 | Complete | 2026-03-06 |
 | 2. H5MD Compliance | 4/4 | Complete   | 2026-03-06 |
-| 3. Contract Test Suite | 0/3 | Not started | - |
+| 3. Contract Test Suite | 0/4 | Not started | - |
 | 4. Benchmarks & Performance | 0/2 | Not started | - |
