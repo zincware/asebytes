@@ -135,7 +135,7 @@ class HDF5Store:
             h5dt = h5py.string_dtype()
             # Convert numpy unicode array to list of Python strings
             str_data = [str(x) for x in arr.flat]
-            maxshape = (None,) + arr.shape[1:]
+            maxshape = tuple(None for _ in arr.shape)
             chunks_0 = max(1, min(self._chunk_frames, arr.shape[0]))
             chunks = (chunks_0,) + arr.shape[1:]
             kw: dict[str, Any] = {}
@@ -150,7 +150,7 @@ class HDF5Store:
             self._ds_cache.pop(name, None)
             return
 
-        maxshape = (None,) + arr.shape[1:]
+        maxshape = tuple(None for _ in arr.shape)
         chunks_0 = max(1, min(self._chunk_frames, arr.shape[0]))
         chunks = (chunks_0,) + arr.shape[1:]
         kw = {}
