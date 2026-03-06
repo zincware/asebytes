@@ -28,7 +28,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Opening a file with a ragged extension (e.g. `.h5`) creates a RaggedColumnarBackend, and a padded extension (e.g. `.h5p`) creates a PaddedColumnarBackend -- no ambiguity in registry resolution
   3. Legacy Zarr backend directory (`src/asebytes/zarr/`) is deleted and no imports reference it
   4. Existing tests pass against the new backend classes without behavior changes
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 - [ ] 01-01-PLAN.md — Extract BaseColumnarBackend + RaggedColumnarBackend, move utilities
@@ -90,7 +90,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Backend Architecture | 0/3 | Not started | - |
+| 1. Backend Architecture | 1/3 | In Progress|  |
 | 2. H5MD Compliance | 0/2 | Not started | - |
 | 3. Contract Test Suite | 0/3 | Not started | - |
 | 4. Benchmarks & Performance | 0/2 | Not started | - |

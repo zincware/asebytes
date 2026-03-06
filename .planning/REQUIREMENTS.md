@@ -7,8 +7,8 @@
 
 ### Backend Architecture
 
-- [ ] **ARCH-01**: Extract BaseColumnarBackend with shared logic (_postprocess, _serialize_value, _prepare_scalar_column, _discover, metadata management) from ColumnarBackend and H5MDBackend
-- [ ] **ARCH-02**: Create RaggedColumnarBackend using offset+flat storage strategy, inheriting from BaseColumnarBackend
+- [x] **ARCH-01**: Extract BaseColumnarBackend with shared logic (_postprocess, _serialize_value, _prepare_scalar_column, _discover, metadata management) from ColumnarBackend and H5MDBackend
+- [x] **ARCH-02**: Create RaggedColumnarBackend using offset+flat storage strategy, inheriting from BaseColumnarBackend
 - [ ] **ARCH-03**: Create PaddedColumnarBackend using NaN/zero-fill storage strategy, inheriting from BaseColumnarBackend
 - [ ] **ARCH-04**: Register dedicated file extensions for padded and ragged variants in the registry (e.g. `.h5`/`.zarr` for ragged, `.h5p`/`.zarrp` for padded or similar -- exact naming TBD)
 - [ ] **ARCH-05**: Remove legacy Zarr backend (`src/asebytes/zarr/`) and all references to it
@@ -47,7 +47,7 @@
 
 ### Code Quality
 
-- [ ] **QUAL-01**: Consolidate duplicated _postprocess() logic across ColumnarBackend, ZarrBackend, H5MDBackend into BaseColumnarBackend
+- [x] **QUAL-01**: Consolidate duplicated _postprocess() logic across ColumnarBackend, ZarrBackend, H5MDBackend into BaseColumnarBackend
 - [ ] **QUAL-02**: Fix lmdb version pin (>=1.7.5 does not exist on PyPI -- correct to >=1.6.0)
 - [ ] **QUAL-03**: Bump h5py floor from >=3.8.0 to >=3.12.0 for modern HDF5 C library and bug fixes
 - [ ] **QUAL-04**: Remove unnecessary upper bounds on package versions -- prefer open-ended floors (>=X) for future safety
@@ -79,8 +79,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ARCH-01 | Phase 1 | Pending |
-| ARCH-02 | Phase 1 | Pending |
+| ARCH-01 | Phase 1 | Complete |
+| ARCH-02 | Phase 1 | Complete |
 | ARCH-03 | Phase 1 | Pending |
 | ARCH-04 | Phase 1 | Pending |
 | ARCH-05 | Phase 1 | Pending |
@@ -103,7 +103,7 @@
 | PERF-02 | Phase 4 | Pending |
 | PERF-03 | Phase 4 | Pending |
 | PERF-04 | Phase 4 | Pending |
-| QUAL-01 | Phase 1 | Pending |
+| QUAL-01 | Phase 1 | Complete |
 | QUAL-02 | Phase 2 | Pending |
 | QUAL-03 | Phase 2 | Pending |
 | QUAL-04 | Phase 2 | Pending |
