@@ -9,7 +9,7 @@
 
 - [x] **ARCH-01**: Extract BaseColumnarBackend with shared logic (_postprocess, _serialize_value, _prepare_scalar_column, _discover, metadata management) from ColumnarBackend and H5MDBackend
 - [x] **ARCH-02**: Create RaggedColumnarBackend using offset+flat storage strategy, inheriting from BaseColumnarBackend
-- [ ] **ARCH-03**: Create PaddedColumnarBackend using NaN/zero-fill storage strategy, inheriting from BaseColumnarBackend
+- [x] **ARCH-03**: Create PaddedColumnarBackend using NaN/zero-fill storage strategy, inheriting from BaseColumnarBackend
 - [ ] **ARCH-04**: Register dedicated file extensions for padded and ragged variants in the registry (e.g. `.h5`/`.zarr` for ragged, `.h5p`/`.zarrp` for padded or similar -- exact naming TBD)
 - [ ] **ARCH-05**: Remove legacy Zarr backend (`src/asebytes/zarr/`) and all references to it
 - [ ] **ARCH-06**: Update registry to avoid glob collisions between new extension patterns
@@ -81,7 +81,7 @@
 |-------------|-------|--------|
 | ARCH-01 | Phase 1 | Complete |
 | ARCH-02 | Phase 1 | Complete |
-| ARCH-03 | Phase 1 | Pending |
+| ARCH-03 | Phase 1 | Complete |
 | ARCH-04 | Phase 1 | Pending |
 | ARCH-05 | Phase 1 | Pending |
 | ARCH-06 | Phase 1 | Pending |
