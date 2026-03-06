@@ -197,12 +197,28 @@ def blobio(tmp_path, request):
 # ---------------------------------------------------------------------------
 
 
+def _sync_cleanup(db, path: str) -> None:
+    """Synchronously clean up network/memory backends after async tests."""
+    if path.startswith(("mongodb://", "redis://", "memory://")):
+        # Access the underlying sync backend wrapped by SyncToAsyncAdapter
+        backend = db._backend
+        if hasattr(backend, "_backend"):
+            # SyncToAsyncReadWriteAdapter wraps sync backend in _backend
+            backend = backend._backend
+        try:
+            backend.remove()
+        except Exception:
+            pass
+
+
 @pytest.fixture(params=ASYNC_ASEIO_BACKENDS)
 def async_aseio(tmp_path, request):
     """Yield an AsyncASEIO facade for each read-write backend."""
     factory = request.param
     path = factory(tmp_path)
-    return AsyncASEIO(path)
+    db = AsyncASEIO(path)
+    yield db
+    _sync_cleanup(db, path)
 
 
 @pytest.fixture(params=ASYNC_OBJECTIO_BACKENDS)
@@ -210,7 +226,9 @@ def async_objectio(tmp_path, request):
     """Yield an AsyncObjectIO facade for each read-write backend."""
     factory = request.param
     path = factory(tmp_path)
-    return AsyncObjectIO(path)
+    db = AsyncObjectIO(path)
+    yield db
+    _sync_cleanup(db, path)
 
 
 @pytest.fixture(params=ASYNC_BLOBIO_BACKENDS)
@@ -218,7 +236,9 @@ def async_blobio(tmp_path, request):
     """Yield an AsyncBlobIO facade for each read-write backend."""
     factory = request.param
     path = factory(tmp_path)
-    return AsyncBlobIO(path)
+    db = AsyncBlobIO(path)
+    yield db
+    _sync_cleanup(db, path)
 
 
 # ---------------------------------------------------------------------------
