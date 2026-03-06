@@ -58,6 +58,8 @@ class BaseColumnarBackend(ReadWriteBackend[str, Any]):
         group: str | None = None,
         readonly: bool = False,
         store: ColumnarStore | None = None,
+        file_handle: Any = None,
+        file_factory: Any = None,
         # HDF5-specific
         compression: str | None = "gzip",
         compression_opts: int | None = None,
@@ -71,9 +73,47 @@ class BaseColumnarBackend(ReadWriteBackend[str, Any]):
         self.group = group if group is not None else DEFAULT_GROUP
         self._readonly = readonly
 
+        # Validate mutual exclusivity
+        provided = sum(
+            x is not None
+            for x in (store, file_handle, file_factory, file)
+        )
+        if provided == 0:
+            raise ValueError(
+                "Provide one of: store, file_handle, file_factory, or file"
+            )
+        if provided > 1:
+            raise ValueError(
+                "Provide at most one of: store, file_handle, file_factory, or file"
+            )
+
+        self._file_factory = file_factory
+
         if store is not None:
             self._store = store
             self._base_path: str | None = None
+        elif file_handle is not None:
+            self._base_path = None
+            self._store = HDF5Store(
+                file_handle=file_handle,
+                group=self.group,
+                readonly=readonly,
+                compression=compression,
+                compression_opts=compression_opts,
+                chunk_frames=chunk_frames,
+            )
+        elif file_factory is not None:
+            # Call factory to get file handle, then wrap in HDF5Store
+            self._base_path = None
+            handle = file_factory()
+            self._store = HDF5Store(
+                file_handle=handle,
+                group=self.group,
+                readonly=readonly,
+                compression=compression,
+                compression_opts=compression_opts,
+                chunk_frames=chunk_frames,
+            )
         elif file is not None:
             self._base_path = str(file)
             ext = Path(file).suffix.lower()
@@ -98,8 +138,6 @@ class BaseColumnarBackend(ReadWriteBackend[str, Any]):
                 )
             else:
                 raise ValueError(f"Unsupported extension: {ext}")
-        else:
-            raise ValueError("Provide either file or store")
 
         # Cached metadata (rebuilt by _discover)
         self._n_frames: int = 0

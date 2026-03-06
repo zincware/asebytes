@@ -72,10 +72,11 @@ class HDF5Store:
 
     def __init__(
         self,
-        path: str | Path,
-        group: str,
+        path: str | Path | None = None,
+        group: str = "default",
         *,
         readonly: bool = False,
+        file_handle: Any = None,
         compression: str | None = "gzip",
         compression_opts: int | None = None,
         chunk_frames: int = 64,
@@ -83,13 +84,31 @@ class HDF5Store:
     ):
         import h5py
 
-        mode = "r" if readonly else "a"
-        self._file = h5py.File(str(path), mode, rdcc_nbytes=rdcc_nbytes)
-        self._group = self._file.require_group(group) if not readonly else self._file.get(group, self._file)
+        if file_handle is not None and path is not None:
+            raise ValueError(
+                "Provide either 'path' or 'file_handle', not both"
+            )
+        if file_handle is None and path is None:
+            raise ValueError(
+                "Provide either 'path' or 'file_handle'"
+            )
+
+        if file_handle is not None:
+            self._file = file_handle
+            self._owns_file = False
+        else:
+            mode = "r" if readonly else "a"
+            self._file = h5py.File(str(path), mode, rdcc_nbytes=rdcc_nbytes)
+            self._owns_file = True
+
+        self._group = (
+            self._file.require_group(group)
+            if not readonly
+            else self._file.get(group, self._file)
+        )
         self._compression = compression
         self._compression_opts = compression_opts
         self._chunk_frames = chunk_frames
-        self._owns_file = True
         self._ds_cache: dict[str, Any] = {}  # name -> h5py.Dataset
 
     # -- Array operations --------------------------------------------------

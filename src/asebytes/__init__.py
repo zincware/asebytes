@@ -212,7 +212,7 @@ def __getattr__(name: str):
         extra = _OPTIONAL_ATTRS[name]
         raise ImportError(
             f"'{name}' requires additional dependencies. "
-            f"Install them with: pip install asebytes[{extra}]"
+            f"Install them with: uv add asebytes[{extra}]"
         )
     raise AttributeError(f"module 'asebytes' has no attribute '{name}'")
 
