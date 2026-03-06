@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-06T16:13:22.069Z"
-last_activity: 2026-03-06 -- Completed Plan 03-02 (Async Facades + H5MD Compliance)
+status: in-progress
+stopped_at: Completed 04-01 (Benchmark Data Fixtures)
+last_updated: "2026-03-06T16:33:15Z"
+last_activity: 2026-03-06 -- Completed Plan 04-01 (Benchmark Data Fixtures)
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 13
+  completed_plans: 12
   percent: 100
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-06)
 
 **Core value:** Every storage backend must be fast, correct, and tested through a single parametrized test suite
-**Current focus:** Phase 3: Contract Test Suite
+**Current focus:** Phase 4: Benchmarks and Performance
 
 ## Current Position
 
-Phase: 3 of 4 (Contract Test Suite) -- COMPLETE
-Plan: 3 of 3 in current phase -- COMPLETE
-Status: Phase 03 complete
-Last activity: 2026-03-06 -- Completed Plan 03-02 (Async Facades + H5MD Compliance)
+Phase: 4 of 4 (Benchmarks and Performance) -- IN PROGRESS
+Plan: 1 of 2 in current phase -- COMPLETE
+Status: Phase 04 in progress
+Last activity: 2026-03-06 -- Completed Plan 04-01 (Benchmark Data Fixtures)
 
-Progress: [██████████] 100%
+Progress: [█████████░] 92%
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Progress: [██████████] 100%
 | Phase 03 P04 | 2min | 1 task | 2 files |
 | Phase 03 P02 | 6min | 2 tasks | 5 files |
 | Phase 03 P03 | 2min | 1 tasks | 15 files |
+| Phase 04 P01 | 4min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,9 @@ Recent decisions affecting current work:
 - 03-02: Slice views in async tests use .to_list() instead of await (DeferredSliceRowView has no __await__)
 - 03-02: H5MD constraints test relaxed to check atom count only, since H5MD may drop constraint objects
 - [Phase 03]: Deleted 10 overlapping test files (3568 lines) fully subsumed by contract suite
+- 04-01: Kept ethanol fixture unchanged to preserve contract test compatibility (constraints break columnar backends)
+- 04-01: No MemoryBackend fixture -- does not exist in codebase
+- 04-01: Network benchmark fixtures skip gracefully when services unavailable
 
 ### Pending Todos
 
@@ -111,6 +115,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T16:13:22.066Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-benchmarks-performance/04-CONTEXT.md
+Last session: 2026-03-06T16:33:15Z
+Stopped at: Completed 04-01 (Benchmark Data Fixtures)
+Resume file: .planning/phases/04-benchmarks-performance/04-01-SUMMARY.md

@@ -32,9 +32,9 @@
 - [x] **TEST-02**: Edge case tests included in contract suite: empty datasets, single-frame, variable particle counts, large arrays, special float values (NaN, inf), empty strings, nested info dicts
 - [x] **TEST-03**: Async test suite mirroring sync contract tests using `@pytest.mark.anyio` for AsyncBlobIO, AsyncObjectIO, AsyncASEIO
 - [x] **TEST-04**: H5MD spec compliance tests verifying H5MD 1.1 structure, plus interop tests writing with znh5md then reading with asebytes and vice versa
-- [ ] **TEST-05**: Performance benchmark suite using pytest-benchmark with synthetic data generated via molify (smiles2conformers, pack, SinglePointCalculator, constraints, custom info/arrays)
+- [x] **TEST-05**: Performance benchmark suite using pytest-benchmark with synthetic data generated via molify (smiles2conformers, pack, SinglePointCalculator, constraints, custom info/arrays)
 - [x] **TEST-06**: No test data behind authentication walls -- all CI test data is synthetic or bundled fixtures
-- [ ] **TEST-07**: Benchmark covers: sequential read, random access read, bulk write (extend), column read, for each file-based backend, at multiple dataset sizes
+- [x] **TEST-07**: Benchmark covers: sequential read, random access read, bulk write (extend), column read, for each file-based backend, at multiple dataset sizes
 - [x] **TEST-08**: All backend tests run against real services (Redis, MongoDB, etc.) via CI service containers -- no mocking to avoid service dependencies; only mock where semantically sensible
 - [x] **TEST-09**: Tests must fail (not skip) when a required service or dependency is unavailable -- fix existing tests that use skip-if-not-available patterns
 
@@ -94,9 +94,9 @@
 | TEST-02 | Phase 3 | Complete |
 | TEST-03 | Phase 3 | Complete |
 | TEST-04 | Phase 3 | Complete |
-| TEST-05 | Phase 4 | Pending |
+| TEST-05 | Phase 4 | Complete |
 | TEST-06 | Phase 3 | Complete |
-| TEST-07 | Phase 4 | Pending |
+| TEST-07 | Phase 4 | Complete |
 | TEST-08 | Phase 3 | Complete |
 | TEST-09 | Phase 3 | Complete |
 | PERF-01 | Phase 4 | Pending |

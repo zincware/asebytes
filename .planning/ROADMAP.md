@@ -81,7 +81,7 @@ Plans:
   2. Benchmark data is generated synthetically via molify (smiles2conformers, pack, SinglePointCalculator, constraints, custom info/arrays) with no HuggingFace login required
   3. HDF5 backends have tuned chunk cache settings (rdcc_nbytes and rdcc_nslots) and benchmarks show measurable improvement on random access patterns
   4. MongoDB backend uses TTL index for cache expiration and Redis backend uses Lua scripts for bounds checking, with benchmark evidence of improvement
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 04-01-PLAN.md — Refactor benchmark fixtures: replace lemat with synthetic data, add 2x2 parametrization matrix
@@ -97,4 +97,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Backend Architecture | 3/3 | Complete | 2026-03-06 |
 | 2. H5MD Compliance | 4/4 | Complete   | 2026-03-06 |
 | 3. Contract Test Suite | 3/4 | In Progress|  |
-| 4. Benchmarks & Performance | 0/2 | Not started | - |
+| 4. Benchmarks & Performance | 1/2 | In Progress|  |
