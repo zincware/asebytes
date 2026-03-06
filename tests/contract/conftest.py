@@ -10,10 +10,14 @@ import os
 import uuid
 
 import ase
+import ase.io
 import numpy as np
 import pytest
 
 from asebytes import ASEIO, BlobIO, ObjectIO
+from asebytes._async_io import AsyncASEIO
+from asebytes._async_object_io import AsyncObjectIO
+from asebytes._async_blob_io import AsyncBlobIO
 
 # ---------------------------------------------------------------------------
 # Capability marks
@@ -133,6 +137,14 @@ BLOBIO_BACKENDS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Async backend param lists (same backends, same marks as sync)
+# ---------------------------------------------------------------------------
+
+ASYNC_ASEIO_BACKENDS = ASEIO_BACKENDS
+ASYNC_OBJECTIO_BACKENDS = OBJECTIO_BACKENDS
+ASYNC_BLOBIO_BACKENDS = BLOBIO_BACKENDS
+
+# ---------------------------------------------------------------------------
 # Parametrized facade fixtures
 # ---------------------------------------------------------------------------
 
@@ -178,6 +190,35 @@ def blobio(tmp_path, request):
             db.remove()
         except Exception:
             pass
+
+
+# ---------------------------------------------------------------------------
+# Async parametrized facade fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(params=ASYNC_ASEIO_BACKENDS)
+def async_aseio(tmp_path, request):
+    """Yield an AsyncASEIO facade for each read-write backend."""
+    factory = request.param
+    path = factory(tmp_path)
+    return AsyncASEIO(path)
+
+
+@pytest.fixture(params=ASYNC_OBJECTIO_BACKENDS)
+def async_objectio(tmp_path, request):
+    """Yield an AsyncObjectIO facade for each read-write backend."""
+    factory = request.param
+    path = factory(tmp_path)
+    return AsyncObjectIO(path)
+
+
+@pytest.fixture(params=ASYNC_BLOBIO_BACKENDS)
+def async_blobio(tmp_path, request):
+    """Yield an AsyncBlobIO facade for each read-write backend."""
+    factory = request.param
+    path = factory(tmp_path)
+    return AsyncBlobIO(path)
 
 
 # ---------------------------------------------------------------------------
@@ -284,3 +325,57 @@ def assert_atoms_equal(
         f"Constraint count mismatch: {len(actual.constraints)} != "
         f"{len(expected.constraints)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Read-only backend parametrization
+# ---------------------------------------------------------------------------
+
+READONLY_ASE_BACKENDS = [
+    pytest.param(".traj", id="traj"),
+    pytest.param(".xyz", id="xyz"),
+    pytest.param(".extxyz", id="extxyz"),
+]
+
+
+@pytest.fixture(params=READONLY_ASE_BACKENDS)
+def readonly_aseio(tmp_path, request, s22):
+    """Yield an ASEIO facade for each read-only ASE file format.
+
+    Pre-populates a file with s22 data, then opens it read-only.
+    Calls count_frames() on the backend so that len() works.
+    """
+    ext = request.param
+    path = tmp_path / f"test{ext}"
+    ase.io.write(str(path), s22)
+    db = ASEIO(str(path))
+    # ASEReadOnlyBackend requires count_frames() before len() works
+    db._backend.count_frames()
+    return db
+
+
+@pytest.fixture
+def hf_aseio(s22):
+    """Yield an ASEIO facade wrapping a synthetic HuggingFace dataset.
+
+    Builds a datasets.Dataset from s22 fixture data so no network or auth
+    is required (satisfies TEST-06).
+    """
+    import datasets
+
+    from asebytes.hf._backend import HuggingFaceBackend
+    from asebytes.hf._mappings import ColumnMapping
+
+    # Build columnar data from s22 Atoms
+    positions = [atoms.positions.tolist() for atoms in s22]
+    numbers = [atoms.numbers.tolist() for atoms in s22]
+
+    ds = datasets.Dataset.from_dict({
+        "positions": positions,
+        "atomic_numbers": numbers,
+    })
+
+    mapping = ColumnMapping(positions="positions", numbers="atomic_numbers")
+    backend = HuggingFaceBackend(ds, mapping=mapping)
+    db = ASEIO(backend)
+    return db
