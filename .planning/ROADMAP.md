@@ -63,12 +63,12 @@ Plans:
   3. Async facades (AsyncBlobIO, AsyncObjectIO, AsyncASEIO) have mirrored parametrized tests using `@pytest.mark.anyio`
   4. H5MD spec compliance tests verify file structure, and interop tests validate cross-tool read/write with znh5md
   5. Tests against MongoDB and Redis run against real services via CI containers and fail (not skip) when services are unavailable
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
-- [ ] 03-03: TBD
+- [ ] 03-01-PLAN.md — Contract conftest, docker-compose, markers, and sync facade tests (BlobIO, ObjectIO, ASEIO)
+- [ ] 03-02-PLAN.md — Async facade contract tests and H5MD compliance/interop tests
+- [ ] 03-03-PLAN.md — Delete overlapping tests, remove importorskip patterns, clean conftest
 
 ### Phase 4: Benchmarks & Performance
 **Goal**: Measurable performance baselines exist for all file-based backends, and targeted optimizations improve hot paths
