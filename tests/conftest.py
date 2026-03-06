@@ -381,27 +381,27 @@ def _lmdb_object(tmp_path):
 
 
 def _zarr_object(tmp_path):
-    from asebytes.zarr import ZarrBackend
-    return ZarrBackend(str(tmp_path / "uni.zarr"))
+    from asebytes.columnar import ColumnarBackend
+    return ColumnarBackend(str(tmp_path / "uni.zarr"))
 
 
 def _zarr_blob(tmp_path):
     return ObjectToBlobReadWriteAdapter(_zarr_object(tmp_path))
 
 
-def _h5md_object(tmp_path):
-    from asebytes.h5md import H5MDBackend
-    return H5MDBackend(str(tmp_path / "uni.h5"))
+def _h5_object(tmp_path):
+    from asebytes.columnar import ColumnarBackend
+    return ColumnarBackend(str(tmp_path / "uni.h5"))
 
 
-def _h5md_blob(tmp_path):
-    return ObjectToBlobReadWriteAdapter(_h5md_object(tmp_path))
+def _h5_blob(tmp_path):
+    return ObjectToBlobReadWriteAdapter(_h5_object(tmp_path))
 
 
 @pytest.fixture(params=[
     pytest.param(_lmdb_blob, id="lmdb-blob-native"),
     pytest.param(_zarr_blob, id="zarr-blob-via-adapter"),
-    pytest.param(_h5md_blob, id="h5md-blob-via-adapter"),
+    pytest.param(_h5_blob, id="h5-blob-via-adapter"),
 ])
 def uni_blob_backend(tmp_path, request):
     """Universal blob-level backend fixture across all storage formats."""
@@ -411,7 +411,7 @@ def uni_blob_backend(tmp_path, request):
 @pytest.fixture(params=[
     pytest.param(_lmdb_object, id="lmdb-object-via-adapter"),
     pytest.param(_zarr_object, id="zarr-object-native"),
-    pytest.param(_h5md_object, id="h5md-object-native"),
+    pytest.param(_h5_object, id="h5-object-native"),
 ])
 def uni_object_backend(tmp_path, request):
     """Universal object-level backend fixture across all storage formats."""

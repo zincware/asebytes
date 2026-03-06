@@ -260,3 +260,29 @@ def test_blob_concat_flat(three_blob_ios):
     io1, io2 = three_blob_ios
     cat = io1 + io2
     assert len(cat._sources) == 2
+
+
+# ---------------------------------------------------------------------------
+# Cross-type rejection
+# ---------------------------------------------------------------------------
+
+
+def test_cross_type_aseio_plus_objectio(three_ase_ios):
+    io_ase, _ = three_ase_ios
+    io_obj = _fresh_object_io([{"x": 0}])
+    with pytest.raises(TypeError):
+        _ = io_ase + io_obj
+
+
+def test_cross_type_objectio_plus_blobio(three_blob_ios):
+    _, io_blob = three_blob_ios
+    io_obj = _fresh_object_io([{"x": 0}])
+    with pytest.raises(TypeError):
+        _ = io_obj + io_blob
+
+
+def test_cross_type_aseio_plus_blobio(three_ase_ios, three_blob_ios):
+    io_ase, _ = three_ase_ios
+    _, io_blob = three_blob_ios
+    with pytest.raises(TypeError):
+        _ = io_ase + io_blob
