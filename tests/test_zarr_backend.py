@@ -11,7 +11,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 import ase.collections
 
 import asebytes
-from asebytes.zarr._backend import ZarrBackend
+from asebytes.columnar import RaggedColumnarBackend as ZarrBackend
 from asebytes._convert import atoms_to_dict, dict_to_atoms
 
 
