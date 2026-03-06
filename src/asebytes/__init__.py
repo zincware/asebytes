@@ -161,11 +161,21 @@ else:
     __all__ += ["H5MDBackend"]
 
 try:
-    from .zarr import ZarrBackend
+    from .columnar import (
+        BaseColumnarBackend,
+        RaggedColumnarBackend,
+        PaddedColumnarBackend,
+        ColumnarBackend,
+    )
 except ImportError:
     pass
 else:
-    __all__ += ["ZarrBackend"]
+    __all__ += [
+        "BaseColumnarBackend",
+        "RaggedColumnarBackend",
+        "PaddedColumnarBackend",
+        "ColumnarBackend",
+    ]
 
 try:
     from .mongodb import MongoObjectBackend, AsyncMongoObjectBackend
@@ -190,7 +200,6 @@ _OPTIONAL_ATTRS: dict[str, str] = {
     "COLABFIT": "hf",
     "OPTIMADE": "hf",
     "H5MDBackend": "h5md",
-    "ZarrBackend": "zarr",
     "MongoObjectBackend": "mongodb",
     "AsyncMongoObjectBackend": "mongodb",
     "RedisBlobBackend": "redis",

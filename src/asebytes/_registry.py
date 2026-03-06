@@ -34,9 +34,11 @@ class _RegistryEntry(NamedTuple):
 _REGISTRY: list[_RegistryEntry] = [
     # -- Object-level, pattern-based ----------------------------------------
     _RegistryEntry("pattern", "*.lmdb", "object", "asebytes.lmdb", "LMDBObjectBackend", "LMDBObjectReadBackend", False),
-    _RegistryEntry("pattern", "*.h5", "object", "asebytes.columnar", "ColumnarBackend", "ColumnarBackend", False),
+    _RegistryEntry("pattern", "*.h5", "object", "asebytes.columnar", "RaggedColumnarBackend", "RaggedColumnarBackend", False),
+    _RegistryEntry("pattern", "*.h5p", "object", "asebytes.columnar", "PaddedColumnarBackend", "PaddedColumnarBackend", False),
     _RegistryEntry("pattern", "*.h5md", "object", "asebytes.h5md", "H5MDBackend", "H5MDBackend", False),
-    _RegistryEntry("pattern", "*.zarr", "object", "asebytes.columnar", "ColumnarBackend", "ColumnarBackend", False),
+    _RegistryEntry("pattern", "*.zarr", "object", "asebytes.columnar", "RaggedColumnarBackend", "RaggedColumnarBackend", False),
+    _RegistryEntry("pattern", "*.zarrp", "object", "asebytes.columnar", "PaddedColumnarBackend", "PaddedColumnarBackend", False),
     _RegistryEntry("pattern", "*.traj", "object", "asebytes.ase", None, "ASEReadOnlyBackend", False),
     _RegistryEntry("pattern", "*.xyz", "object", "asebytes.ase", None, "ASEReadOnlyBackend", False),
     _RegistryEntry("pattern", "*.extxyz", "object", "asebytes.ase", None, "ASEReadOnlyBackend", False),
@@ -72,8 +74,6 @@ _EXTRAS_HINT: dict[str, str] = {
     "asebytes.h5md": "h5md",
     "asebytes.h5md._backend": "h5md",
     "asebytes.columnar": "columnar",
-    "asebytes.zarr": "zarr",
-    "asebytes.zarr._backend": "zarr",
     "asebytes.mongodb": "mongodb",
     "asebytes.mongodb._backend": "mongodb",
     "asebytes.mongodb._async_backend": "mongodb",

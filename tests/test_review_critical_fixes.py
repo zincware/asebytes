@@ -676,7 +676,7 @@ def test_h5md_set_column_applies_padding(tmp_path):
     """
     import numpy as np
     from asebytes.h5md import H5MDBackend
-    from asebytes._columnar import get_fill_value
+    from asebytes.columnar._utils import get_fill_value
 
     path = tmp_path / "test.h5"
     backend = H5MDBackend(path, readonly=False)
@@ -728,7 +728,7 @@ def test_h5md_update_many_applies_padding(tmp_path):
     """
     import numpy as np
     from asebytes.h5md import H5MDBackend
-    from asebytes._columnar import get_fill_value
+    from asebytes.columnar._utils import get_fill_value
 
     path = tmp_path / "test.h5"
     backend = H5MDBackend(path, readonly=False)

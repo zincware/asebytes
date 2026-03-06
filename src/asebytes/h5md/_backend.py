@@ -16,7 +16,7 @@ from typing import Any
 import h5py
 import numpy as np
 
-from asebytes._columnar import concat_varying, get_fill_value, get_version, jsonable
+from asebytes.columnar._utils import concat_varying, get_fill_value, get_version, jsonable
 from asebytes._backends import ReadWriteBackend
 from asebytes.h5md._mapping import (
     ASE_TO_H5MD,
