@@ -257,6 +257,15 @@ class H5MDBackend(PaddedColumnarBackend):
         if not self._h5md_initialized:
             self._init_h5md()
 
+        # Convert constraints to JSON-serialized info column so they
+        # survive the columnar round-trip (base strips "constraints" key).
+        for row in data:
+            if row is None:
+                continue
+            constraints = row.pop("constraints", None)
+            if constraints:
+                row["info.constraints_json"] = json.dumps(constraints)
+
         # Extract connectivity data before base extend.  Remove from
         # rows so base doesn't try to store it as a regular column.
         conn_key = "info.connectivity"
@@ -363,6 +372,13 @@ class H5MDBackend(PaddedColumnarBackend):
             conn = self._read_connectivity_frame(index)
             if conn is not None:
                 result["info.connectivity"] = conn
+
+        # Reconstruct constraints from JSON column
+        json_key = "info.constraints_json"
+        if json_key in result:
+            raw = result.pop(json_key)
+            if isinstance(raw, str) and raw:
+                result["constraints"] = json.loads(raw)
 
         return result if result else None
 
