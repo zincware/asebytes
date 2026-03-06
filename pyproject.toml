@@ -71,4 +71,11 @@ addopts = ["-v", "--strict-markers", "-m", "not benchmark"]
 
 markers = [
     "benchmark: marks tests as benchmark tests (deselect with '-m \"not benchmark\"')",
+    "mongodb: marks tests requiring MongoDB",
+    "redis: marks tests requiring Redis",
+    "hf: marks tests requiring HuggingFace network access",
+    "supports_variable_particles: backend supports variable particle counts",
+    "supports_per_atom_arrays: backend supports per-atom custom arrays",
+    "supports_constraints: backend supports constraint round-trip",
+    "supports_nested_info: backend supports nested dict info values",
 ]
