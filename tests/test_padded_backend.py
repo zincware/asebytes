@@ -179,9 +179,14 @@ class TestNAtoms:
         rows = _make_variable_rows()
         backend.extend(rows)
 
-        n_atoms_col = backend.get_column("_n_atoms")
-        assert len(n_atoms_col) == 3
-        assert n_atoms_col == [3, 5, 2]
+        # _n_atoms is internal metadata; verify via cache and store
+        assert backend._n_atoms_cache is not None
+        assert len(backend._n_atoms_cache) == 3
+        np.testing.assert_array_equal(backend._n_atoms_cache, [3, 5, 2])
+
+        # Also verify from store directly
+        raw = backend._store.get_array("_n_atoms")
+        np.testing.assert_array_equal(raw, [3, 5, 2])
 
 
 class TestFillValues:
