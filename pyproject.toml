@@ -31,7 +31,7 @@ dev = [
     "pytest-benchmark>=5.2.1",
     "znh5md>=0.4.8",
     "asebytes[zarr]",
-    "asebytes[h5md]",
+    "asebytes[h5]",
     "asebytes[mongodb]",
     "asebytes[redis]",
     "anyio>=4.0",
@@ -44,13 +44,13 @@ Discord = "https://discord.gg/7ncfwhsnm4"
 
 [project.optional-dependencies]
 lmdb = [
-    "lmdb>=1.7.5",
+    "lmdb>=1.6.0",
 ]
 hf = [
     "datasets>=4.5.0",
 ]
-h5md = [
-    "h5py>=3.8.0",
+h5 = [
+    "h5py>=3.12.0",
 ]
 zarr = [
     "zarr>=3.0",

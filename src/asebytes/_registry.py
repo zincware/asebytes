@@ -71,8 +71,8 @@ _EXTRAS_HINT: dict[str, str] = {
     "asebytes.lmdb": "lmdb",
     "asebytes.hf": "hf",
     "asebytes.hf._backend": "hf",
-    "asebytes.h5md": "h5md",
-    "asebytes.h5md._backend": "h5md",
+    "asebytes.h5md": "h5",
+    "asebytes.h5md._backend": "h5",
     "asebytes.columnar": "columnar",
     "asebytes.mongodb": "mongodb",
     "asebytes.mongodb._backend": "mongodb",
@@ -94,7 +94,7 @@ def _import_module(module_path: str):
         hint = _EXTRAS_HINT.get(module_path, module_path)
         raise ImportError(
             f"Backend '{module_path}' requires additional dependencies. "
-            f"Install them with: pip install asebytes[{hint}]"
+            f"Install them with: uv add asebytes[{hint}]"
         ) from None
 
 
