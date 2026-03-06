@@ -64,7 +64,7 @@ Plans:
   4. H5MD spec compliance tests verify file structure, and interop tests validate cross-tool read/write with znh5md
   5. Tests against MongoDB and Redis run against real services via CI containers and fail (not skip) when services are unavailable
   6. Read-only backends (ASE .traj/.xyz/.extxyz, HuggingFace) are tested with a read-only contract subset (get, slice, keys, len, iteration)
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
 - [ ] 03-01-PLAN.md — Contract conftest, docker-compose, markers, and sync facade tests (BlobIO, ObjectIO, ASEIO)
@@ -96,5 +96,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Backend Architecture | 3/3 | Complete | 2026-03-06 |
 | 2. H5MD Compliance | 4/4 | Complete   | 2026-03-06 |
-| 3. Contract Test Suite | 0/4 | Not started | - |
+| 3. Contract Test Suite | 1/4 | In Progress|  |
 | 4. Benchmarks & Performance | 0/2 | Not started | - |
