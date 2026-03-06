@@ -24,7 +24,7 @@
 - [ ] **H5MD-02**: H5MDBackend supports znh5md extensions: NaN padding for variable particle counts, pbc_group for per-frame PBC, custom info/arrays storage conventions
 - [ ] **H5MD-03**: H5MDBackend can read files written by znh5md and znh5md can read files written by H5MDBackend (cross-tool interop)
 - [ ] **H5MD-04**: H5MDBackend round-trips ASE Atoms objects through write-then-read without data loss (positions, cell, pbc, calc results, info, arrays, constraints)
-- [ ] **H5MD-05**: H5MDBackend shares logic with PaddedColumnarBackend where possible (both use padded storage), with H5MD-specific group layout handled via h5py directly
+- [x] **H5MD-05**: H5MDBackend shares logic with PaddedColumnarBackend where possible (both use padded storage), with H5MD-specific group layout handled via h5py directly
 
 ### Testing
 
@@ -48,9 +48,9 @@
 ### Code Quality
 
 - [x] **QUAL-01**: Consolidate duplicated _postprocess() logic across ColumnarBackend, ZarrBackend, H5MDBackend into BaseColumnarBackend
-- [ ] **QUAL-02**: Fix lmdb version pin (>=1.7.5 does not exist on PyPI -- correct to >=1.6.0)
-- [ ] **QUAL-03**: Bump h5py floor from >=3.8.0 to >=3.12.0 for modern HDF5 C library and bug fixes
-- [ ] **QUAL-04**: Remove unnecessary upper bounds on package versions -- prefer open-ended floors (>=X) for future safety
+- [x] **QUAL-02**: Fix lmdb version pin (>=1.7.5 does not exist on PyPI -- correct to >=1.6.0)
+- [x] **QUAL-03**: Bump h5py floor from >=3.8.0 to >=3.12.0 for modern HDF5 C library and bug fixes
+- [x] **QUAL-04**: Remove unnecessary upper bounds on package versions -- prefer open-ended floors (>=X) for future safety
 - [x] **QUAL-05**: Remove dead code paths and unused imports across all backend modules
 - [ ] **QUAL-06**: Standardize async test markers to `@pytest.mark.anyio` consistently
 
@@ -89,7 +89,7 @@
 | H5MD-02 | Phase 2 | Pending |
 | H5MD-03 | Phase 2 | Pending |
 | H5MD-04 | Phase 2 | Pending |
-| H5MD-05 | Phase 2 | Pending |
+| H5MD-05 | Phase 2 | Complete |
 | TEST-01 | Phase 3 | Pending |
 | TEST-02 | Phase 3 | Pending |
 | TEST-03 | Phase 3 | Pending |
@@ -104,9 +104,9 @@
 | PERF-03 | Phase 4 | Pending |
 | PERF-04 | Phase 4 | Pending |
 | QUAL-01 | Phase 1 | Complete |
-| QUAL-02 | Phase 2 | Pending |
-| QUAL-03 | Phase 2 | Pending |
-| QUAL-04 | Phase 2 | Pending |
+| QUAL-02 | Phase 2 | Complete |
+| QUAL-03 | Phase 2 | Complete |
+| QUAL-04 | Phase 2 | Complete |
 | QUAL-05 | Phase 1 | Complete |
 | QUAL-06 | Phase 3 | Pending |
 

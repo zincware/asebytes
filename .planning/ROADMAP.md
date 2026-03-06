@@ -48,7 +48,7 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Fix dependency versions, rename h5md extra to h5, generalize file_handle/file_factory
+- [x] 02-01-PLAN.md — Fix dependency versions, rename h5md extra to h5, generalize file_handle/file_factory
 - [ ] 02-02-PLAN.md — Create H5MDStore implementing ColumnarStore with H5MD group layout
 - [ ] 02-03-PLAN.md — Rewrite H5MDBackend to inherit PaddedColumnarBackend
 - [ ] 02-04-PLAN.md — Add new feature tests, verify znh5md interop
@@ -93,6 +93,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Backend Architecture | 3/3 | Complete | 2026-03-06 |
-| 2. H5MD Compliance | 0/4 | Not started | - |
+| 2. H5MD Compliance | 1/4 | In progress | - |
 | 3. Contract Test Suite | 0/3 | Not started | - |
 | 4. Benchmarks & Performance | 0/2 | Not started | - |
