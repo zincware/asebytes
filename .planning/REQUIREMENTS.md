@@ -20,7 +20,7 @@
 
 **Architectural consideration:** H5MD uses padded storage -- evaluate whether H5MDBackend can be implemented as a specialization of PaddedColumnarBackend with H5MD-specific group layout on top, rather than a fully separate backend.
 
-- [ ] **H5MD-01**: H5MDBackend can read and write files compliant with the H5MD 1.1 specification (particles, observables, time-dependent data with step/time/value structure)
+- [x] **H5MD-01**: H5MDBackend can read and write files compliant with the H5MD 1.1 specification (particles, observables, time-dependent data with step/time/value structure)
 - [ ] **H5MD-02**: H5MDBackend supports znh5md extensions: NaN padding for variable particle counts, pbc_group for per-frame PBC, custom info/arrays storage conventions
 - [ ] **H5MD-03**: H5MDBackend can read files written by znh5md and znh5md can read files written by H5MDBackend (cross-tool interop)
 - [ ] **H5MD-04**: H5MDBackend round-trips ASE Atoms objects through write-then-read without data loss (positions, cell, pbc, calc results, info, arrays, constraints)
@@ -85,7 +85,7 @@
 | ARCH-04 | Phase 1 | Complete |
 | ARCH-05 | Phase 1 | Complete |
 | ARCH-06 | Phase 1 | Complete |
-| H5MD-01 | Phase 2 | Pending |
+| H5MD-01 | Phase 2 | Complete |
 | H5MD-02 | Phase 2 | Pending |
 | H5MD-03 | Phase 2 | Pending |
 | H5MD-04 | Phase 2 | Pending |

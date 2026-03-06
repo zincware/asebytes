@@ -45,7 +45,7 @@ Plans:
   3. ASE Atoms round-trip through H5MDBackend preserves positions, cell, pbc, calculator results, info dict, arrays, and constraints
   4. H5MDBackend inherits shared columnar logic from BaseColumnarBackend rather than reimplementing it
   5. Dependency versions are corrected: lmdb >=1.6.0, h5py >=3.12.0, no unnecessary upper bounds
-**Plans:** 4 plans
+**Plans:** 2/4 plans executed
 
 Plans:
 - [x] 02-01-PLAN.md — Fix dependency versions, rename h5md extra to h5, generalize file_handle/file_factory
@@ -93,6 +93,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Backend Architecture | 3/3 | Complete | 2026-03-06 |
-| 2. H5MD Compliance | 1/4 | In progress | - |
+| 2. H5MD Compliance | 2/4 | In Progress|  |
 | 3. Contract Test Suite | 0/3 | Not started | - |
 | 4. Benchmarks & Performance | 0/2 | Not started | - |

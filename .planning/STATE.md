@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-03-06T13:57:17Z"
-last_activity: 2026-03-06 -- Completed Plan 02-01 (Dependencies and File Handle Support)
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-06T14:03:30Z"
+last_activity: 2026-03-06 -- Completed Plan 02-02 (H5MDStore)
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
-  percent: 33
+  total_plans: 7
+  completed_plans: 5
+  percent: 71
 ---
 
 # Project State
@@ -26,28 +26,28 @@ See: .planning/PROJECT.md (updated 2026-03-06)
 ## Current Position
 
 Phase: 2 of 4 (H5MD Compliance) -- IN PROGRESS
-Plan: 1 of 4 in current phase
-Status: Plan 02-01 Complete
-Last activity: 2026-03-06 -- Completed Plan 02-01 (Dependencies and File Handle Support)
+Plan: 2 of 4 in current phase
+Status: Plan 02-02 Complete
+Last activity: 2026-03-06 -- Completed Plan 02-02 (H5MDStore)
 
-Progress: [████░░░░░░] 33%
+Progress: [███████░░░] 71%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 4.0min
-- Total execution time: 0.27 hours
+- Total plans completed: 5
+- Average duration: 3.8min
+- Total execution time: 0.32 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-backend-architecture | 3 | 13min | 4.3min |
-| 02-h5md-compliance | 1 | 3min | 3.0min |
+| 02-h5md-compliance | 2 | 6min | 3.0min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (5min), 01-02 (4min), 01-03 (4min), 02-01 (3min)
+- Last 5 plans: 01-01 (5min), 01-02 (4min), 01-03 (4min), 02-01 (3min), 02-02 (3min)
 - Trend: stable
 
 *Updated after each plan completion*
@@ -74,6 +74,9 @@ Recent decisions affecting current work:
 - 02-01: file_handle creates HDF5Store with _owns_file=False (caller manages lifecycle)
 - 02-01: file_factory called immediately at init time (not lazy) since _discover() needs the store
 - 02-01: Error messages use uv add instead of pip install for consistency with project tooling
+- 02-02: list_groups inspects particles/ children (not top-level keys) matching H5MD spec
+- 02-02: Internal metadata stored in asebytes/{grp} group to avoid polluting H5MD namespace
+- 02-02: Step/time stored as scalar datasets with linear values (step=1, time=1.0)
 
 ### Pending Todos
 
@@ -86,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T13:57:17Z
-Stopped at: Completed 02-01-PLAN.md
-Resume file: .planning/phases/02-h5md-compliance/02-01-SUMMARY.md
+Last session: 2026-03-06T14:03:30Z
+Stopped at: Completed 02-02-PLAN.md
+Resume file: .planning/phases/02-h5md-compliance/02-02-SUMMARY.md
