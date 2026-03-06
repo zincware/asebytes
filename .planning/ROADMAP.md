@@ -13,7 +13,7 @@ This roadmap delivers a clean, fast, fully-tested asebytes package through four 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Backend Architecture** - Extract BaseColumnarBackend, split padded/ragged variants, remove legacy Zarr, clean dead code
-- [ ] **Phase 2: H5MD Compliance** - Full H5MD 1.1 spec compliance with znh5md interop, dependency version fixes
+- [x] **Phase 2: H5MD Compliance** - Full H5MD 1.1 spec compliance with znh5md interop, dependency version fixes (completed 2026-03-06)
 - [ ] **Phase 3: Contract Test Suite** - Unified parametrized test suite covering all backends through all facades
 - [ ] **Phase 4: Benchmarks & Performance** - Establish benchmark baselines with pytest-benchmark, then optimize hot paths
 
@@ -45,7 +45,7 @@ Plans:
   3. ASE Atoms round-trip through H5MDBackend preserves positions, cell, pbc, calculator results, info dict, arrays, and constraints
   4. H5MDBackend inherits shared columnar logic from BaseColumnarBackend rather than reimplementing it
   5. Dependency versions are corrected: lmdb >=1.6.0, h5py >=3.12.0, no unnecessary upper bounds
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 - [x] 02-01-PLAN.md — Fix dependency versions, rename h5md extra to h5, generalize file_handle/file_factory
@@ -93,6 +93,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Backend Architecture | 3/3 | Complete | 2026-03-06 |
-| 2. H5MD Compliance | 3/4 | In Progress|  |
+| 2. H5MD Compliance | 4/4 | Complete   | 2026-03-06 |
 | 3. Contract Test Suite | 0/3 | Not started | - |
 | 4. Benchmarks & Performance | 0/2 | Not started | - |
