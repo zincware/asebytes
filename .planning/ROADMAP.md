@@ -36,7 +36,7 @@ Plans:
 - [x] 01-03-PLAN.md — Update registry, delete legacy zarr, clean dead code
 
 ### Phase 2: H5MD Compliance
-**Goal**: H5MDBackend reads and writes H5MD 1.1 compliant files with full znh5md interop, sharing logic with PaddedColumnarBackend where possible
+**Goal**: H5MDBackend reads and writes H5MD 1.1 compliant files with full znh5md interop, sharing logic with PaddedColumnarBackend via inheritance
 **Depends on**: Phase 1
 **Requirements**: H5MD-01, H5MD-02, H5MD-03, H5MD-04, H5MD-05, QUAL-02, QUAL-03, QUAL-04
 **Success Criteria** (what must be TRUE):
@@ -45,11 +45,13 @@ Plans:
   3. ASE Atoms round-trip through H5MDBackend preserves positions, cell, pbc, calculator results, info dict, arrays, and constraints
   4. H5MDBackend inherits shared columnar logic from BaseColumnarBackend rather than reimplementing it
   5. Dependency versions are corrected: lmdb >=1.6.0, h5py >=3.12.0, no unnecessary upper bounds
-**Plans**: TBD
+**Plans:** 4 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+- [ ] 02-01-PLAN.md — Fix dependency versions, rename h5md extra to h5, generalize file_handle/file_factory
+- [ ] 02-02-PLAN.md — Create H5MDStore implementing ColumnarStore with H5MD group layout
+- [ ] 02-03-PLAN.md — Rewrite H5MDBackend to inherit PaddedColumnarBackend
+- [ ] 02-04-PLAN.md — Add new feature tests, verify znh5md interop
 
 ### Phase 3: Contract Test Suite
 **Goal**: A single parametrized test suite proves every backend is correct through BlobIO, ObjectIO, and ASEIO facades, with async mirrors
@@ -91,6 +93,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Backend Architecture | 3/3 | Complete | 2026-03-06 |
-| 2. H5MD Compliance | 0/2 | Not started | - |
+| 2. H5MD Compliance | 0/4 | Not started | - |
 | 3. Contract Test Suite | 0/3 | Not started | - |
 | 4. Benchmarks & Performance | 0/2 | Not started | - |
