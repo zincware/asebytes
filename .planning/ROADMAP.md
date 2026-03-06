@@ -28,12 +28,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Opening a file with a ragged extension (e.g. `.h5`) creates a RaggedColumnarBackend, and a padded extension (e.g. `.h5p`) creates a PaddedColumnarBackend -- no ambiguity in registry resolution
   3. Legacy Zarr backend directory (`src/asebytes/zarr/`) is deleted and no imports reference it
   4. Existing tests pass against the new backend classes without behavior changes
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [ ] 01-01-PLAN.md — Extract BaseColumnarBackend + RaggedColumnarBackend, move utilities
+- [ ] 01-02-PLAN.md — Create PaddedColumnarBackend with padded storage
+- [ ] 01-03-PLAN.md — Update registry, delete legacy zarr, clean dead code
 
 ### Phase 2: H5MD Compliance
 **Goal**: H5MDBackend reads and writes H5MD 1.1 compliant files with full znh5md interop, sharing logic with PaddedColumnarBackend where possible
