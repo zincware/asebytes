@@ -166,6 +166,56 @@ class H5MDBackend(PaddedColumnarBackend):
         self._h5md_initialized = True
 
     # ------------------------------------------------------------------
+    # _discover override (znh5md compat)
+    # ------------------------------------------------------------------
+
+    def _discover(self) -> None:
+        """Populate caches, with fallback for foreign H5MD files.
+
+        Files written by znh5md lack our ``asebytes/{grp}`` metadata.
+        When the base ``_discover`` finds n_frames=0 but the file has
+        particles data, we sniff from the species dataset.
+        """
+        super()._discover()
+
+        if self._n_frames == 0:
+            # Sniff from species dataset (standard H5MD)
+            f = self._store._file
+            pgrp = f"particles/{self.group}"
+            if pgrp in f:
+                grp = f[pgrp]
+                if "species" in grp and isinstance(grp["species"], h5py.Group):
+                    if "value" in grp["species"]:
+                        ds = grp["species"]["value"]
+                        self._n_frames = ds.shape[0]
+                        if ds.ndim > 1:
+                            self._max_atoms = ds.shape[1]
+
+            if self._n_frames > 0:
+                # Rebuild column lists from store
+                self._columns = []
+                self._per_atom_cols = set()
+                for col in self._store.list_arrays():
+                    if col.startswith("_"):
+                        continue
+                    self._columns.append(col)
+                    # Per-atom detection: particles/ columns with ndim >= 2
+                    if col not in ("cell", "pbc") and self._store.has_array(col):
+                        shape = self._store.get_shape(col)
+                        if len(shape) >= 2 and shape[1] > 1:
+                            self._per_atom_cols.add(col)
+
+                # Rebuild known_arrays and shapes
+                self._known_arrays = set()
+                self._array_shapes = {}
+                for name in self._store.list_arrays():
+                    self._known_arrays.add(name)
+                    self._array_shapes[name] = self._store.get_shape(name)
+
+                # Re-run variant discovery with updated state
+                self._discover_variant()
+
+    # ------------------------------------------------------------------
     # _discover_variant override
     # ------------------------------------------------------------------
 
@@ -207,9 +257,15 @@ class H5MDBackend(PaddedColumnarBackend):
         if not self._h5md_initialized:
             self._init_h5md()
 
-        # Extract connectivity before passing to base -- it uses a
-        # dedicated H5MD connectivity/ group, not regular columns.
-        self._write_connectivity(data)
+        # Extract connectivity data before base extend.  Remove from
+        # rows so base doesn't try to store it as a regular column.
+        conn_key = "info.connectivity"
+        conn_data = [
+            row.get(conn_key) if row is not None else None for row in data
+        ]
+        for row in data:
+            if row is not None:
+                row.pop(conn_key, None)
 
         # Species (arrays.numbers) must be stored as float64 for znh5md
         # compat.  Convert in-place before base sees them.
@@ -221,7 +277,39 @@ class H5MDBackend(PaddedColumnarBackend):
                 if nums.dtype.kind != "f":
                     row["arrays.numbers"] = nums.astype(np.float64)
 
-        return super().extend(data)
+        # Save n_frames before extend for connectivity offset
+        n_frames_before = self._n_frames
+
+        result = super().extend(data)
+
+        # Ensure all per-atom arrays are extended to match n_frames.
+        # Base extend skips per-atom columns not in the current batch,
+        # but H5MD requires all datasets to be aligned.
+        for col in self._per_atom_cols:
+            if col not in self._known_arrays:
+                continue
+            shape = self._array_shapes.get(col)
+            if shape is None:
+                continue
+            if shape[0] < self._n_frames:
+                deficit = self._n_frames - shape[0]
+                dtype = self._store.get_dtype(col)
+                fv = get_fill_value(dtype)
+                if self._max_atoms > 0:
+                    pad_shape = (deficit, self._max_atoms) + shape[2:]
+                else:
+                    pad_shape = (deficit,) + shape[1:]
+                self._store.append_array(
+                    col, np.full(pad_shape, fv, dtype=dtype)
+                )
+                # Update cached shape
+                self._array_shapes[col] = self._store.get_shape(col)
+
+        # Write connectivity AFTER base extend (particles group must exist)
+        if not all(v is None for v in conn_data):
+            self._write_connectivity_from(conn_data, n_frames_before)
+
+        return result
 
     # ------------------------------------------------------------------
     # get override
@@ -230,17 +318,53 @@ class H5MDBackend(PaddedColumnarBackend):
     def get(
         self, index: int, keys: list[str] | None = None
     ) -> dict[str, Any] | None:
-        result = super().get(index, keys)
+        index = self._check_index(index)
+        result: dict[str, Any] = {}
+
+        # Read n_atoms for this frame
+        n_atoms: int | None = None
+        if self._n_atoms_cache is not None and self._per_atom_cols:
+            if keys is None or (self._per_atom_cols & set(keys)):
+                n_atoms = int(self._n_atoms_cache[index])
+
+        for col_name in self._columns:
+            if keys is not None and col_name not in keys:
+                continue
+            if col_name not in self._known_arrays:
+                continue
+
+            if col_name in self._per_atom_cols:
+                if n_atoms is not None and n_atoms > 0:
+                    val = self._store.get_slice(col_name, index)
+                    val = self._postprocess(
+                        val, col_name, is_per_atom=True, n_atoms=n_atoms
+                    )
+                elif self._n_atoms_cache is None:
+                    # No _n_atoms metadata (e.g. znh5md file): read and
+                    # rely on NaN-strip fallback in _unpad_per_atom
+                    val = self._store.get_slice(col_name, index)
+                    val = self._postprocess(
+                        val, col_name, is_per_atom=True, n_atoms=None
+                    )
+                else:
+                    continue
+            else:
+                arr_len = self._array_shapes[col_name][0]
+                if index >= arr_len:
+                    continue
+                val = self._store.get_slice(col_name, index)
+                val = self._postprocess(val, col_name, is_per_atom=False)
+
+            if val is not None:
+                result[col_name] = val
 
         # Add connectivity from H5MD connectivity/ group
         if self._conn_cache and (keys is None or "info.connectivity" in keys):
-            conn = self._read_connectivity_frame(self._check_index(index))
+            conn = self._read_connectivity_frame(index)
             if conn is not None:
-                if result is None:
-                    result = {}
                 result["info.connectivity"] = conn
 
-        return result
+        return result if result else None
 
     # ------------------------------------------------------------------
     # get_many override
@@ -249,10 +373,19 @@ class H5MDBackend(PaddedColumnarBackend):
     def get_many(
         self, indices: list[int], keys: list[str] | None = None
     ) -> list[dict[str, Any] | None]:
-        results = super().get_many(indices, keys)
+        # For files with _n_atoms, delegate to base (handles padded path)
+        # For files without _n_atoms (znh5md), fall back to per-frame get
+        if self._n_atoms_cache is not None:
+            results = super().get_many(indices, keys)
+        else:
+            # No _n_atoms metadata -- fall back to individual gets
+            # which handle NaN-strip fallback
+            results = [self.get(i, keys) for i in indices]
 
-        # Inject connectivity
-        if self._conn_cache and (keys is None or "info.connectivity" in keys):
+        # Inject connectivity (only when not already done by get())
+        if self._n_atoms_cache is not None and self._conn_cache and (
+            keys is None or "info.connectivity" in keys
+        ):
             checked = [self._check_index(i) for i in indices]
             for j, idx in enumerate(checked):
                 conn = self._read_connectivity_frame(idx)
@@ -306,23 +439,24 @@ class H5MDBackend(PaddedColumnarBackend):
     # Connectivity (H5MD connectivity/ group)
     # ------------------------------------------------------------------
 
-    def _write_connectivity(self, data: list[dict[str, Any] | None]) -> None:
+    def _write_connectivity_from(
+        self,
+        raw: list[Any],
+        n_frames_before: int,
+    ) -> None:
         """Write connectivity to H5MD-standard ``connectivity/bonds``.
 
         Stores bonds as ``int32[n_frames, max_bonds, 2]`` with ``-1`` fill,
         and optional bond orders as ``float64[n_frames, max_bonds]`` with
         ``NaN`` fill.
+
+        Parameters
+        ----------
+        raw : list
+            Per-frame connectivity data (extracted before base extend).
+        n_frames_before : int
+            Frame count before the extend call (for offset calculation).
         """
-        conn_key = "info.connectivity"
-        raw = [row.get(conn_key) if row is not None else None for row in data]
-
-        # Remove connectivity from data so base extend doesn't try to store it
-        for row in data:
-            if row is not None:
-                row.pop(conn_key, None)
-
-        if all(v is None for v in raw):
-            return
 
         # Parse tuples into bonds / bond_orders per frame
         bonds_list: list[np.ndarray | None] = []
@@ -354,7 +488,7 @@ class H5MDBackend(PaddedColumnarBackend):
         if max_bonds == 0:
             return
 
-        n_new = len(data)
+        n_new = len(raw)
         grp_name = self.group
         f = self._store._file
         bonds_path = f"connectivity/{grp_name}/bonds"
@@ -377,19 +511,24 @@ class H5MDBackend(PaddedColumnarBackend):
                     orders_arr[i, : len(o)] = o
 
         if bonds_path in f:
-            self._extend_connectivity_ds(bonds_path, bonds_arr, -1)
+            self._extend_connectivity_ds(
+                bonds_path, bonds_arr, -1, n_frames_before
+            )
         else:
             self._create_connectivity_ds(
-                bonds_path, bonds_arr, np.int32, -1, grp_name
+                bonds_path, bonds_arr, np.int32, -1, grp_name, n_frames_before
             )
 
         if orders_arr is not None:
             bo_path = f"connectivity/{grp_name}/bond_orders"
             if bo_path in f:
-                self._extend_connectivity_ds(bo_path, orders_arr, np.nan)
+                self._extend_connectivity_ds(
+                    bo_path, orders_arr, np.nan, n_frames_before
+                )
             else:
                 self._create_connectivity_ds(
-                    bo_path, orders_arr, np.float64, np.nan, grp_name
+                    bo_path, orders_arr, np.float64, np.nan, grp_name,
+                    n_frames_before
                 )
 
     def _create_connectivity_ds(
@@ -399,12 +538,13 @@ class H5MDBackend(PaddedColumnarBackend):
         dtype: Any,
         fillvalue: Any,
         particles_group: str,
+        n_frames_before: int,
     ) -> None:
         """Create an H5MD time-dependent connectivity dataset."""
         f = self._store._file
         grp = f.require_group(h5_path)
         n = data.shape[0]
-        full_shape = (self._n_frames + n,) + data.shape[1:]
+        full_shape = (n_frames_before + n,) + data.shape[1:]
         maxshape = tuple(None for _ in full_shape)
         chunks_0 = max(1, min(64, full_shape[0]))
         chunks = (chunks_0,) + data.shape[1:]
@@ -418,7 +558,7 @@ class H5MDBackend(PaddedColumnarBackend):
             compression_opts=self._store._compression_opts,
             chunks=chunks,
         )
-        ds[self._n_frames :] = data
+        ds[n_frames_before:] = data
 
         grp.attrs["particles_group"] = f[f"particles/{particles_group}"].ref
 
@@ -427,7 +567,8 @@ class H5MDBackend(PaddedColumnarBackend):
         time_ds.attrs["unit"] = "fs"
 
     def _extend_connectivity_ds(
-        self, h5_path: str, data: np.ndarray, fillvalue: Any
+        self, h5_path: str, data: np.ndarray, fillvalue: Any,
+        n_frames_before: int,
     ) -> None:
         """Extend an existing connectivity dataset, growing N dim if needed."""
         f = self._store._file
@@ -435,7 +576,7 @@ class H5MDBackend(PaddedColumnarBackend):
         ds = grp["value"]
         old_shape = ds.shape
         n_new = data.shape[0]
-        shift = self._n_frames - old_shape[0]
+        shift = n_frames_before - old_shape[0]
 
         if data.ndim >= 2 and old_shape[1] != data.shape[1]:
             new_second = max(old_shape[1], data.shape[1])

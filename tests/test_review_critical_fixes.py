@@ -702,8 +702,7 @@ def test_h5md_set_column_applies_padding(tmp_path):
     backend.set_column("arrays.positions", 1, [np.array([[5, 5, 5]], dtype=np.float64)])  # 1 atom
 
     # Verify padding was applied by checking raw HDF5 data
-    h5_path = backend._find_dataset_path("arrays.positions")
-    ds = backend._file[h5_path]["value"]
+    ds = backend._store._get_ds("arrays.positions")
     raw_data = ds[1]  # Row 1
 
     # Should have 3 atoms in storage (padded to max_atoms)
@@ -754,8 +753,7 @@ def test_h5md_update_many_applies_padding(tmp_path):
     backend.update_many(1, [{"arrays.positions": np.array([[5, 5, 5]], dtype=np.float64)}])  # 1 atom
 
     # Verify padding was applied by checking raw HDF5 data
-    h5_path = backend._find_dataset_path("arrays.positions")
-    ds = backend._file[h5_path]["value"]
+    ds = backend._store._get_ds("arrays.positions")
     raw_data = ds[1]  # Row 1
 
     # Should have 3 atoms in storage (padded to max_atoms)

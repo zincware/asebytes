@@ -130,7 +130,9 @@ class H5MDStore:
         if key.startswith("arrays."):
             ase_name = key[len("arrays."):]
             h5name = ASE_TO_H5MD.get(ase_name, ase_name)
-            return f"/particles/{grp}/{h5name}", "arrays"
+            # Core properties use "atoms" origin (znh5md compat)
+            origin = "atoms" if ase_name in ("positions", "numbers") else "arrays"
+            return f"/particles/{grp}/{h5name}", origin
 
         # --- calc.* ---
         if key.startswith("calc."):
@@ -145,6 +147,10 @@ class H5MDStore:
         if key.startswith("info."):
             name = key[len("info."):]
             return f"/observables/{grp}/{name}", "info"
+
+        # --- internal metadata (_n_atoms, etc.) ---
+        if key.startswith("_"):
+            return f"/asebytes/{grp}/{key}", None
 
         return None, None
 
@@ -185,6 +191,10 @@ class H5MDStore:
             if origin == "info":
                 return f"info.{ase_name}"
             return f"calc.{ase_name}"
+
+        # /asebytes/{grp}/{name} -> internal metadata
+        if len(parts) == 3 and parts[0] == "asebytes" and parts[1] == grp:
+            return parts[2]
 
         return None
 
@@ -235,6 +245,23 @@ class H5MDStore:
         return None
 
     # ------------------------------------------------------------------
+    # Internal metadata helpers
+    # ------------------------------------------------------------------
+
+    def _is_internal(self, name: str) -> bool:
+        """Return True for internal metadata columns (e.g. _n_atoms)."""
+        return name.startswith("_")
+
+    def _internal_ds(self, name: str) -> Any:
+        """Return (or cache) the h5py.Dataset for an internal column."""
+        ds = self._ds_cache.get(name)
+        if ds is None:
+            meta_path = f"asebytes/{self._particles_group}"
+            ds = self._file[f"{meta_path}/{name}"]
+            self._ds_cache[name] = ds
+        return ds
+
+    # ------------------------------------------------------------------
     # ColumnarStore interface
     # ------------------------------------------------------------------
 
@@ -248,13 +275,36 @@ class H5MDStore:
     ) -> None:
         import h5py
 
-        h5_path, origin = self._column_to_h5(name)
-        if h5_path is None:
-            raise KeyError(f"Cannot map column {name!r} to H5MD path")
-
         arr = np.asarray(data)
         dt = dtype if dtype is not None else arr.dtype
         dt_obj = np.dtype(dt)
+
+        # Internal metadata: simple dataset in asebytes/{grp}/
+        if self._is_internal(name):
+            meta_path = f"asebytes/{self._particles_group}"
+            grp = self._file.require_group(meta_path)
+            chunks = (max(1, min(self._chunk_frames, arr.shape[0])),) + arr.shape[1:]
+            kw: dict[str, Any] = {}
+            if fill_value is not None:
+                kw["fillvalue"] = fill_value
+            if self._compression and dt_obj.kind in ("f", "i", "u"):
+                kw["compression"] = self._compression
+                if self._compression_opts is not None:
+                    kw["compression_opts"] = self._compression_opts
+            grp.create_dataset(
+                name,
+                data=arr,
+                dtype=dt,
+                maxshape=(None,) + arr.shape[1:],
+                chunks=chunks,
+                **kw,
+            )
+            self._ds_cache.pop(name, None)
+            return
+
+        h5_path, origin = self._column_to_h5(name)
+        if h5_path is None:
+            raise KeyError(f"Cannot map column {name!r} to H5MD path")
 
         # Create the element group
         element_grp = self._file.require_group(h5_path)
@@ -268,32 +318,31 @@ class H5MDStore:
         chunks_0 = max(1, min(self._chunk_frames, arr.shape[0]))
         chunks = (chunks_0,) + arr.shape[1:]
 
-        kw: dict[str, Any] = {}
+        kw2: dict[str, Any] = {}
         if dt_obj.kind in ("U", "S", "O"):
             h5dt = h5py.string_dtype()
+            str_data = np.array([str(s) for s in arr.flat], dtype=object).reshape(arr.shape)
             ds = element_grp.create_dataset(
                 "value",
-                shape=arr.shape,
+                data=str_data,
                 dtype=h5dt,
                 maxshape=maxshape,
                 chunks=chunks,
             )
-            for i, s in enumerate(arr.flat):
-                ds.flat[i] = str(s)
         else:
             if self._compression and dt_obj.kind in ("f", "i", "u"):
-                kw["compression"] = self._compression
+                kw2["compression"] = self._compression
                 if self._compression_opts is not None:
-                    kw["compression_opts"] = self._compression_opts
+                    kw2["compression_opts"] = self._compression_opts
             if fill_value is not None:
-                kw["fillvalue"] = fill_value
+                kw2["fillvalue"] = fill_value
             element_grp.create_dataset(
                 "value",
                 data=arr,
                 dtype=dt,
                 maxshape=maxshape,
                 chunks=chunks,
-                **kw,
+                **kw2,
             )
 
         # Write unit attribute on the value dataset
@@ -315,13 +364,20 @@ class H5MDStore:
         self._ds_cache.pop(name, None)
 
     def get_array(self, name: str) -> np.ndarray:
+        if self._is_internal(name):
+            return self._internal_ds(name)[()]
         return self._get_ds(name)[()]
 
     def get_slice(self, name: str, sel: Any) -> np.ndarray:
+        if self._is_internal(name):
+            return self._internal_ds(name)[sel]
         return self._get_ds(name)[sel]
 
     def append_array(self, name: str, data: np.ndarray) -> None:
-        ds = self._get_ds(name)
+        if self._is_internal(name):
+            ds = self._internal_ds(name)
+        else:
+            ds = self._get_ds(name)
         old_len = ds.shape[0]
         arr = np.asarray(data)
         new_len = old_len + arr.shape[0]
@@ -329,9 +385,18 @@ class H5MDStore:
         ds[old_len:] = arr
 
     def write_slice(self, name: str, sel: Any, data: np.ndarray) -> None:
-        self._get_ds(name)[sel] = data
+        if self._is_internal(name):
+            self._internal_ds(name)[sel] = data
+        else:
+            self._get_ds(name)[sel] = data
 
     def has_array(self, name: str) -> bool:
+        if self._is_internal(name):
+            meta_path = f"asebytes/{self._particles_group}"
+            try:
+                return name in self._file[meta_path]
+            except KeyError:
+                return False
         h5_path, _ = self._column_to_h5(name)
         if h5_path is None:
             return False
@@ -341,7 +406,7 @@ class H5MDStore:
             return False
 
     def list_arrays(self) -> list[str]:
-        """Walk particles/{grp}/ and observables/{grp}/ for H5MD elements."""
+        """Walk particles/{grp}/, observables/{grp}/, and asebytes/{grp}/ for arrays."""
         import h5py
 
         columns: list[str] = []
@@ -353,6 +418,19 @@ class H5MDStore:
                 continue
             base = self._file[base_path]
             self._walk_elements(base, f"/{base_path}", columns)
+
+        # Internal metadata (e.g. _n_atoms)
+        meta_path = f"asebytes/{grp}"
+        if meta_path in self._file:
+            meta = self._file[meta_path]
+            for child_name in meta:
+                child = meta[child_name]
+                if isinstance(child, h5py.Dataset):
+                    columns.append(child_name)
+                elif isinstance(child, h5py.Group) and "value" in child:
+                    col = self._h5_to_column(f"/{meta_path}/{child_name}")
+                    if col is not None:
+                        columns.append(col)
 
         return sorted(columns)
 
@@ -393,9 +471,13 @@ class H5MDStore:
     # -- Metadata ----------------------------------------------------------
 
     def get_shape(self, name: str) -> tuple[int, ...]:
+        if self._is_internal(name):
+            return self._internal_ds(name).shape
         return self._get_ds(name).shape
 
     def get_dtype(self, name: str) -> np.dtype:
+        if self._is_internal(name):
+            return self._internal_ds(name).dtype
         return self._get_ds(name).dtype
 
     # -- Lifecycle ---------------------------------------------------------
