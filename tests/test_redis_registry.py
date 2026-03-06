@@ -11,7 +11,7 @@ import uuid
 
 import pytest
 
-redis_mod = pytest.importorskip("redis")
+import redis  # noqa: F401 -- import ensures redis is available (fail, not skip)
 
 
 def test_parse_uri_recognizes_redis():

@@ -74,7 +74,7 @@ def test_sync_get_column_handles_none_reserved_rows():
 
 import uuid
 
-pymongo = pytest.importorskip("pymongo")
+import pymongo
 
 from asebytes.mongodb import MongoObjectBackend, AsyncMongoObjectBackend
 

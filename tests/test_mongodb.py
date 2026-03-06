@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import pytest
 
-pymongo = pytest.importorskip("pymongo")
+import pymongo  # noqa: F401 -- import ensures pymongo is available (fail, not skip)
 
 from asebytes._backends import ReadBackend, ReadWriteBackend
 from asebytes._async_backends import AsyncReadBackend, AsyncReadWriteBackend
