@@ -40,10 +40,10 @@
 
 ### Performance
 
-- [ ] **PERF-01**: HDF5 chunk cache tuning -- set both rdcc_nbytes and rdcc_nslots for optimal random and sequential access
-- [ ] **PERF-02**: MongoDB backend optimization with TTL index for cache expiration
-- [ ] **PERF-03**: Redis backend optimization with Lua server-side scripts for bounds checking
-- [ ] **PERF-04**: Establish benchmark baselines for all file-based backends before and after optimization changes
+- [x] **PERF-01**: HDF5 chunk cache tuning -- set both rdcc_nbytes and rdcc_nslots for optimal random and sequential access
+- [x] **PERF-02**: MongoDB backend optimization with TTL index for cache expiration
+- [x] **PERF-03**: Redis backend optimization with Lua server-side scripts for bounds checking
+- [x] **PERF-04**: Establish benchmark baselines for all file-based backends before and after optimization changes
 
 ### Code Quality
 
@@ -99,10 +99,10 @@
 | TEST-07 | Phase 4 | Complete |
 | TEST-08 | Phase 3 | Complete |
 | TEST-09 | Phase 3 | Complete |
-| PERF-01 | Phase 4 | Pending |
-| PERF-02 | Phase 4 | Pending |
-| PERF-03 | Phase 4 | Pending |
-| PERF-04 | Phase 4 | Pending |
+| PERF-01 | Phase 4 | Complete |
+| PERF-02 | Phase 4 | Complete |
+| PERF-03 | Phase 4 | Complete |
+| PERF-04 | Phase 4 | Complete |
 | QUAL-01 | Phase 1 | Complete |
 | QUAL-02 | Phase 2 | Complete |
 | QUAL-03 | Phase 2 | Complete |

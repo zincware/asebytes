@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Completed 04-01 (Benchmark Data Fixtures)
-last_updated: "2026-03-06T16:33:15Z"
-last_activity: 2026-03-06 -- Completed Plan 04-01 (Benchmark Data Fixtures)
+stopped_at: Completed 04-02 (Performance Optimizations) -- All phases complete
+last_updated: "2026-03-06T16:57:00Z"
+last_activity: 2026-03-06 -- Completed Plan 04-02 (Performance Optimizations)
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
   percent: 100
 ---
 
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-06)
 
 ## Current Position
 
-Phase: 4 of 4 (Benchmarks and Performance) -- IN PROGRESS
-Plan: 1 of 2 in current phase -- COMPLETE
-Status: Phase 04 in progress
-Last activity: 2026-03-06 -- Completed Plan 04-01 (Benchmark Data Fixtures)
+Phase: 4 of 4 (Benchmarks and Performance) -- COMPLETE
+Plan: 2 of 2 in current phase -- COMPLETE
+Status: All phases complete
+Last activity: 2026-03-06 -- Completed Plan 04-02 (Performance Optimizations)
 
-Progress: [█████████░] 92%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [█████████░] 92%
 | Phase 03 P02 | 6min | 2 tasks | 5 files |
 | Phase 03 P03 | 2min | 1 tasks | 15 files |
 | Phase 04 P01 | 4min | 2 tasks | 3 files |
+| Phase 04 P02 | 22min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -103,6 +104,9 @@ Recent decisions affecting current work:
 - 04-01: Kept ethanol fixture unchanged to preserve contract test compatibility (constraints break columnar backends)
 - 04-01: No MemoryBackend fixture -- does not exist in codebase
 - 04-01: Network benchmark fixtures skip gracefully when services unavailable
+- 04-02: Backends must raise IndexError on OOB; facades no longer pre-check bounds for positive indices
+- 04-02: MongoDB set() removed from cache invalidation (only changes row data, not sort_keys/count)
+- 04-02: TTL cache uses time.monotonic() with 1s window for MongoDB metadata
 
 ### Pending Todos
 
@@ -115,6 +119,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T16:33:15Z
-Stopped at: Completed 04-01 (Benchmark Data Fixtures)
-Resume file: .planning/phases/04-benchmarks-performance/04-01-SUMMARY.md
+Last session: 2026-03-06T16:57:00Z
+Stopped at: Completed 04-02 (Performance Optimizations) -- All phases complete
+Resume file: .planning/phases/04-benchmarks-performance/04-02-SUMMARY.md
