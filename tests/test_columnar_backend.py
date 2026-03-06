@@ -401,3 +401,63 @@ class TestRegistryResolution:
 
         cls = resolve_backend("test.h5md", layer="object")
         assert cls is H5MDBackend
+
+
+class TestRaggedColumnarBackendDirect:
+    """Smoke tests using RaggedColumnarBackend directly (not the alias)."""
+
+    def test_hierarchy(self):
+        from asebytes.columnar import BaseColumnarBackend, RaggedColumnarBackend
+
+        assert issubclass(RaggedColumnarBackend, BaseColumnarBackend)
+
+    def test_alias_identity(self):
+        from asebytes.columnar import ColumnarBackend, RaggedColumnarBackend
+
+        assert ColumnarBackend is RaggedColumnarBackend
+
+    def test_backward_compat_import(self):
+        from asebytes.columnar import ColumnarBackend  # noqa: F401
+
+    @pytest.mark.parametrize("ext", [".h5", ".zarr"], ids=["HDF5", "Zarr"])
+    def test_round_trip(self, tmp_path, ext):
+        from asebytes.columnar import RaggedColumnarBackend
+
+        path = str(tmp_path / f"direct{ext}")
+        b = RaggedColumnarBackend(path)
+
+        rows = [
+            {
+                "arrays.positions": np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]),
+                "arrays.numbers": np.array([1, 8]),
+                "calc.energy": -1.5,
+            },
+            {
+                "arrays.positions": np.array([[2.0, 2.0, 2.0]]),
+                "arrays.numbers": np.array([6]),
+                "calc.energy": -3.0,
+            },
+            {
+                "arrays.positions": np.zeros((5, 3)),
+                "arrays.numbers": np.arange(5),
+                "calc.energy": -0.1,
+            },
+        ]
+        b.extend(rows)
+        assert len(b) == 3
+
+        # Verify round-trip
+        r0 = b.get(0)
+        assert r0 is not None
+        np.testing.assert_allclose(r0["arrays.positions"], rows[0]["arrays.positions"])
+        assert abs(r0["calc.energy"] - (-1.5)) < 1e-10
+
+        r1 = b.get(1)
+        assert r1["arrays.positions"].shape == (1, 3)
+        np.testing.assert_allclose(r1["arrays.positions"], rows[1]["arrays.positions"])
+
+        r2 = b.get(2)
+        assert r2["arrays.positions"].shape == (5, 3)
+        assert abs(r2["calc.energy"] - (-0.1)) < 1e-10
+
+        b.close()
