@@ -81,6 +81,7 @@ class HDF5Store:
         compression_opts: int | None = None,
         chunk_frames: int = 64,
         rdcc_nbytes: int = 64 * 1024 * 1024,
+        rdcc_nslots: int = 10007,
     ):
         import h5py
 
@@ -98,7 +99,10 @@ class HDF5Store:
             self._owns_file = False
         else:
             mode = "r" if readonly else "a"
-            self._file = h5py.File(str(path), mode, rdcc_nbytes=rdcc_nbytes)
+            self._file = h5py.File(
+                str(path), mode,
+                rdcc_nbytes=rdcc_nbytes, rdcc_nslots=rdcc_nslots,
+            )
             self._owns_file = True
 
         self._group = (

@@ -192,12 +192,15 @@ class ObjectIO(MutableSequence):
         index: int | slice | str | list[int] | list[str],
     ) -> dict[str, Any] | RowView[dict[str, Any]] | ColumnView:
         if isinstance(index, int):
-            n = len(self)
             if index < 0:
+                n = len(self)
                 index += n
-            if index < 0 or index >= n:
-                raise IndexError(index)
-            return self._backend.get(index)
+                if index < 0:
+                    raise IndexError(index - n)
+            try:
+                return self._backend.get(index)
+            except IndexError:
+                raise IndexError(index) from None
         if isinstance(index, slice):
             indices = range(len(self))[index]
             return RowView(self, list(indices))
