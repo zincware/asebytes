@@ -77,15 +77,15 @@ Plans:
 **Depends on**: Phase 3
 **Requirements**: TEST-05, TEST-07, PERF-01, PERF-02, PERF-03, PERF-04
 **Success Criteria** (what must be TRUE):
-  1. `uv run pytest benchmarks/` runs a pytest-benchmark suite covering sequential read, random access read, bulk write (extend), and column read for each file-based backend at multiple dataset sizes
+  1. `uv run pytest tests/benchmarks/` runs a pytest-benchmark suite covering sequential read, random access read, bulk write (extend), and column read for each file-based backend at multiple dataset sizes
   2. Benchmark data is generated synthetically via molify (smiles2conformers, pack, SinglePointCalculator, constraints, custom info/arrays) with no HuggingFace login required
   3. HDF5 backends have tuned chunk cache settings (rdcc_nbytes and rdcc_nslots) and benchmarks show measurable improvement on random access patterns
   4. MongoDB backend uses TTL index for cache expiration and Redis backend uses Lua scripts for bounds checking, with benchmark evidence of improvement
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
+- [ ] 04-01-PLAN.md — Refactor benchmark fixtures: replace lemat with synthetic data, add 2x2 parametrization matrix
+- [ ] 04-02-PLAN.md — Implement HDF5/MongoDB/Redis optimizations and save benchmark baselines
 
 ## Progress
 
