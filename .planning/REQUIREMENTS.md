@@ -10,7 +10,7 @@
 - [ ] **ARCH-01**: Extract BaseColumnarBackend with shared logic (_postprocess, _serialize_value, _prepare_scalar_column, _discover, metadata management) from ColumnarBackend and H5MDBackend
 - [ ] **ARCH-02**: Create RaggedColumnarBackend using offset+flat storage strategy, inheriting from BaseColumnarBackend
 - [ ] **ARCH-03**: Create PaddedColumnarBackend using NaN/zero-fill storage strategy, inheriting from BaseColumnarBackend
-- [ ] **ARCH-04**: Register dedicated file extensions for padded and ragged variants in the registry (e.g. `.h5`/`.zarr` for ragged, `.h5p`/`.zarrp` for padded or similar — exact naming TBD)
+- [ ] **ARCH-04**: Register dedicated file extensions for padded and ragged variants in the registry (e.g. `.h5`/`.zarr` for ragged, `.h5p`/`.zarrp` for padded or similar -- exact naming TBD)
 - [ ] **ARCH-05**: Remove legacy Zarr backend (`src/asebytes/zarr/`) and all references to it
 - [ ] **ARCH-06**: Update registry to avoid glob collisions between new extension patterns
 
@@ -18,7 +18,7 @@
 
 **Note:** The H5MD 1.1 spec (https://www.nongnu.org/h5md/h5md.html) is the ground truth. ZnH5MD *extends* the standard with additional conventions (NaN padding for variable particle counts, pbc_group for per-frame PBC, custom info/arrays storage). Requirements distinguish between spec compliance and znh5md extension support.
 
-**Architectural consideration:** H5MD uses padded storage — evaluate whether H5MDBackend can be implemented as a specialization of PaddedColumnarBackend with H5MD-specific group layout on top, rather than a fully separate backend.
+**Architectural consideration:** H5MD uses padded storage -- evaluate whether H5MDBackend can be implemented as a specialization of PaddedColumnarBackend with H5MD-specific group layout on top, rather than a fully separate backend.
 
 - [ ] **H5MD-01**: H5MDBackend can read and write files compliant with the H5MD 1.1 specification (particles, observables, time-dependent data with step/time/value structure)
 - [ ] **H5MD-02**: H5MDBackend supports znh5md extensions: NaN padding for variable particle counts, pbc_group for per-frame PBC, custom info/arrays storage conventions
@@ -33,14 +33,14 @@
 - [ ] **TEST-03**: Async test suite mirroring sync contract tests using `@pytest.mark.anyio` for AsyncBlobIO, AsyncObjectIO, AsyncASEIO
 - [ ] **TEST-04**: H5MD spec compliance tests verifying H5MD 1.1 structure, plus interop tests writing with znh5md then reading with asebytes and vice versa
 - [ ] **TEST-05**: Performance benchmark suite using pytest-benchmark with synthetic data generated via molify (smiles2conformers, pack, SinglePointCalculator, constraints, custom info/arrays)
-- [ ] **TEST-06**: No test data behind authentication walls — all CI test data is synthetic or bundled fixtures
+- [ ] **TEST-06**: No test data behind authentication walls -- all CI test data is synthetic or bundled fixtures
 - [ ] **TEST-07**: Benchmark covers: sequential read, random access read, bulk write (extend), column read, for each file-based backend, at multiple dataset sizes
-- [ ] **TEST-08**: All backend tests run against real services (Redis, MongoDB, etc.) via CI service containers — no mocking to avoid service dependencies; only mock where semantically sensible
-- [ ] **TEST-09**: Tests must fail (not skip) when a required service or dependency is unavailable — fix existing tests that use skip-if-not-available patterns
+- [ ] **TEST-08**: All backend tests run against real services (Redis, MongoDB, etc.) via CI service containers -- no mocking to avoid service dependencies; only mock where semantically sensible
+- [ ] **TEST-09**: Tests must fail (not skip) when a required service or dependency is unavailable -- fix existing tests that use skip-if-not-available patterns
 
 ### Performance
 
-- [ ] **PERF-01**: HDF5 chunk cache tuning — set both rdcc_nbytes and rdcc_nslots for optimal random and sequential access
+- [ ] **PERF-01**: HDF5 chunk cache tuning -- set both rdcc_nbytes and rdcc_nslots for optimal random and sequential access
 - [ ] **PERF-02**: MongoDB backend optimization with TTL index for cache expiration
 - [ ] **PERF-03**: Redis backend optimization with Lua server-side scripts for bounds checking
 - [ ] **PERF-04**: Establish benchmark baselines for all file-based backends before and after optimization changes
@@ -48,9 +48,9 @@
 ### Code Quality
 
 - [ ] **QUAL-01**: Consolidate duplicated _postprocess() logic across ColumnarBackend, ZarrBackend, H5MDBackend into BaseColumnarBackend
-- [ ] **QUAL-02**: Fix lmdb version pin (>=1.7.5 does not exist on PyPI — correct to >=1.6.0)
+- [ ] **QUAL-02**: Fix lmdb version pin (>=1.7.5 does not exist on PyPI -- correct to >=1.6.0)
 - [ ] **QUAL-03**: Bump h5py floor from >=3.8.0 to >=3.12.0 for modern HDF5 C library and bug fixes
-- [ ] **QUAL-04**: Remove unnecessary upper bounds on package versions — prefer open-ended floors (>=X) for future safety
+- [ ] **QUAL-04**: Remove unnecessary upper bounds on package versions -- prefer open-ended floors (>=X) for future safety
 - [ ] **QUAL-05**: Remove dead code paths and unused imports across all backend modules
 - [ ] **QUAL-06**: Standardize async test markers to `@pytest.mark.anyio` consistently
 
@@ -79,42 +79,42 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ARCH-01 | Phase ? | Pending |
-| ARCH-02 | Phase ? | Pending |
-| ARCH-03 | Phase ? | Pending |
-| ARCH-04 | Phase ? | Pending |
-| ARCH-05 | Phase ? | Pending |
-| ARCH-06 | Phase ? | Pending |
-| H5MD-01 | Phase ? | Pending |
-| H5MD-02 | Phase ? | Pending |
-| H5MD-03 | Phase ? | Pending |
-| H5MD-04 | Phase ? | Pending |
-| H5MD-05 | Phase ? | Pending |
-| TEST-01 | Phase ? | Pending |
-| TEST-02 | Phase ? | Pending |
-| TEST-03 | Phase ? | Pending |
-| TEST-04 | Phase ? | Pending |
-| TEST-05 | Phase ? | Pending |
-| TEST-06 | Phase ? | Pending |
-| TEST-07 | Phase ? | Pending |
-| TEST-08 | Phase ? | Pending |
-| TEST-09 | Phase ? | Pending |
-| PERF-01 | Phase ? | Pending |
-| PERF-02 | Phase ? | Pending |
-| PERF-03 | Phase ? | Pending |
-| PERF-04 | Phase ? | Pending |
-| QUAL-01 | Phase ? | Pending |
-| QUAL-02 | Phase ? | Pending |
-| QUAL-03 | Phase ? | Pending |
-| QUAL-04 | Phase ? | Pending |
-| QUAL-05 | Phase ? | Pending |
-| QUAL-06 | Phase ? | Pending |
+| ARCH-01 | Phase 1 | Pending |
+| ARCH-02 | Phase 1 | Pending |
+| ARCH-03 | Phase 1 | Pending |
+| ARCH-04 | Phase 1 | Pending |
+| ARCH-05 | Phase 1 | Pending |
+| ARCH-06 | Phase 1 | Pending |
+| H5MD-01 | Phase 2 | Pending |
+| H5MD-02 | Phase 2 | Pending |
+| H5MD-03 | Phase 2 | Pending |
+| H5MD-04 | Phase 2 | Pending |
+| H5MD-05 | Phase 2 | Pending |
+| TEST-01 | Phase 3 | Pending |
+| TEST-02 | Phase 3 | Pending |
+| TEST-03 | Phase 3 | Pending |
+| TEST-04 | Phase 3 | Pending |
+| TEST-05 | Phase 4 | Pending |
+| TEST-06 | Phase 3 | Pending |
+| TEST-07 | Phase 4 | Pending |
+| TEST-08 | Phase 3 | Pending |
+| TEST-09 | Phase 3 | Pending |
+| PERF-01 | Phase 4 | Pending |
+| PERF-02 | Phase 4 | Pending |
+| PERF-03 | Phase 4 | Pending |
+| PERF-04 | Phase 4 | Pending |
+| QUAL-01 | Phase 1 | Pending |
+| QUAL-02 | Phase 2 | Pending |
+| QUAL-03 | Phase 2 | Pending |
+| QUAL-04 | Phase 2 | Pending |
+| QUAL-05 | Phase 1 | Pending |
+| QUAL-06 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 30 total
-- Mapped to phases: 0
-- Unmapped: 30
+- Mapped to phases: 30
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-06*
-*Last updated: 2026-03-06 after initial definition*
+*Last updated: 2026-03-06 after roadmap creation*
