@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 Phase: 8 of 8 (Test Isolation Fix) -- maintenance
 Plan: 1 of 1 (complete)
 Status: Phase 8 complete
-Last activity: 2026-03-09 -- Completed 08-01 test isolation fix
+Last activity: 2026-03-09 - Completed quick task 1: Make MongoDB backend cache_ttl configurable
 
 Progress: [██████████] 100%
 
@@ -62,6 +62,12 @@ None.
 ### Blockers/Concerns
 
 None.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 1 | Make MongoDB backend cache_ttl configurable with None meaning no caching | 2026-03-09 | pending | [1-make-mongodb-backend-cache-ttl-configura](./quick/1-make-mongodb-backend-cache-ttl-configura/) |
 
 ## Session Continuity
 

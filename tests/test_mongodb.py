@@ -646,15 +646,17 @@ def test_second_instance_sees_writes_from_first(mongo_uri, sample_row):
     """
     group_name = f"test_stale_{uuid.uuid4().hex[:8]}"
     try:
-        # Replica B connects first, loads cache (empty)
+        # Replica B connects first, loads cache (empty) — no TTL so it always reads fresh
         replica_b = MongoObjectBackend(
-            uri=mongo_uri, database="asebytes_test", group=group_name
+            uri=mongo_uri, database="asebytes_test", group=group_name,
+            cache_ttl=None,
         )
         assert len(replica_b) == 0  # cache loaded: empty
 
         # Replica A writes 3 rows via a separate instance
         replica_a = MongoObjectBackend(
-            uri=mongo_uri, database="asebytes_test", group=group_name
+            uri=mongo_uri, database="asebytes_test", group=group_name,
+            cache_ttl=None,
         )
         replica_a.extend([sample_row, sample_row, sample_row])
         assert len(replica_a) == 3
