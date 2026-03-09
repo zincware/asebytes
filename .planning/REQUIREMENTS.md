@@ -9,10 +9,10 @@ Requirements for CI benchmark infrastructure milestone. Each maps to roadmap pha
 
 ### CI Infrastructure
 
-- [ ] **CI-01**: gh-pages branch exists with GitHub Pages enabled serving benchmark dashboard
-- [ ] **CI-02**: Post-matrix benchmark job runs github-action-benchmark for a single Python version (latest)
-- [ ] **CI-03**: Auto-push to gh-pages only on main branch pushes, not PRs
-- [ ] **CI-04**: Release/tag events trigger a benchmark snapshot on gh-pages
+- [x] **CI-01**: gh-pages branch exists with GitHub Pages enabled serving benchmark dashboard
+- [x] **CI-02**: Post-matrix benchmark job runs github-action-benchmark for a single Python version (latest)
+- [x] **CI-03**: Auto-push to gh-pages only on main branch pushes, not PRs
+- [x] **CI-04**: Release/tag events trigger a benchmark snapshot on gh-pages
 
 ### PR Feedback
 
@@ -54,10 +54,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CI-01 | Phase 5 | Pending |
-| CI-02 | Phase 5 | Pending |
-| CI-03 | Phase 5 | Pending |
-| CI-04 | Phase 5 | Pending |
+| CI-01 | Phase 5 | Complete |
+| CI-02 | Phase 5 | Complete |
+| CI-03 | Phase 5 | Complete |
+| CI-04 | Phase 5 | Complete |
 | PR-01 | Phase 6 | Pending |
 | PR-02 | Phase 6 | Pending |
 | PR-03 | Phase 6 | Pending |

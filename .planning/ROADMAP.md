@@ -27,7 +27,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 
 **Milestone Goal:** Automated benchmark tracking in CI with PR regression feedback and a public GitHub Pages dashboard.
 
-- [ ] **Phase 5: Benchmark Pipeline** - gh-pages branch, benchmark workflow job, auto-push on main, release snapshots
+- [x] **Phase 5: Benchmark Pipeline** - gh-pages branch, benchmark workflow job, auto-push on main, release snapshots (completed 2026-03-09)
 - [ ] **Phase 6: PR Feedback** - PR comparison comments, configurable alert threshold, fail-on-regression gate
 - [ ] **Phase 7: Dashboard and README** - Chart.js dashboard with project docs, README live figures, data growth limits
 
@@ -84,6 +84,6 @@ Phases execute in numeric order: 5 -> 6 -> 7
 | 2. H5MD Compliance | v1.0 | 4/4 | Complete | 2026-03-06 |
 | 3. Contract Test Suite | v1.0 | 4/4 | Complete | 2026-03-06 |
 | 4. Benchmarks & Performance | v1.0 | 2/2 | Complete | 2026-03-06 |
-| 5. Benchmark Pipeline | v0.3.1 | 0/1 | Not started | - |
+| 5. Benchmark Pipeline | 1/1 | Complete   | 2026-03-09 | - |
 | 6. PR Feedback | v0.3.1 | 0/? | Not started | - |
 | 7. Dashboard and README | v0.3.1 | 0/? | Not started | - |
