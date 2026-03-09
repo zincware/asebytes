@@ -4,6 +4,12 @@
 # suite on Python 3.13 and pushes results to gh-pages at /dev/bench/ via
 # github-action-benchmark.
 #
+# PRs receive a benchmark comparison table in Job Summary and fail on
+# regressions beyond 150% (PR-01, PR-02, PR-03).
+#
+# To enforce the merge gate, enable branch protection requiring the
+# 'Benchmarks' check to pass: Settings > Branches > Branch protection rules.
+#
 # CI-04: Release/tag events do NOT get a separate benchmark run. Every push to
 # main updates the gh-pages dashboard, so releases inherit the latest baseline.
 #
@@ -18,15 +24,21 @@ on:
     workflows: ["Tests"]
     types: [completed]
     branches: [main]
+  pull_request:
+    types: [opened, synchronize]
 
 permissions:
   contents: write
   deployments: write
 
+concurrency:
+  group: benchmark-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
 jobs:
   benchmark:
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion == 'success'
 
     services:
       redis:
@@ -68,7 +80,8 @@ jobs:
         run: |
           uv run pytest -m benchmark --benchmark-only --benchmark-json=benchmark_results.json
 
-      - name: Store benchmark results
+      - name: Store benchmark results (main)
+        if: github.event_name == 'workflow_run'
         uses: benchmark-action/github-action-benchmark@v1
         with:
           tool: "pytest"
@@ -77,3 +90,19 @@ jobs:
           benchmark-data-dir-path: dev/bench
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
+
+      - name: Compare benchmark results (PR)
+        if: github.event_name == 'pull_request'
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: "pytest"
+          output-file-path: benchmark_results.json
+          gh-pages-branch: gh-pages
+          benchmark-data-dir-path: dev/bench
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: false
+          save-data-file: false
+          summary-always: true
+          comment-on-alert: true
+          fail-on-alert: true
+          alert-threshold: "150%"
