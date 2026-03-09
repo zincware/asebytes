@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 
 ## Current Position
 
-Phase: 8 of 8 (Test Isolation Fix) -- maintenance
+Phase: 6 of 8 (PR Feedback)
 Plan: 1 of 1 (complete)
-Status: Phase 8 complete
-Last activity: 2026-03-09 - Completed quick task 1: Make MongoDB backend cache_ttl configurable
+Status: Phase 6 complete
+Last activity: 2026-03-09 - Completed 06-01: PR benchmark comparison and fail-on-regression gate
 
 Progress: [██████████] 100%
 
@@ -49,6 +49,9 @@ Recent: github-action-benchmark selected as sole CI benchmark tool (research pha
 - Single Python 3.13 for benchmarks -- consistent baseline (CI-02, 05-01)
 - No separate release/tag trigger -- main pushes cover it (CI-04, 05-01)
 - Uniform group= on all backends, no conditional logic per backend type (08-01)
+- Dual benchmark-action steps: main auto-push vs PR compare-only (06-01)
+- 150% alert threshold as configurable YAML value (06-01)
+- Branch protection documented as manual one-time setup (06-01)
 
 ### Pending Todos
 
@@ -67,10 +70,10 @@ None.
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
-| 1 | Make MongoDB backend cache_ttl configurable with None meaning no caching | 2026-03-09 | pending | [1-make-mongodb-backend-cache-ttl-configura](./quick/1-make-mongodb-backend-cache-ttl-configura/) |
+| 1 | Make MongoDB backend cache_ttl configurable with None meaning no caching | 2026-03-09 | 4848760 | [1-make-mongodb-backend-cache-ttl-configura](./quick/1-make-mongodb-backend-cache-ttl-configura/) |
 
 ## Session Continuity
 
-Last session: 2026-03-09T20:55:36Z
-Stopped at: Completed 08-01-PLAN.md
-Next action: Next phase or plan
+Last session: 2026-03-09T21:23:00Z
+Stopped at: Completed 06-01-PLAN.md
+Next action: Phase 7 (Dashboard and README)

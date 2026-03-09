@@ -28,7 +28,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 **Milestone Goal:** Automated benchmark tracking in CI with PR regression feedback and a public GitHub Pages dashboard.
 
 - [x] **Phase 5: Benchmark Pipeline** - gh-pages branch, benchmark workflow job, auto-push on main, release snapshots (completed 2026-03-09)
-- [ ] **Phase 6: PR Feedback** - PR comparison comments, configurable alert threshold, fail-on-regression gate
+- [x] **Phase 6: PR Feedback** - PR comparison comments, configurable alert threshold, fail-on-regression gate (completed 2026-03-09)
 - [ ] **Phase 7: Dashboard and README** - Chart.js dashboard with project docs, README live figures, data growth limits
 
 ## Phase Details
@@ -58,7 +58,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 06-01-PLAN.md — Add PR trigger, comparison step, and fail-on-regression gate to benchmark.yml
+- [x] 06-01-PLAN.md — Add PR trigger, comparison step, and fail-on-regression gate to benchmark.yml
 
 ### Phase 7: Dashboard and README
 **Goal**: Users can view benchmark trends over time on a public dashboard and see live figures in the README
@@ -98,6 +98,6 @@ Phases execute in numeric order: 5 -> 6 -> 7
 | 3. Contract Test Suite | v1.0 | 4/4 | Complete | 2026-03-06 |
 | 4. Benchmarks & Performance | v1.0 | 2/2 | Complete | 2026-03-06 |
 | 5. Benchmark Pipeline | 1/1 | Complete   | 2026-03-09 | - |
-| 6. PR Feedback | v0.3.1 | 0/1 | Not started | - |
+| 6. PR Feedback | v0.3.1 | 1/1 | Complete | 2026-03-09 |
 | 7. Dashboard and README | v0.3.1 | 0/? | Not started | - |
 | 8. Test Isolation Fix | Maintenance | 1/1 | Complete | 2026-03-09 |
