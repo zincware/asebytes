@@ -42,11 +42,10 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
   2. Pushing a commit to main triggers a post-matrix benchmark job that stores results on gh-pages
   3. Opening or updating a PR does NOT push benchmark data to gh-pages
   4. Tagging a release triggers a benchmark snapshot committed to gh-pages
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
+- [ ] 05-01-PLAN.md — Create benchmark.yml workflow, clean up tests.yml and legacy files
 
 ### Phase 6: PR Feedback
 **Goal**: PR authors see benchmark comparison results and regressions block merge
@@ -85,6 +84,6 @@ Phases execute in numeric order: 5 -> 6 -> 7
 | 2. H5MD Compliance | v1.0 | 4/4 | Complete | 2026-03-06 |
 | 3. Contract Test Suite | v1.0 | 4/4 | Complete | 2026-03-06 |
 | 4. Benchmarks & Performance | v1.0 | 2/2 | Complete | 2026-03-06 |
-| 5. Benchmark Pipeline | v0.3.1 | 0/? | Not started | - |
+| 5. Benchmark Pipeline | v0.3.1 | 0/1 | Not started | - |
 | 6. PR Feedback | v0.3.1 | 0/? | Not started | - |
 | 7. Dashboard and README | v0.3.1 | 0/? | Not started | - |
