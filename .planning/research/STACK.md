@@ -1,149 +1,136 @@
-# Stack Research
+# Technology Stack: CI Benchmark Infrastructure
 
-**Domain:** High-performance HDF5/Zarr columnar storage abstraction with benchmarking and parametrized testing
-**Researched:** 2026-03-06
-**Confidence:** HIGH (core stack verified via PyPI/official docs; testing patterns verified via pytest docs)
+**Project:** asebytes -- CI benchmark PR comments, committed results, GitHub Pages dashboard
+**Researched:** 2026-03-09
+**Confidence:** HIGH (primary tool verified via official repo, docs, and multiple sources)
+
+## Recommendation: github-action-benchmark
+
+Use `benchmark-action/github-action-benchmark@v1` for all three requirements (PR comments, committed results, GitHub Pages dashboard). It is purpose-built for this exact use case, actively maintained (1.2k stars, commits through 2025), and has native pytest-benchmark JSON support.
 
 ## Recommended Stack
 
-### Core Storage Libraries
+### CI Benchmark Action
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| h5py | >=3.12 | HDF5 read/write for columnar and H5MD backends | Mature, stable, only viable Python HDF5 binding. Current release 3.15.1 (Oct 2025). Keep floor at 3.12 to avoid pulling in ancient HDF5 C libs but no need to pin higher -- the API surface asebytes uses has been stable since 3.8. **Confidence: HIGH** |
-| zarr | >=3.0 | Zarr v3 columnar storage | Already pinned correctly. Current release 3.1.5 (Nov 2025). Zarr v3 is a full rewrite with new chunk-sharding, async-native store layer, and Zarr v3 spec compliance. The v2->v3 migration was breaking but asebytes already targets v3, so no action needed. **Confidence: HIGH** |
-| lmdb | >=1.6.0 | Embedded key-value blob backend | Current release 1.6.2. Extremely stable C library, rarely changes API. Bump floor from 1.7.5 (which doesn't exist on PyPI -- the actual latest is 1.6.2) to 1.6.0 to match reality. **Confidence: HIGH** |
-| msgpack | >=1.1.0 | Binary serialization of Atoms dicts | Fast, compact, cross-language. Current 1.1.2. Outperforms JSON for decode-heavy workloads (~3x faster than json). Combined with msgpack-numpy for ndarray support. Keep -- no reason to switch. **Confidence: HIGH** |
-| msgpack-numpy | >=0.4.8 | numpy ndarray packing into msgpack | Only viable msgpack+numpy bridge. Pin stays. **Confidence: HIGH** |
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| benchmark-action/github-action-benchmark | @v1 | PR comments, regression alerts, GitHub Pages dashboard | Native `tool: 'pytest'` input parses pytest-benchmark JSON directly. Stores history in `gh-pages` branch. Generates interactive Chart.js graphs. Supports `comment-on-alert`, `comment-always`, `auto-push`. Zero external services -- everything stays in-repo. **Confidence: HIGH** |
 
-### Testing Stack
+### GitHub Infrastructure
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| pytest | >=8.4.2 | Test runner | Current release 9.0.2 (early 2026). Keep floor at 8.4.2 for now; 9.0 has no breaking changes that affect asebytes. Upgrade when convenient. **Confidence: HIGH** |
-| pytest-benchmark | >=5.2.1 | Performance benchmarking as pytest fixtures | Current release 5.2.3 (Nov 2025). Already in dev deps. The `benchmark` fixture approach is superior to the ad-hoc `time.perf_counter()` script in `benchmarks/bench_columnar.py`. Migrate benchmarks to pytest-benchmark fixtures for statistical rigor (warmup, rounds, min/max/mean/stddev). **Confidence: HIGH** |
-| anyio | >=4.9 | Async test runner via built-in pytest plugin | Current release 4.12.1 (Jan 2026). Already a dependency. Use anyio's pytest plugin (`@pytest.mark.anyio`) rather than pytest-asyncio. Reasons: (1) asebytes uses `asyncio.to_thread` which is asyncio-native, anyio wraps this fine, (2) anyio's plugin is simpler -- no `asyncio_mode` config drama, (3) avoids the pytest-asyncio 1.0 migration headache with removed `event_loop` fixture. **Confidence: HIGH** |
-| molify | >=0.0.1a0 | Synthetic molecular test data generation | Generates realistic ASE Atoms with conformers, calculators, constraints. Eliminates need for auth-gated datasets in CI. Already used in conftest.py. **Confidence: MEDIUM** (alpha package, but maintained by same team) |
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| actions/checkout | @v4 | Fetch code for benchmark job | Required for github-action-benchmark to access gh-pages branch data |
+| actions/download-artifact | @v4 | Retrieve benchmark JSON from matrix jobs | Post-matrix benchmark job needs results from all Python versions |
+| actions/upload-artifact | @v4 | Archive raw JSON per run | Already in workflow. Keep for debugging/audit trail alongside committed results |
+| GitHub Pages | N/A | Host interactive performance dashboard | Free for public repos. github-action-benchmark generates the index.html + data.js automatically |
 
-### Benchmarking Infrastructure
+### Existing Stack (unchanged)
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| pytest-benchmark | >=5.2.1 | Statistical microbenchmarks | Use `benchmark` fixture for per-operation timing. Group benchmarks with `@pytest.mark.benchmark(group="read")`. Store baselines with `--benchmark-save=baseline`. Compare with `--benchmark-compare`. **Confidence: HIGH** |
-| pytest-codspeed | >=4.0 | CI performance regression detection (optional) | Drop-in replacement for pytest-benchmark API. Uses CPU simulation to eliminate CI noise. Free for open source. Add as optional CI enhancement, not hard dependency. **Confidence: MEDIUM** |
+| Technology | Version | Purpose | Notes |
+|------------|---------|---------|-------|
+| pytest-benchmark | >=5.2.1 | Generate benchmark JSON | Already produces `benchmark_results.json` via `--benchmark-json`. No changes needed to benchmark execution |
+| uv / astral-sh/setup-uv | @v5 | Package management in CI | Already configured. Benchmarks run via `uv run pytest -m benchmark` |
 
-### Development Tools
+## What github-action-benchmark Provides
 
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| uv | Package management, build, run | Mandatory per project constraints. Use `uv run pytest`, `uv sync`, `uv add`. |
-| matplotlib | Benchmark visualization | Already in dev deps. Use for local perf analysis, not CI. |
+### PR Comments (BENCH-01)
+- `comment-on-alert: true` posts a comment when regression exceeds `alert-threshold` (default 200%)
+- `comment-always: true` posts comparison on every PR (alternative -- recommended for asebytes)
+- Comment includes table: benchmark name, current value, previous value, ratio
+- Requires `github-token: ${{ secrets.GITHUB_TOKEN }}` and `permissions: pull-requests: write`
 
-## Installation
+### Committed Results (BENCH-02)
+- `auto-push: true` commits benchmark data to `gh-pages` branch automatically
+- Data stored as JSON in configurable path (default: `dev/bench/`)
+- Historical data accumulates -- each push appends to the dataset
+- `max-items-in-chart: 100` controls history depth (prevents unbounded growth)
+- Conditional push: `auto-push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}` to only persist on main
 
-```bash
-# Core (already in pyproject.toml)
-uv add "ase>=3.26.0" "msgpack>=1.1.2" "msgpack-numpy>=0.4.8" "typing_extensions>=4.5.0"
+### GitHub Pages Dashboard (BENCH-03)
+- Generates `index.html` with Chart.js interactive line graphs
+- One chart per benchmark group, tooltips show commit hash + values
+- Accessible at `https://<user>.github.io/<repo>/dev/bench/`
+- No build step needed -- the action generates static HTML directly
 
-# Storage backends (extras, already configured)
-uv add --optional h5md "h5py>=3.12"
-uv add --optional zarr "zarr>=3.0"
-uv add --optional lmdb "lmdb>=1.6.0"
+## Key Configuration Inputs
 
-# Dev / testing
-uv add --group dev "pytest>=8.4.2" "pytest-benchmark>=5.2.1" "anyio>=4.9" "molify>=0.0.1a0"
-
-# Optional: CI perf regression
-uv add --group dev "pytest-codspeed>=4.0"
-```
+| Input | Value | Purpose |
+|-------|-------|---------|
+| `tool` | `'pytest'` | Parse pytest-benchmark JSON format |
+| `output-file-path` | `benchmark_results.json` | Path to pytest-benchmark output |
+| `github-token` | `${{ secrets.GITHUB_TOKEN }}` | Required for comments and auto-push |
+| `auto-push` | `${{ github.event_name == 'push' && ... }}` | Only commit results on main merges |
+| `comment-on-alert` | `true` | Post PR comment on regression |
+| `alert-threshold` | `'150%'` | Regression threshold (150% = 50% slower). Start generous, tighten after baseline |
+| `fail-on-alert` | `false` | Don't fail CI on regression (start soft, tighten later) |
+| `summary-always` | `true` | Add to GitHub Actions job summary |
+| `benchmark-data-dir-path` | `dev/bench/py{ver}` | Path within gh-pages branch, per Python version |
+| `name` | `'Python {ver}'` | Separate charts per Python version |
+| `gh-pages-branch` | `gh-pages` | Branch for storing results |
+| `max-items-in-chart` | `100` | Limit historical data points |
 
 ## Alternatives Considered
 
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| msgpack + msgpack-numpy | pickle | Never for asebytes. Pickle is insecure, Python-only, and slower on decode. msgpack is cross-language and compact. |
-| msgpack + msgpack-numpy | orjson | Only if you need JSON compatibility. orjson can't serialize numpy arrays natively. msgpack is ~30% smaller on wire. |
-| anyio pytest plugin | pytest-asyncio | Only if you need Trio support or have a large existing pytest-asyncio codebase. For asebytes, anyio is already a dep and its plugin is simpler. |
-| pytest-benchmark | asv (airspeed velocity) | Only for long-term historical tracking across git commits with HTML reports. Overkill for asebytes -- pytest-benchmark with `--benchmark-save` covers the need. |
-| pytest-benchmark | ad-hoc time.perf_counter scripts | Never. The existing `benchmarks/bench_columnar.py` should be migrated to pytest-benchmark fixtures for statistical rigor, reproducibility, and CI integration. |
-| h5py | pytables (tables) | Never for asebytes. pytables adds a proprietary layer over HDF5 that conflicts with H5MD compliance. h5py gives direct HDF5 access. |
+| Category | Recommended | Alternative | Why Not |
+|----------|-------------|-------------|---------|
+| CI benchmark action | github-action-benchmark | **bencher.dev** | Requires external SaaS service or self-hosted server. Overkill for a library with <20 benchmarks. Free tier has metric limits. Adds API token management. Use if you need statistical regression detection with custom thresholds later. **Confidence: HIGH** |
+| CI benchmark action | github-action-benchmark | **CML (cml.dev)** | ML-focused tool (model training, dataset versioning). Last release v0.20.6 (Oct 2024) -- 5+ months without updates as of research date. `cml comment create` can post markdown to PRs but has no benchmark-specific features (no trend charts, no regression detection, no historical storage). Would require writing all comparison logic manually. **Confidence: HIGH** |
+| CI benchmark action | github-action-benchmark | **pytest-codspeed** | Different problem: CI-stable measurement via CPU simulation. Does NOT generate PR comments or dashboards from pytest-benchmark JSON. Requires CodSpeed cloud service. Useful as a complement (eliminates CI noise) but does not replace the dashboard/comment needs. Listed in backlog as OPT-03 -- evaluate separately. Actively maintained (v4.2.0, Oct 2025). **Confidence: HIGH** |
+| CI benchmark action | github-action-benchmark | **airspeed-velocity (asv)** | Requires its own benchmark format (class-based, not pytest). Would need rewriting all benchmarks -- asebytes already has a pytest-benchmark suite. asv generates HTML reports but has no native PR comment support. Integration with pytest-benchmark is an open RFC (issue #567) with no resolution. Heavy for the use case. Latest release v0.6.5 (Sep 2025). **Confidence: HIGH** |
+| CI benchmark action | github-action-benchmark | **conbench** | Enterprise-grade framework (used by Apache Arrow). Requires running a PostgreSQL server + web app. No native pytest-benchmark JSON ingestion. Massive overkill for a library project. `benchrun` package deprecated. **Confidence: MEDIUM** |
+| CI benchmark action | github-action-benchmark | **Custom script + gh CLI** | Could manually parse JSON, compute diffs, post via `gh pr comment`. But reinvents what github-action-benchmark already does with tested edge cases (first run, missing baseline, chart generation). Not worth the maintenance. **Confidence: HIGH** |
 
-## What NOT to Use
+## What NOT to Add
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| pickle for serialization | Insecure (arbitrary code execution on load), Python-only, no cross-language interop | msgpack + msgpack-numpy |
-| pytest-asyncio | Conflicts with anyio plugin in auto mode; 1.0 migration removed event_loop fixture; asebytes already depends on anyio | anyio's built-in pytest plugin (`@pytest.mark.anyio`) |
-| zarr v2 API | Zarr v3 is a complete rewrite; v2 API is deprecated; asebytes already targets v3 | zarr >=3.0 |
-| pytables / tables | Adds proprietary metadata layer; incompatible with H5MD spec; unnecessary abstraction over h5py | h5py directly |
-| hypothesis (property-based testing) | Overkill for storage round-trip tests; ASE Atoms have complex invariants that make property-based generation extremely hard | Explicit parametrized fixtures with molify-generated data |
-| pytest.mark.xfail | Explicitly banned by project. Masks bugs instead of fixing them. | Fix the bug or skip with clear reason |
-| Backend data caching | Explicitly banned. Another client can modify data at any time. | Always read fresh from backend |
+| Avoid | Why | Impact |
+|-------|-----|--------|
+| bencher.dev / Bencher Cloud | External service dependency for a simple library. API tokens, metric quotas, vendor lock-in | Complexity without proportional benefit |
+| CML (iterative/cml) | Stale maintenance (last release Oct 2024). ML-focused, not benchmark-focused. No chart generation | Would require custom scripting for features github-action-benchmark provides out of the box |
+| asv (airspeed-velocity) | Incompatible benchmark format. Would require rewriting existing pytest-benchmark suite | Wasted effort -- existing benchmarks work |
+| conbench | Requires PostgreSQL server. Enterprise-grade for Apache Arrow scale. Way too heavy | Infrastructure overhead for zero gain |
+| pytest-codspeed (for this milestone) | Solves a different problem (measurement stability). Does not produce PR comments or dashboards | Keep in backlog (OPT-03). Can layer on later without conflict |
+| Multiple benchmark reporting tools | Complexity. One tool should own the PR comment + dashboard pipeline | Conflicting comments, maintenance burden |
 
-## Stack Patterns by Variant
+## Installation
 
-**For parametrized backend testing:**
-- Use `@pytest.fixture(params=[...])` with factory functions (already established in conftest.py with `uni_blob_backend` / `uni_object_backend`)
-- Extend to cover padded vs ragged variants with separate param IDs
-- Use `pytest.param(..., id="h5-ragged")` for clear test output
-- Use `indirect=True` when fixture needs `tmp_path` injection
+No Python packages to install. The only addition is a GitHub Actions step:
 
-**For benchmark tests:**
-- Use `@pytest.mark.benchmark` marker (already configured in pytest.ini)
-- Use `benchmark` fixture from pytest-benchmark for per-operation timing
-- Group related benchmarks: `@pytest.mark.benchmark(group="write")`
-- Default addopts already excludes benchmarks (`-m "not benchmark"`)
-- Run benchmarks explicitly: `uv run pytest -m benchmark --benchmark-only`
+```yaml
+# In .github/workflows/tests.yml, new benchmark job
+- uses: benchmark-action/github-action-benchmark@v1
+  with:
+    tool: pytest
+    output-file-path: benchmark_results.json
+    # ... (see configuration inputs above)
+```
 
-**For async tests:**
-- Use `@pytest.mark.anyio` on async test functions
-- Async fixtures: `@pytest.fixture` + `async def` (anyio plugin handles this)
-- Mirror sync test structure: if `test_foo.py` exists, `test_async_foo.py` should test the same operations
+One-time manual setup:
+```bash
+# Create gh-pages branch
+git checkout --orphan gh-pages
+git reset --hard
+git commit --allow-empty -m "Initialize gh-pages for benchmark dashboard"
+git push origin gh-pages
+git checkout main
 
-## Version Compatibility
-
-| Package | Compatible With | Notes |
-|---------|-----------------|-------|
-| h5py >=3.12 | Python 3.10-3.14, HDF5 1.12+ | Wheels bundle HDF5 C library |
-| zarr >=3.0 | Python >=3.11 | Matches asebytes Python floor |
-| lmdb >=1.6.0 | Python >=3.5 | Bundles LMDB C library |
-| pytest-benchmark >=5.2.1 | pytest >=8.0 | Requires pytest 8+ for fixture protocol |
-| anyio >=4.9 | Python >=3.9, pytest >=8.0 | Built-in pytest plugin since 4.x |
-| msgpack >=1.1.0 | Python >=3.8 | C extension, fast |
-| msgpack-numpy >=0.4.8 | msgpack >=1.0, numpy >=1.20 | Hooks into msgpack ext types |
-
-## Version Pinning Strategy
-
-**Floor pins (>=X.Y) for all dependencies.** Rationale:
-- asebytes is a library, not an application -- tight pins cause dependency hell for consumers
-- All storage backends are extras, so consumers only pull what they need
-- Dev dependencies can be more aggressive since they don't affect consumers
-
-**Exception:** `uv_build>=0.9.6,<0.10.0` in build-system is correctly ceiling-pinned because build backends can have breaking changes.
-
-## Action Items from Stack Research
-
-1. **Fix lmdb version floor:** `lmdb>=1.7.5` does not exist on PyPI. The latest is 1.6.2. Change to `lmdb>=1.6.0`.
-2. **Migrate ad-hoc benchmarks:** Convert `benchmarks/bench_columnar.py` from raw `time.perf_counter()` to pytest-benchmark fixtures for statistical rigor.
-3. **Standardize async testing:** Ensure all async tests use `@pytest.mark.anyio`, not a mix of approaches.
-4. **Consider pytest-codspeed:** Add as optional CI enhancement for noise-free performance regression detection in GitHub Actions.
-5. **Bump h5py floor:** From `>=3.8.0` to `>=3.12` to ensure modern HDF5 C library and avoid known bugs in older releases.
+# Then: GitHub repo Settings > Pages > Source: gh-pages branch, root directory
+```
 
 ## Sources
 
-- [h5py PyPI](https://pypi.org/project/h5py/) -- verified latest version 3.15.1, HIGH confidence
-- [zarr PyPI](https://pypi.org/project/zarr/) -- verified latest version 3.1.5, HIGH confidence
-- [zarr-python releases](https://github.com/zarr-developers/zarr-python/releases) -- version history, HIGH confidence
-- [lmdb PyPI](https://pypi.org/project/lmdb/) -- verified latest version 1.6.2, HIGH confidence
-- [pytest PyPI](https://pypi.org/project/pytest/) -- verified latest version 9.0.2, HIGH confidence
-- [pytest-benchmark PyPI](https://pypi.org/project/pytest-benchmark/) -- verified latest version 5.2.3, HIGH confidence
-- [pytest-benchmark docs](https://pytest-benchmark.readthedocs.io/) -- usage patterns, HIGH confidence
-- [anyio PyPI](https://pypi.org/project/anyio/) -- verified latest version 4.12.1, HIGH confidence
-- [anyio testing docs](https://anyio.readthedocs.io/en/stable/testing.html) -- pytest plugin usage, HIGH confidence
-- [pytest-codspeed PyPI](https://pypi.org/project/pytest-codspeed/) -- verified latest version 4.2.0, MEDIUM confidence
-- [pytest parametrize docs](https://docs.pytest.org/en/stable/how-to/parametrize.html) -- official patterns, HIGH confidence
-- [msgspec benchmarks](https://jcristharif.com/msgspec/benchmarks.html) -- serialization performance comparison, MEDIUM confidence
+- [github-action-benchmark repository](https://github.com/benchmark-action/github-action-benchmark) -- feature list, inputs, pytest example. HIGH confidence
+- [github-action-benchmark pytest example](https://github.com/benchmark-action/github-action-benchmark/blob/master/examples/pytest/README.md) -- workflow configuration. HIGH confidence
+- [github-action-benchmark marketplace](https://github.com/marketplace/actions/continuous-benchmark) -- verified active, 1.2k stars. HIGH confidence
+- [Bencher pytest-benchmark docs](https://bencher.dev/learn/track-in-ci/python/pytest-benchmark/) -- bencher integration details. HIGH confidence
+- [Bencher pricing](https://bencher.dev/pricing/) -- free for public, metric-based billing for self-hosted. MEDIUM confidence
+- [CML releases](https://github.com/iterative/cml/releases) -- last release v0.20.6, Oct 2024. HIGH confidence
+- [CML GitHub](https://github.com/iterative/cml) -- ML-focused CI tool. HIGH confidence
+- [asv pytest integration RFC](https://github.com/airspeed-velocity/asv/issues/567) -- open issue, no resolution. HIGH confidence
+- [conbench GitHub](https://github.com/conbench/conbench) -- enterprise CB framework. MEDIUM confidence
+- [pytest-codspeed PyPI](https://pypi.org/project/pytest-codspeed/) -- v4.2.0, Oct 2025. HIGH confidence
+- [pytest-codspeed CodSpeed docs](https://codspeed.io/docs/reference/pytest-codspeed) -- requires CodSpeed service. HIGH confidence
 
 ---
-*Stack research for: asebytes maintenance and performance overhaul*
-*Researched: 2026-03-06*
+*Stack research for: asebytes CI benchmark infrastructure (BENCH-01 through BENCH-04)*
+*Researched: 2026-03-09*

@@ -1,49 +1,35 @@
 # Feature Landscape
 
-**Domain:** Scientific data IO library for ASE Atoms with pluggable storage backends
-**Researched:** 2026-03-06
+**Domain:** CI benchmark infrastructure (PR comments, committed results, GitHub Pages dashboard)
+**Researched:** 2026-03-09
 
 ## Table Stakes
 
-Features users expect. Missing = product feels incomplete.
+Features that any CI benchmark infrastructure must have. Missing = the setup feels broken or useless.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| MutableSequence API (`__getitem__`, `__setitem__`, `extend`, `__len__`) | znh5md and ASE DB both provide this; users expect list-like access to trajectory frames | Low | Already implemented via facades |
-| Slicing with lazy views (`db[0:10]`, `db["energy"]`) | znh5md supports slicing; MDAnalysis provides lazy trajectory access; numpy users expect this | Med | Already implemented (RowView, ColumnView) |
-| H5MD read/write interoperability with znh5md | znh5md is the de facto H5MD tool in the ASE ecosystem; files must round-trip | High | Partially implemented but untested against znh5md files; critical gap |
-| Variable particle count support (ragged trajectories) | Molecular systems change size (reactions, grand canonical); znh5md pads with np.nan; this is expected | Med | Offset+flat approach exists in ColumnarBackend; needs split into padded vs ragged variants |
-| Padded storage for uniform-size trajectories | H5MD spec standard; znh5md default; simpler/faster when all frames have same atom count | Med | Bundled in ColumnarBackend; needs dedicated variant |
-| Context manager support (`with ASEIO(...) as db:`) | h5py, zarr, and every file-based library supports this; prevents file handle leaks | Low | Already implemented on facades and backends |
-| Compression options (gzip for HDF5, blosc/lz4 for Zarr) | h5py and zarr both expose compression; scientific datasets are large; users expect control | Low | Already implemented via HDF5Store/ZarrStore params |
-| Column-oriented reads (`db["calc.energy"]`) | Extracting a single property across all frames is the most common analysis pattern; znh5md and ASE DB support this | Med | Already implemented via ColumnView and `get_column` |
-| Schema/metadata introspection | Users need to know what keys exist, their dtypes and shapes without loading data; ASE DB provides `.metadata`, h5py exposes attrs | Low | `schema()` and `keys()` exist but schema is inferred per-row rather than stored; should be O(1) from backend metadata |
-| Bulk write (`extend`) with good performance | Writing thousands of frames is the primary write pattern; znh5md benchmarks emphasize write speed | Med | Already implemented; performance varies by backend |
-| Async support | Modern Python data pipelines use asyncio; MongoDB/Redis are inherently async; users expect async for network backends | High | Already implemented with full sync/async mirror |
-| Multiple backend support (HDF5, Zarr, LMDB, MongoDB, Redis) | Different use cases need different backends; h5py for HPC, zarr for cloud, MongoDB for web services | High | Already implemented via registry pattern |
-| Reproducible benchmark suite | Every serious IO library (h5py, zarr, MDAnalysis) publishes benchmarks; users need to compare options | Med | Ad-hoc benchmarks exist but no structured, repeatable suite with synthetic data |
-| Parametrized test suite with full coverage | Open-source data libraries must prove correctness across backends and edge cases | High | Tests exist but are described as "messy"; need restructuring |
-| `close()` method and resource cleanup | File handles, connections must be cleanly released; every IO library provides this | Low | Already implemented on all backends |
-| Read-only mode | Opening files for read without risk of modification is essential for shared data; h5py and zarr both support `mode="r"` | Low | Already implemented via `ReadBackend` vs `ReadWriteBackend` distinction |
+| PR comment with benchmark results on regression | Without this, nobody looks at benchmark artifacts; the whole point is visibility in the review flow | Low | `benchmark-action/github-action-benchmark` handles this natively for pytest-benchmark JSON via `comment-on-alert: true`; requires `github-token` |
+| Regression detection with configurable threshold | A benchmark comment that just shows numbers without flagging regressions is noise; reviewers need "is this PR slower?" answered clearly | Low | Default threshold 200% in github-action-benchmark; project should tighten to ~150% given known perf characteristics |
+| Historical baseline storage on main merges | Without historical data, there is no baseline to compare against; CI artifacts expire after 90 days | Low | github-action-benchmark stores `data.js` on `gh-pages` branch automatically via `auto-push: true` |
+| GitHub Pages time-series chart | The minimum dashboard: one line per benchmark test over commits, showing if performance is trending up or down | Low | github-action-benchmark auto-generates this at configurable path (default `/dev/bench`) using Chart.js; interactive tooltips with commit details |
+| Pin benchmarks to single Python version | Running benchmarks on 3.11/3.12/3.13 triples CI cost and noise; pick one version for consistent tracking | Low | Currently runs on all 3 matrix entries; should restrict benchmark+tracking step to 3.12 only; keep running benchmarks on all versions for correctness but only track one |
+| Baseline established on push-to-main | Main branch pushes establish the comparison baseline; without this, PR comparisons have nothing to diff against | Low | Current workflow already triggers on push to main; just need to add the github-action-benchmark step |
+| Exclude service-dependent benchmarks from tracking | Redis/MongoDB benchmarks require service containers, add 30+ seconds startup, and produce noisy results due to container scheduling jitter; only useful for relative comparison | Low | Track only local-storage backends (HDF5, Zarr, LMDB) for consistent historical data; service benchmarks still run for correctness |
 
 ## Differentiators
 
-Features that set product apart. Not expected, but valued.
+Features that elevate the setup beyond "works." Not expected, but valuable for a library that advertises performance.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Unified facade across all backends | Unlike znh5md (HDF5-only) or ASE DB (SQLite/JSON-only), asebytes provides one API for HDF5/Zarr/LMDB/MongoDB/Redis; users never change application code when switching storage | Low | Already the core value prop; needs polish and testing |
-| Lazy concatenation (`db1 + db2`) | Multi-file access without copying; MDAnalysis supports this for trajectories but znh5md does not; valuable for large dataset workflows | Low | Already implemented via ConcatView |
-| Fast `dict_to_atoms` bypass of `Atoms.__init__` | ~6x speedup for deserialization; no other library does this; matters when reading millions of frames | Low | Already implemented in `_convert.py` |
-| Automatic cross-layer adapter resolution | BlobIO backend used from ObjectIO transparently via msgpack adapter; no manual wiring needed | Low | Already implemented in registry |
-| Dedicated padded vs ragged backends with extension-based dispatch | Users pick strategy by file extension (`.h5-padded` / `.h5-ragged`); no config flags, no wrong defaults; cleaner than znh5md's implicit padding | Med | Planned; needs implementation |
-| Column-level partial updates (`db[0:10]["calc.energy"].set([...])`) | Update a single property across frames without rewriting entire rows; unique to asebytes; saves enormous time for post-hoc calculator results | Med | Already implemented via ColumnView.set() |
-| Per-backend performance optimizations (MongoDB TTL cache, Redis Lua bounds) | Measured 1.9-3.5x improvements from backend-specific optimizations; makes network backends viable for interactive use | Med | Benchmarked and validated; implementation pending |
-| Chunked iteration (`db[0:10000].chunked(batch_size=100)`) | Process large datasets in memory-safe batches; not available in znh5md; useful for ML training pipelines | Low | Already implemented in RowView |
-| Sync-to-async adapter | Any sync backend automatically works in async contexts via `asyncio.to_thread`; no async reimplementation needed per backend | Low | Already implemented |
-| Copy semantics control (`_returns_mutable`) | Backends that deserialize (LMDB/msgpack) skip unnecessary numpy copies; mutable backends (memory) copy to prevent aliasing | Low | Already implemented; invisible to users but measurable |
-| Type-safe generic backends (`ReadBackend[K,V]`) | Backend contract enforced at type-check time; prevents subtle bugs when mixing blob/object layers | Low | Already implemented |
-| Cache-to secondary backend | Read from primary, write-through to cache backend for hot-path acceleration | Med | Partially implemented in ASEIO (`cache_to` param) |
+| Full comparison table in PR comment (not just alert) | Shows before/after for every benchmark in a markdown table, not just "alert when threshold exceeded"; reviewers see the full picture without clicking through | Medium | github-action-benchmark only comments on alert; full table requires either `openpgpjs/github-action-pull-request-benchmark` fork or a custom script comparing current JSON vs baseline JSON from gh-pages |
+| Percentage change column (delta) | "+12.3%" or "-5.1%" next to each benchmark; the single most useful number for a reviewer; instantly communicates impact | Low | Simple arithmetic on two JSON files; could be part of a custom PR comment script |
+| Per-backend grouping in PR comment | asebytes has 5+ backends and 10 operations = 40+ benchmarks; a flat list is unreadable; group by backend (LMDB, Zarr, H5MD) or by operation with sub-tables | Medium | No off-the-shelf action groups by test parameter; requires custom formatting |
+| Fail-on-regression gate | Block PR merge if any benchmark regresses beyond threshold; prevents accidental perf regressions from shipping | Low | github-action-benchmark supports `fail-threshold` input; separate from `alert-threshold` so you can warn at 130% and fail at 200% |
+| Tagged/release benchmark snapshots | Store benchmark data points at release tags (v0.3.1, v0.4.0); enables version-over-version comparison on the dashboard | Low | Trigger benchmark workflow on tag push; github-action-benchmark auto-stores with commit metadata so tags are labeled |
+| Visualization PNGs in PR comment | Embed the existing `visualize_benchmarks.py` bar chart PNGs directly in the PR comment; visual comparison is more intuitive than tables for multi-backend comparisons | Medium | Already generating PNGs; need a workflow step to embed them in a PR comment via GitHub API or CML-style image upload |
+| Sparkline/trend badge in README | Show current perf trend as a badge; signals "we care about performance" to potential users | Low | Not generated by github-action-benchmark; would need shields.io dynamic badge from endpoint or a small script generating badge JSON |
 
 ## Anti-Features
 
@@ -51,62 +37,63 @@ Features to explicitly NOT build.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| Query/filter engine (SQL-like WHERE clauses) | ASE DB already handles this well; building a query engine is a massive scope creep; asebytes is IO, not a database | Use ASE DB for queries; asebytes for fast sequential/columnar access |
-| Unit conversion system | MDAnalysis has comprehensive unit handling; duplicating it adds complexity for marginal value; ASE Atoms already carry implicit units | Let users handle units at the application layer; ASE conventions are sufficient |
-| Schema migration / versioning | Pre-release package with no backwards compat promise; schema migration is premature; adds complexity to every write path | Break formats freely until v1.0; document format versions in file metadata |
-| GUI or web interface | This is a Python library for computational scientists; GUIs are a different product | Provide clean Python API; let users build their own dashboards |
-| Distributed/parallel writes | HDF5 parallel I/O (MPI) is notoriously complex; Zarr has better stories here but it's out of scope for a maintenance overhaul | Single-writer access; use Zarr for embarrassingly parallel workloads |
-| Custom serialization formats | msgpack + numpy is proven and fast; inventing a new wire format adds risk with no clear benefit | Stick with msgpack/msgpack_numpy for blob layer; native types for columnar |
-| Automatic schema inference on every read | Inferring schema per-row is wasteful; schema should be stored as backend metadata and read once | Store schema in backend attrs/metadata at write time; read from metadata on access |
-| Global mutable state beyond MemoryObjectBackend | Global state makes testing fragile and concurrent access dangerous | Keep backends stateless beyond their own file handles/connections |
-| Caching of backend data in facades | Another client can modify data at any time; caching leads to stale reads and subtle bugs | Always read from backend; use `cache_to` for explicit cache-aside pattern |
-| Support for every ASE IO format | ASE already reads/writes 70+ formats; wrapping them all is maintenance burden with no value-add | Support ASEReadOnlyBackend for `ase.io.read()` as escape hatch; focus on high-performance formats |
+| Bencher.dev SaaS integration | Adds external dependency, requires account/API key, designed for teams with noisy CI needing statistical change-point detection; overkill for a small OSS library | Use github-action-benchmark: self-contained, stores everything in the repo, zero external dependencies |
+| CML (iterative.ai) for benchmark comments | CML is designed for ML experiment tracking (model metrics, dataset diffs); using it for pure benchmark comments is a mismatch; adds large npm dependency | Use github-action-benchmark or lightweight custom script |
+| Custom dashboard frontend (React/Vue/Svelte) | Massive maintenance burden for minimal gain over auto-generated Chart.js page; this is a storage library, not a web product | Use the built-in github-action-benchmark Chart.js dashboard; functional and zero-maintenance |
+| pytest-codspeed integration | codspeed uses CPU instruction counting for deterministic benchmarks but requires their SaaS platform and `perf_event_open` kernel access; GitHub Actions runners may not support it reliably | Stick with wall-time pytest-benchmark; accept CI noise and use threshold-based alerting |
+| Benchmarking every PR commit against every historical commit | Quadratic comparison cost; slow CI; diminishing returns | Compare PR only against the latest main baseline |
+| Tracking Redis/MongoDB benchmarks in the dashboard | Service container startup time and scheduling jitter make these benchmarks non-reproducible across runs; data points are noisy and trends are meaningless | Run service-dependent benchmarks for correctness checks but exclude from gh-pages tracking; track only deterministic local-storage backends |
+| Custom benchmark harness replacing pytest-benchmark | pytest-benchmark is already integrated, produces standard JSON, and is understood by github-action-benchmark; replacing it adds risk for no clear gain | Layer new features on top of existing pytest-benchmark JSON output |
+| Memory profiling in the same pipeline | Adding `memray` or `tracemalloc` to the benchmark pipeline complicates the workflow and doubles CI time; memory and time benchmarks should be separate concerns | If memory tracking is needed later, add it as a separate optional workflow |
 
 ## Feature Dependencies
 
 ```
-Padded backend variant --> H5MD compliance testing (padded is what znh5md writes)
-Ragged backend variant --> Offset+flat storage (already exists in ColumnarBackend)
-H5MD compliance --> Padded backend variant (must read/write znh5md files)
-H5MD compliance --> Variable PBC support (znh5md's pbc_group=True extension)
-Parametrized test suite --> All backend variants must exist to be tested
-Benchmark suite --> Parametrized test suite (benchmarks reuse test fixtures)
-MongoDB TTL cache --> MongoDB backend cleanup
-Redis Lua bounds --> Redis backend cleanup
-Extension-based dispatch --> Registry update (new glob patterns)
-Extension-based dispatch --> Padded + Ragged variants exist
-Schema stored in metadata --> Backend write path updates
+Pin to single Python version  -->  Consistent baselines (prerequisite for meaningful tracking)
+gh-pages branch setup  -->  GitHub Pages dashboard (Pages must be configured in repo settings)
+gh-pages branch setup  -->  github-action-benchmark data storage (data.js lives here)
+Baseline data on main pushes  -->  PR comparison comments (needs something to compare against)
+Baseline data on main pushes  -->  GitHub Pages dashboard (needs data points)
+PR alert comment  -->  Full comparison table (alert is the simpler version; table builds on same mechanism)
+Visualization PNGs already generated  -->  PNG embedding in PR comment (already producing PNGs, just need to attach)
 ```
 
 ## MVP Recommendation
 
-The project is a maintenance overhaul, not a greenfield build. Prioritize in this order:
+**Priority order based on dependencies and immediate value:**
 
-1. **Split padded vs ragged columnar backends** - This unblocks H5MD compliance and extension-based dispatch. Without this, the most important features cannot be tested.
+1. **Pin benchmarks to single Python version (3.12)** - Prerequisite for consistent data; trivial conditional in workflow matrix
+2. **Add github-action-benchmark step on push-to-main** - Stores baseline data to gh-pages branch with `auto-push: true`; enables everything downstream; `tool: 'pytest'`, `output-file-path: benchmark_results.json`
+3. **Enable GitHub Pages dashboard** - Automatic once data lands on gh-pages; configure repo Settings > Pages to serve from gh-pages branch at `/dev/bench`
+4. **Enable PR alert comments** - `comment-on-alert: true` with `alert-threshold: '150%'`; immediate value for reviewers
+5. **Exclude service-dependent benchmarks from tracking** - Filter or use `benchmark-data-dir-path` to separate local-backend results from service-backend results
 
-2. **H5MD compliance with znh5md interop** - This is the hardest requirement and the one most likely to surface design issues. Test early.
+**Defer:**
+- **Full comparison table in PR comments** (Medium complexity): Alert-only is sufficient for MVP; add custom formatting later
+- **Per-backend grouping**: Requires custom script; not worth the effort until the pipeline is proven
+- **Tagged release snapshots**: Nice-to-have after the basic pipeline works
+- **README badges**: Cosmetic; add once dashboard is stable
+- **Fail-on-regression gate**: Start with warnings only; add fail gate after threshold is calibrated against real data
 
-3. **Parametrized test suite** - Every subsequent change needs proof of correctness. Build the test harness before optimizing.
+## Existing Infrastructure to Leverage
 
-4. **Benchmark suite with synthetic data** - Establish baselines before optimizing. Use molify for realistic structures. Measure padded vs ragged, sequential vs random, single vs bulk.
+The project already has everything needed as inputs:
 
-5. **Backend-specific optimizations** (MongoDB TTL, Redis Lua) - These are validated wins (1.9-3.5x) but lower priority than correctness.
+| Existing Asset | How It Feeds New Features |
+|----------------|--------------------------|
+| `--benchmark-json=benchmark_results.json` in CI (tests.yml line 61) | Direct input to github-action-benchmark `output-file-path` |
+| `docs/visualize_benchmarks.py` generating PNGs | PNGs can be embedded in PR comments later |
+| Artifact upload of JSON + PNGs | Remains useful for debugging; github-action-benchmark is additive |
+| 2x2 parametrization (ethanol/lemat x backends x operations) | github-action-benchmark tracks each test name individually |
+| Workflow triggers on both push and PR | Both events needed: push-to-main for baselines, PR for comparisons |
 
-6. **Codebase declutter** (remove legacy Zarr backend, dead code) - Do this last since removing code is low risk and doesn't block other work.
-
-Defer:
-- **Cache-to improvements**: Nice to have but not part of core maintenance scope
-- **Schema-in-metadata**: Useful optimization but can wait for post-overhaul polish
-- **New backend types**: Explicitly out of scope per PROJECT.md
+The new features layer on top without modifying the existing benchmark suite. The github-action-benchmark step simply consumes the same `benchmark_results.json` that is already being generated.
 
 ## Sources
 
-- [ZnH5MD GitHub](https://github.com/zincware/ZnH5MD) - MEDIUM confidence (WebSearch + WebFetch verified)
-- [H5MD 1.1 specification](https://www.nongnu.org/h5md/h5md.html) - HIGH confidence (official spec)
-- [h5py documentation](https://docs.h5py.org/) - HIGH confidence (official docs)
-- [Zarr documentation](https://zarr.readthedocs.io/) - HIGH confidence (official docs)
-- [MDAnalysis](https://www.mdanalysis.org/) - MEDIUM confidence (WebSearch)
-- [ASE database docs](https://wiki.fysik.dtu.dk/ase/ase/db/db.html) - HIGH confidence (official docs)
-- [pytest-benchmark](https://pytest-benchmark.readthedocs.io/) - HIGH confidence (official docs)
-- Internal benchmark results at `benchmarks/proposals/RESULTS.md` - HIGH confidence (first-party data)
-- Existing codebase analysis - HIGH confidence (direct code inspection)
+- [benchmark-action/github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark) - PRIMARY tool recommendation; supports pytest-benchmark natively; auto-generates Chart.js dashboard on gh-pages - HIGH confidence
+- [openpgpjs/github-action-pull-request-benchmark](https://github.com/openpgpjs/github-action-pull-request-benchmark) - Fork for PR-only comparison with separate alert/fail thresholds; no gh-pages support - HIGH confidence
+- [nils-braun/pytest-benchmark-commenter](https://github.com/nils-braun/pytest-benchmark-commenter) - Lightweight alternative posting benchmark table as PR comment; supports comparison file - MEDIUM confidence
+- [Bencher Prior Art](https://bencher.dev/docs/reference/prior-art/) - Catalog of CI benchmarking pitfalls: noisy environments, misleading means, warmup effects - MEDIUM confidence
+- [iterative/cml](https://github.com/iterative/cml) - CML for ML experiment PR comments; evaluated and rejected for this use case - MEDIUM confidence
+- [Continuous Benchmark marketplace listing](https://github.com/marketplace/actions/continuous-benchmark) - Marketplace page for github-action-benchmark - HIGH confidence

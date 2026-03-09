@@ -1,253 +1,247 @@
 # Domain Pitfalls
 
-**Domain:** HDF5/Zarr columnar storage backend refactoring, test restructuring, performance optimization
-**Researched:** 2026-03-06
+**Domain:** CI benchmark infrastructure -- PR comments, committed results, GitHub Pages dashboard
+**Researched:** 2026-03-09
 
 ## Critical Pitfalls
 
-Mistakes that cause rewrites or major issues.
+Mistakes that cause broken CI, security vulnerabilities, or unusable benchmark tracking.
 
-### Pitfall 1: Metadata Cache Desync After Backend Split
+### Pitfall 1: Fork PRs Cannot Write PR Comments (GITHUB_TOKEN Scoping)
 
-**What goes wrong:** When splitting `ColumnarBackend` into separate padded and ragged variants, the internal metadata caches (`_n_frames`, `_columns`, `_per_atom_cols`, `_offsets_cache`, `_lengths_cache`, `_known_arrays`, `_array_shapes`) get duplicated across two classes. A bug in one variant's `_discover()` or `_update_attrs()` goes unnoticed because tests only exercise the other variant. Metadata stored in HDF5/Zarr group attributes (`n_frames`, `columns`, `per_atom_columns`) drifts from the actual array contents.
+**What goes wrong:** The workflow uses `pull_request` trigger with `github-action-benchmark`'s `comment-on-alert` or a custom step that posts PR comments. This works for PRs from branches in the same repo. But for fork PRs, `GITHUB_TOKEN` is scoped to read-only -- the comment step fails silently or with a 403 error. Contributors from forks never see benchmark feedback.
 
-**Why it happens:** The current `ColumnarBackend` has ~25 lines of metadata cache management in `_discover()` and `_update_attrs()`. When duplicated into two backends, the invariants diverge silently. The ragged backend has `_offsets_cache`/`_lengths_cache` that the padded backend does not need, but both need `_n_frames` and `_columns` to stay in sync with on-disk state.
+**Why it happens:** GitHub restricts `GITHUB_TOKEN` permissions on `pull_request` events from forks to prevent untrusted code from modifying the target repository. This is a deliberate security boundary. The `pull_request_target` trigger has write access but runs the workflow from the base branch, not the PR branch -- so naively switching triggers means benchmarks run against the wrong code.
 
-**Consequences:** Corrupted reads: wrong number of frames returned, missing columns, index-out-of-bounds on valid indices. Worst case: silent data corruption where `_offsets_cache` points to wrong flat-array positions.
+**Consequences:** Either fork contributors get no benchmark feedback (bad DX), or the team uses `pull_request_target` with `actions/checkout` of the PR head, which is a [known security vulnerability](https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/) ("pwn request") that lets malicious PRs exfiltrate secrets and push to the repo.
 
 **Prevention:**
-- Extract a shared `ColumnarMetadata` mixin or base class that owns `_n_frames`, `_columns`, `_discover()`, and `_update_attrs()`. Both padded and ragged backends inherit this without reimplementing.
-- Add an invariant assertion at the end of every `extend()` and `set()`: `assert self._n_frames == self._store.get_attrs().get("n_frames", 0)`, enabled during tests.
-- Write a single parametrized "metadata consistency" test that does extend/set/update/clear and checks that `_discover()` after each operation produces identical caches.
+- Use a two-workflow pattern: (1) `pull_request` runs benchmarks and uploads results as an artifact, (2) a separate `workflow_run` workflow triggered on completion of (1) downloads the artifact and posts the comment. The `workflow_run` trigger runs in the base repo context with write permissions, but never checks out or executes fork code.
+- Never use `pull_request_target` with `actions/checkout@v4` pointing at the PR head ref. As of December 2025, GitHub enforces that `pull_request_target` always uses the default branch's workflow file, but the checkout of untrusted code remains dangerous.
+- For a simpler approach: accept that fork PRs do not get inline comments. Post benchmark results only on push to main and on same-repo PRs. Document this limitation in CONTRIBUTING.md.
 
-**Detection:** Tests that do `extend()` followed by `len()` return wrong values. `get()` raises `IndexError` on the last valid index.
+**Detection:** A fork contributor opens a PR and the benchmark comment step shows "Resource not accessible by integration" in the Actions log.
 
-**Phase:** Backend splitting phase. Address before any new test infrastructure.
+**Phase:** PR comment phase. Design the workflow trigger strategy before implementing comment logic.
 
 ---
 
-### Pitfall 2: HDF5 Chunk Cache Thrashing on Random Access
+### Pitfall 2: CI Runner Variance Causes False Regressions
 
-**What goes wrong:** The HDF5 chunk cache (controlled by `rdcc_nbytes`, currently 64 MB) is per-file, not per-dataset. When reading multiple columns with different access patterns (e.g., `get_many` reads columns sequentially, each doing random access), chunks evicted by one column's read are needed by the next column's read. Performance degrades from O(1) to O(N) per element.
+**What goes wrong:** GitHub Actions shared runners have variable CPU performance. The same benchmark shows 15-40% variance between runs because the runner gets a different physical host each time. A PR that changes zero benchmark-relevant code gets flagged as a "30% regression" and the team starts ignoring benchmark alerts entirely.
 
-**Why it happens:** HDF5 uses a single hash-table-based chunk cache per file handle. The default cache holds `rdcc_nslots` (521) slots. With many columns and random-access patterns (fancy indexing), the number of active chunks exceeds cache capacity. This is documented as a [critical HDF5 performance issue](https://support.hdfgroup.org/documentation/hdf5/latest/improve_compressed_perf.html) -- a misconfigured cache caused a 1000x slowdown in HDF Group benchmarks.
+**Why it happens:** GitHub shared runners (`ubuntu-latest`) run on Azure VMs with heterogeneous hardware. You control the OS and architecture but not the CPU model or neighbor workload. Even pinning the runner image does not guarantee consistent CPU. The asebytes benchmarks include I/O-heavy operations (HDF5, Zarr, LMDB reads/writes) which are additionally sensitive to disk cache state and I/O scheduling.
 
-**Consequences:** `get_many()` with non-contiguous indices becomes catastrophically slow (100x+ slower than contiguous reads). Users who do `db[[0, 500, 1000]]` see multi-second waits on files that load in milliseconds with sequential access.
+**Consequences:** Alert fatigue. The team sets `alert-threshold` to 300% to suppress noise, which means real 2x regressions go undetected. Alternatively, the team sets `fail-on-alert: true` with a tight threshold and PRs fail randomly.
 
 **Prevention:**
-- In `get_many()`, the current implementation already sorts indices (`np.argsort(checked)`) -- keep this.
-- Set `rdcc_nslots` to a prime number >= 100 * number_of_datasets (HDF Group recommendation). Current code only sets `rdcc_nbytes` but not `rdcc_nslots`.
-- For the ragged backend: offset+flat layout means per-atom columns are always accessed with contiguous slices (good). But scalar columns still use fancy indexing -- consider reading contiguous ranges and discarding unwanted rows instead.
-- Benchmark random vs. sequential access patterns in the performance suite. If random access is >10x slower, it is a chunk cache problem.
+- Set `alert-threshold` to `200%` (the default) and `fail-on-alert: false`. Use comments as informational, not blocking. Only block on extreme regressions (>3x).
+- Run benchmarks only on `push` to main (not on every PR). Compare consecutive main commits rather than PR vs. base. This gives a stable baseline from the same workflow.
+- For PR feedback: run benchmarks on the PR but compare against a rolling window (last 5 main commits) rather than a single baseline. github-action-benchmark does not support this natively -- you would need to compute the comparison yourself from the stored JSON.
+- Long-term: evaluate [pytest-codspeed](https://codspeed.io) which uses CPU instruction simulation for <1% variance. However, codspeed's instrumentation mode does not measure I/O, which is the primary bottleneck in asebytes. The walltime mode on shared runners is no better than pytest-benchmark.
+- Accept variance as inherent. The benchmark dashboard's value is trend detection over many data points, not individual PR pass/fail.
 
-**Detection:** Benchmarks show non-linear scaling of `get_many()` time with number of indices. Random-access reads are orders of magnitude slower than sequential reads of the same data volume.
+**Detection:** The benchmark dashboard shows sawtooth patterns on unchanged code. The stddev in pytest-benchmark JSON exceeds 20% of the mean.
 
-**Phase:** Performance optimization phase. Must be measured before and after any chunking changes.
+**Phase:** All phases. Set expectations early that CI benchmarks are trend indicators, not precise measurements.
 
 ---
 
-### Pitfall 3: Duplicated Postprocessing Logic Across Backends
+### Pitfall 3: gh-pages Push Race Condition on Concurrent Merges
 
-**What goes wrong:** The `_postprocess()` method contains ~70 lines of type-dependent deserialization (NaN-to-None, JSON string parsing, numpy scalar unwrapping, zarr v3 StringDType handling). This logic is duplicated nearly identically in `ColumnarBackend._postprocess()`, `ZarrBackend._postprocess()`, and `H5MDBackend._postprocess()` (with minor variations). When splitting backends further, the duplication multiplies. A bug fix in one copy gets missed in others.
+**What goes wrong:** Two PRs merge to main in quick succession. Both trigger the benchmark workflow. Both fetch `gh-pages`, append their results to `data.js`, and try to push. The second push fails with "non-fast-forward" because `gh-pages` was updated by the first push.
 
-**Why it happens:** Each backend was developed semi-independently. The `_postprocess()` method looks simple enough to copy-paste, but the edge cases (0-d StringDType arrays, all-NaN detection, bytes vs. str decoding) are subtle and backend-specific variations creep in.
+**Why it happens:** github-action-benchmark's `auto-push: true` does a `git pull --rebase` and retries on failure, but this retry logic has a window where it can still fail if another push lands during the rebase. With a Python matrix build (3 Python versions), you get 3 concurrent attempts to push to `gh-pages` per merge -- 6 total for two concurrent merges.
 
-**Consequences:** Inconsistent behavior across backends: the same data round-trips correctly through HDF5 but produces wrong types through Zarr (or vice versa). Users discover this only after switching backends in production.
+**Consequences:** Benchmark data for some commits is silently lost. The dashboard has gaps. The CI run shows a red X for a reason unrelated to code quality, confusing contributors.
 
 **Prevention:**
-- Extract `_postprocess()` into `_columnar.py` (or a new `_postprocess.py`) as a standalone function. Each backend calls it with a flag for backend-specific quirks (e.g., `zarr_string_dtype=True`).
-- Write a parametrized round-trip test that checks type identity (not just value equality) of every output: `assert type(out["calc.energy"]) is float`, `assert isinstance(out["arrays.positions"], np.ndarray)`.
-- The `_serialize_value()` / `_prepare_scalar_column()` methods have the same duplication problem -- extract those too.
+- Run benchmarks on only one Python version (e.g., 3.12) to reduce concurrent push contention. The benchmark results across Python versions are not meaningfully different for I/O-bound operations.
+- Use `concurrency` groups in the workflow to serialize benchmark pushes: `concurrency: { group: benchmark-deploy, cancel-in-progress: false }`. This queues pushes instead of racing them.
+- Alternatively, do not use `auto-push`. Instead, upload benchmark JSON as an artifact and have a separate `workflow_run` job that downloads artifacts and pushes to `gh-pages` serially.
+- If using `auto-push`, the built-in retry with rebase handles most cases. Add `max-items-in-chart: 50` to limit the data.js size so rebases are fast.
 
-**Detection:** Type-sensitive assertions in round-trip tests (e.g., `int` vs. `np.int64`, `list` vs. `np.ndarray`). A test that stores `{"key": [1, 2, 3]}` and checks `isinstance(result["key"], list)` across all backends.
+**Detection:** Workflow run fails at the "Push benchmark result" step with `! [rejected] ... (non-fast-forward)` even after retry.
 
-**Phase:** Declutter/abstraction phase. Must happen before backend split to avoid quadrupling the duplication.
+**Phase:** GitHub Pages deployment phase. Choose the push strategy before implementing.
 
 ---
 
-### Pitfall 4: Zarr v3 API Surface Instability
+### Pitfall 4: Benchmark JSON Committed to Main Causes Merge Conflicts
 
-**What goes wrong:** The codebase uses zarr-python v3 APIs (`zarr.codecs.BloscCodec`, `zarr.codecs.BloscShuffle`, `zarr.open_group`, `create_array` with `compressors=` kwarg). Zarr v3 has been releasing breaking changes rapidly (v3.0.0 through v3.1.3+ in under a year). Code that works on 3.0.x breaks on 3.1.x because keyword names change (`compressor` vs `compressors`), codec constructors change, and store APIs change.
+**What goes wrong:** The plan (BENCH-02) is to commit benchmark JSON to the repo, overwritten per merge/tag. If the benchmark result file is on the `main` branch (not `gh-pages`), every merge to main modifies the same file. Two PRs based on the same commit will conflict on the benchmark JSON file when the second one tries to merge.
 
-**Why it happens:** Zarr v3 was a ground-up rewrite. The [migration guide](https://zarr.readthedocs.io/en/stable/user-guide/v3_migration/) documents dozens of breaking changes. The project is still stabilizing, with multiple releases in 2025 fixing v3 migration issues ([issue #2689](https://github.com/zarr-developers/zarr-python/issues/2689)).
+**Why it happens:** JSON benchmark results are not mergeable -- they are overwritten wholesale. Git cannot auto-merge two different versions of `benchmark_results.json`. This is the same problem as committing lock files or build artifacts to main.
 
-**Consequences:** CI breaks after `uv sync` pulls a new zarr minor version. Debugging zarr API changes is time-consuming because error messages are often generic (`TypeError: unexpected keyword argument`).
-
-**Prevention:**
-- Pin zarr to a specific minor version range in `pyproject.toml` (e.g., `zarr>=3.1,<3.2`).
-- Isolate all zarr API calls inside `ZarrStore` (already done). Never use zarr APIs outside this class.
-- Add a zarr version smoke test: `import zarr; assert zarr.__version__.startswith("3.")`.
-- Before upgrading zarr, run the full test suite against the new version in a branch.
-
-**Detection:** CI failures after dependency updates. `AttributeError` or `TypeError` in `ZarrStore` methods.
-
-**Phase:** All phases. Pin immediately before any refactoring begins.
-
----
-
-### Pitfall 5: Registry Collision When Adding File Extension Variants
-
-**What goes wrong:** The plan is to register `.h5-padded`, `.h5-ragged`, `.zarr-padded`, `.zarr-ragged` as separate registry patterns. The glob-based registry (`fnmatch.fnmatch`) matches `*.h5` against `data.h5-ragged` because `fnmatch` treats `-ragged` as part of the match. Existing `*.h5` patterns silently intercept the new extensions.
-
-**Why it happens:** `fnmatch.fnmatch("data.h5-ragged", "*.h5")` returns `False` (good), but `fnmatch.fnmatch("data.h5-ragged", "*.h5*")` returns `True`. If anyone introduces a wildcard pattern like `*.h5*` or if the extension format changes, the registry silently routes to the wrong backend. The registry uses first-match semantics (`candidates[0]`), so ordering matters.
-
-**Consequences:** Wrong backend instantiated silently. Data written in ragged format but read with padded backend (or vice versa), producing corrupt output without errors.
+**Consequences:** Contributors must rebase/merge main before their PR can merge, even when their changes have nothing to do with benchmarks. This creates friction proportional to merge frequency.
 
 **Prevention:**
-- Use exact suffix matching instead of glob for the new extensions. Add a `Path(path).suffixes` check or use more specific patterns like `*.h5-ragged` (not `*.h5*`).
-- Add registry order tests: `assert resolve_backend("data.h5-ragged", layer="object") is RaggedH5Backend`.
-- Add a "no ambiguity" test: for every registered pattern pair, verify no path can match both.
-- Put more-specific patterns BEFORE less-specific ones in `_REGISTRY` (`.h5-ragged` before `.h5`).
+- Do not commit benchmark JSON to `main`. Store it on `gh-pages` branch (where github-action-benchmark puts it by default) or as a GitHub Actions artifact.
+- If benchmark results must be in the repo for historical tracking: use a dedicated `benchmarks` branch (not `main`). Or commit to a path that is `.gitignore`'d on main and only written on `gh-pages`.
+- For release-tagged benchmarks: use a GitHub Release asset instead of a committed file. `gh release upload v1.0 benchmark_results.json` keeps results associated with the tag without touching any branch.
+- If you must commit to main: use a bot commit that runs after merge (via `push` trigger), so there is never a PR that modifies the benchmark file. The file is always overwritten by CI, never by humans.
 
-**Detection:** A test that creates a file with each new extension and asserts the correct backend class is returned by `resolve_backend()`.
+**Detection:** PR merge blocked by "conflicts in benchmark_results.json" when the contributor changed only source code.
 
-**Phase:** Backend splitting phase. Design the extension scheme before implementing the backends.
+**Phase:** Benchmark storage phase. Decide storage location before implementing.
 
 ## Moderate Pitfalls
 
-### Pitfall 6: h5py Dataset Reference Caching Violates "Never Cache" Rule
+### Pitfall 5: GitHub Pages Not Enabled or Misconfigured
 
-**What goes wrong:** `HDF5Store._ds_cache` caches `h5py.Dataset` references (not data). This seems safe because a Dataset reference is just a handle. But if another process truncates or restructures the HDF5 file, the cached Dataset reference can point to stale metadata (shape, dtype). Reads return wrong shapes or crash with `OSError`.
+**What goes wrong:** The workflow pushes benchmark data to `gh-pages` branch, but GitHub Pages is not configured in the repository settings (Settings > Pages > Source). Or Pages is configured to serve from `main/docs` instead of `gh-pages`. The dashboard URL returns 404.
 
-**Why it happens:** The project rule is "NEVER cache backend data -- another client can modify the data at any time." Dataset references are technically handles, not data, but they cache the dataset's shape internally. The `ColumnarBackend` also caches `_array_shapes` and `_offsets_cache`, which are actual data.
+**Why it happens:** GitHub Pages configuration is a manual step in repo settings, separate from the workflow file. It is easy to set up the workflow, see green CI, and forget that the Pages source branch must be configured. Additionally, GitHub organization settings may restrict Pages to public repos only, or require admin approval.
 
 **Prevention:**
-- Distinguish between "handle caching" (acceptable within a single open file session) and "data caching" (forbidden). Document this distinction.
-- For `_offsets_cache`/`_lengths_cache` in `ColumnarBackend`: these are full numpy array copies of on-disk data, violating the cache rule. Either re-read on every access (slow) or accept the tradeoff with explicit documentation that multi-client concurrent writes are not supported for offset arrays.
-- Add a `refresh()` method that re-runs `_discover()` for users who need to pick up external changes.
+- Document the one-time setup: create orphan `gh-pages` branch, configure Pages source in repo settings.
+- Add a smoke test in the workflow: after pushing to `gh-pages`, curl the expected dashboard URL and check for 200 status. If 404, log a warning with setup instructions.
+- Use `actions/deploy-pages@v4` with the newer Pages deployment API instead of branch-based deployment. This is more explicit and fails loudly if Pages is not configured.
+- Verify that the repo's visibility (public/private) supports Pages. Private repos require GitHub Pro/Team/Enterprise for Pages.
 
-**Detection:** Integration test: write with one backend instance, modify file externally, read with the same instance. If stale data is returned, the cache is a problem.
+**Detection:** CI is green but `https://username.github.io/asebytes/dev/bench/` returns 404.
 
-**Phase:** Declutter phase. Decide and document the caching policy before proceeding.
+**Phase:** GitHub Pages deployment phase. Verify Pages configuration as step 1.
 
 ---
 
-### Pitfall 7: Test Suite Explosion from Cartesian Parametrization
+### Pitfall 6: Benchmark Data Grows Unbounded on gh-pages
 
-**What goes wrong:** The plan is to parametrize tests across all backends (LMDB, HDF5-padded, HDF5-ragged, Zarr-padded, Zarr-ragged, H5MD, Memory) x all facades (BlobIO, ObjectIO, ASEIO) x all data fixtures (s22, ethanol, edge cases). The Cartesian product creates thousands of test cases. CI takes 30+ minutes. Developers stop running the full suite locally.
+**What goes wrong:** Every push to main appends a new entry to `data.js` on `gh-pages`. After hundreds of merges, `data.js` is several MB. The GitHub Pages dashboard loads slowly. The `gh-pages` branch history accumulates thousands of commits from the benchmark bot, cluttering git log and increasing clone size.
 
-**Why it happens:** Parametrization is additive by default. Each `@pytest.fixture(params=...)` multiplies the total test count. With 7 backends, 3 facades, and 10 fixtures, a single test function generates 210 cases.
+**Why it happens:** github-action-benchmark appends by default. The `max-items-in-chart` option limits what is displayed but the data may still accumulate in the file depending on version. The git history on `gh-pages` is never squashed.
+
+**Consequences:** Dashboard page load time degrades. `git clone` downloads all of `gh-pages` history (unless `--single-branch`). Repository size grows linearly with merge frequency.
 
 **Prevention:**
-- Layer the test pyramid: unit tests (per-backend, no facade), integration tests (per-facade with 1-2 backends), and a small "full matrix" smoke test.
-- Use `pytest.mark.slow` for the full matrix and run it only in CI, not locally.
-- Group backends by capability (appendable, insertable, read-only) and test each capability group once, not each backend individually.
-- Use `indirect` parametrization with factory fixtures (the `conftest.py` already does this partially with `uni_blob_backend` and `uni_object_backend` -- extend this pattern).
+- Set `max-items-in-chart: 50` (or similar) to limit stored data points per benchmark. This keeps `data.js` bounded.
+- Periodically force-push `gh-pages` to squash history: `git checkout gh-pages && git reset --soft $(git rev-list --max-parents=0 HEAD) && git commit -m "squash" && git push -f`. Run this quarterly or when the branch exceeds a size threshold.
+- Consider storing historical data externally (GitHub Release assets for tagged versions) rather than keeping every commit's results.
 
-**Detection:** CI time exceeds 10 minutes. Test count exceeds 2000. Developers report skipping tests locally.
+**Detection:** `data.js` exceeds 1 MB. Dashboard takes >3 seconds to load. `gh-pages` branch has >500 commits.
 
-**Phase:** Test restructuring phase.
+**Phase:** GitHub Pages deployment phase. Configure `max-items-in-chart` from the start.
 
 ---
 
-### Pitfall 8: Ragged-to-Padded Migration Breaks Per-Atom Column Detection
+### Pitfall 7: Benchmark Workflow Runs Expensive Services Unnecessarily
 
-**What goes wrong:** The `_is_per_atom()` heuristic determines whether a column is per-atom by checking if `val.shape[0] == n_atoms` for every row. When splitting into padded vs. ragged backends, this heuristic is no longer needed for the ragged backend (all per-atom columns use offset+flat) but is critical for the padded backend. If the heuristic is removed prematurely from the shared code or left in the wrong backend, columns get misclassified.
+**What goes wrong:** The current `tests.yml` starts MongoDB and Redis service containers for every run. If the benchmark workflow reuses this workflow or is added as a step in it, every benchmark run pays the ~30-second startup cost for MongoDB and Redis containers, even if benchmarks only test local backends (HDF5, Zarr, LMDB).
 
-**Why it happens:** The padded backend stores per-atom data as `(n_frames, max_atoms, ...)` with NaN padding. The ragged backend stores it as flat `(total_atoms, ...)` with offsets. The classification matters because it determines the storage layout. A column classified as "scalar" in the padded backend gets shape `(n_frames, ...)` instead of `(n_frames, max_atoms, ...)`, silently truncating data.
+**Why it happens:** The existing workflow was designed for the full test suite. Adding benchmarks as an extra step in the same job is the path of least resistance. But benchmark runs should be fast and focused.
 
-**Consequences:** Data loss: per-atom arrays stored as scalars lose all but the first element. This is not caught by simple length checks because `_n_frames` is still correct.
+**Consequences:** CI time increases. Resource waste. If MongoDB/Redis service containers flake (health check timeout), the benchmark step never runs.
 
 **Prevention:**
-- In the padded backend: make per-atom classification explicit at write time (require the caller or schema to declare it). Do not rely on heuristic shape matching.
-- In the ragged backend: the offset+flat layout inherently handles variable-length data, so classification is less error-prone.
-- Test with a 3-atom and a 3-frame dataset (where `n_atoms == n_frames == 3`) to verify the heuristic does not misclassify.
+- Create a separate workflow file for benchmarks (`benchmarks.yml`) that does not start MongoDB/Redis service containers.
+- Only run file-based backend benchmarks (HDF5, Zarr, LMDB) in CI. These are the ones where performance tracking matters most. MongoDB and Redis performance depends on network and container overhead, not on asebytes code changes.
+- If network backend benchmarks are needed: run them in a separate job that starts the services, keeping the file-based benchmark job fast.
 
-**Detection:** Round-trip test with `n_atoms == n_frames` (e.g., 3 frames of 3-atom molecules). If `arrays.positions` comes back as `(3, 3)` instead of `(3, 3, 3)`, it was misclassified.
+**Detection:** Benchmark CI job takes >5 minutes when benchmarks themselves complete in <60 seconds. Time is spent in service startup.
 
-**Phase:** Backend splitting phase. Design the API contract before implementation.
+**Phase:** Workflow setup phase. Separate benchmark workflow from test workflow.
 
 ---
 
-### Pitfall 9: H5MD Compliance Tested Against Wrong Spec Version
+### Pitfall 8: pytest-benchmark `--benchmark-only` Skips Test Assertions
 
-**What goes wrong:** The H5MD spec has multiple versions (1.0, 1.1) and znh5md adds non-standard extensions (NaN padding for variable particle count, per-frame PBC). Tests written against the "H5MD spec" may test features that are znh5md extensions, not standard H5MD. Or they may test H5MD 1.0 behavior that was changed in 1.1.
+**What goes wrong:** Running `pytest -m benchmark --benchmark-only` skips non-benchmark tests (correct) but also skips any assertions inside benchmark test functions that are outside the `benchmark()` call. If a benchmark test includes correctness checks after the timed section, those checks are skipped in `--benchmark-only` mode.
 
-**Why it happens:** The H5MD backend docstring says "Produces files compatible with znh5md and standard H5MD readers" but these are sometimes contradictory goals. znh5md's NaN-padding approach is not part of the H5MD spec -- it is a convention.
+**Why it happens:** `--benchmark-only` is designed to run only the timed portion. But developers sometimes add assertions in benchmark tests as sanity checks (e.g., "verify the read returned the correct number of frames"). These assertions provide no signal in `--benchmark-only` mode.
 
 **Prevention:**
-- Separate test categories: "H5MD 1.1 spec compliance" and "znh5md interop". Label each test clearly.
-- For spec compliance: generate a reference file with an independent H5MD writer (e.g., pyh5md) and verify asebytes can read it.
-- For znh5md interop: generate a reference file with `znh5md>=0.4.8` and verify asebytes can read it. Store these as small test fixtures in `tests/data/`.
-- The `_PostProc` enum dispatch in `H5MDBackend` has 7 code paths -- each needs a specific test.
+- Keep benchmark tests pure: they measure performance only, with no correctness assertions. Correctness belongs in the contract test suite.
+- If a benchmark must verify its result (e.g., to prevent the optimizer from eliminating dead code), put the assertion inside the `benchmark.pedantic()` call's function, not after it.
+- Review existing benchmark tests in `tests/benchmarks/` to verify they follow this pattern.
 
-**Detection:** A test that opens a genuine znh5md-written file and verifies all fields round-trip correctly. If this test does not exist, H5MD compliance is untested.
+**Detection:** A benchmark test passes in `--benchmark-only` mode but fails when run normally (without `--benchmark-only`), revealing that the assertion was being skipped.
 
-**Phase:** H5MD compliance phase.
+**Phase:** Benchmark suite review phase. Audit existing benchmarks before adding CI integration.
 
 ---
 
-### Pitfall 10: Performance Benchmarks Measuring Setup, Not I/O
+### Pitfall 9: GITHUB_TOKEN Cannot Trigger Downstream Workflows
 
-**What goes wrong:** Benchmarks that create `ColumnarBackend("file.h5")` inside the timed region measure file open time, HDF5 metadata parsing, and `_discover()` overhead in addition to actual read/write time. Results are misleading -- "read performance" includes 50ms of file open overhead on a 1ms read.
+**What goes wrong:** The benchmark workflow pushes to `gh-pages` using `GITHUB_TOKEN`. This push does not trigger the GitHub Pages deployment workflow because pushes made with `GITHUB_TOKEN` do not trigger new workflow runs (to prevent infinite loops).
 
-**Why it happens:** HDF5 file opening is expensive (especially with gzip-compressed datasets). `_discover()` reads all array shapes and loads `_offsets`/`_lengths` into memory. For small benchmarks (few rows), setup dominates.
+**Why it happens:** GitHub's deliberate design to prevent recursive workflow triggers. If workflow A pushes a commit, and that commit would trigger workflow B, it only triggers B if the push was made with a personal access token (PAT) or a GitHub App token, not with `GITHUB_TOKEN`.
+
+**Consequences:** Benchmark data is pushed to `gh-pages` but the Pages site is not rebuilt. The dashboard shows stale data until the next unrelated event triggers a rebuild.
 
 **Prevention:**
-- Separate benchmarks into "cold start" (includes file open) and "warm path" (pre-opened backend).
-- Use `pytest-benchmark` or `timeit` with explicit setup phases.
-- Benchmark at multiple dataset sizes: 10, 100, 1000, 10000 rows. Report per-row time to detect non-linear scaling.
-- Benchmark `get_many()` with both contiguous and random index patterns.
+- Use `actions/deploy-pages@v4` directly in the benchmark workflow instead of relying on the automatic Pages build triggered by push. This deploys explicitly.
+- Or use a fine-grained PAT with `contents: write` scope stored as a repository secret. This is the approach github-action-benchmark recommends for `auto-push`.
+- Or configure GitHub Pages to build from the `gh-pages` branch via Settings (not via Actions). Branch-based Pages deploys do not require a workflow trigger -- GitHub rebuilds automatically on any push to the configured branch, regardless of token type. Verify this is the configuration used.
 
-**Detection:** Benchmark results where read time does not scale with dataset size (constant overhead dominates).
+**Detection:** `gh-pages` branch has new commits but the Pages site shows old content. Manual "Run workflow" on the Pages deployment fixes it.
 
-**Phase:** Performance optimization phase. Establish benchmark methodology before measuring.
+**Phase:** GitHub Pages deployment phase. Verify the Pages deployment mechanism.
 
 ## Minor Pitfalls
 
-### Pitfall 11: String Serialization Asymmetry (JSON Encode, Raw Decode)
+### Pitfall 10: Benchmark Names Change Silently, Breaking Historical Comparison
 
-**What goes wrong:** `_serialize_value()` wraps dicts/lists in `json.dumps()`. `_postprocess()` tries `json.loads()` on every string. But if a user stores a plain string like `"hello"`, it gets stored as `"\"hello\""` (JSON-encoded) and decoded back to `"hello"` -- this works. But if a legacy file has raw strings (not JSON-encoded), `json.loads("hello")` raises `JSONDecodeError`, caught by the except clause, and returns the raw string. This asymmetry means old and new files behave differently.
+**What goes wrong:** pytest-benchmark generates benchmark names from the test function name and parametrize IDs (e.g., `test_read[bench_h5md-ethanol_100]`). Renaming a fixture, reordering parameters, or changing the parametrize ID string creates a new benchmark name. github-action-benchmark treats this as a new benchmark with no history, and the old benchmark stops receiving updates.
 
-**Prevention:** Decide on a string storage convention and document it. Either always JSON-encode (and always JSON-decode), or use a prefix/marker to distinguish JSON from raw strings.
+**Prevention:**
+- Use `benchmark.name` or `benchmark.extra_info` to set stable benchmark identifiers that do not depend on fixture names.
+- Before renaming any benchmark fixture or parameter, check whether it will change benchmark names in the JSON output. Run locally with `--benchmark-json=test.json` and compare names.
+- Document the naming convention so future contributors know that renaming breaks history.
 
-**Phase:** Declutter phase.
-
----
-
-### Pitfall 12: `concat_varying()` Memory Explosion on Mixed-Size Molecules
-
-**What goes wrong:** `concat_varying()` pads all arrays to the maximum shape. If one frame has 1000 atoms and the rest have 3 atoms, every frame gets padded to shape `(1000, 3)`. For 10000 frames, this creates a 240 MB array instead of ~1 MB of actual data.
-
-**Prevention:** This is exactly why the ragged (offset+flat) layout exists. Ensure the padded backend warns or errors when the padding ratio exceeds a threshold (e.g., >10x waste). The ragged backend should be the default recommendation for variable-size molecular data.
-
-**Phase:** Backend splitting phase. Document guidance on when to use padded vs. ragged.
+**Phase:** Benchmark suite review phase.
 
 ---
 
-### Pitfall 13: Async `SyncToAsyncAdapter` Starves Thread Pool on Bulk Reads
+### Pitfall 11: Benchmark Visualize Script Breaks on Schema Changes
 
-**What goes wrong:** `SyncToAsyncAdapter` wraps every sync call in `asyncio.to_thread()`. For `get_many()` with 1000 indices, this runs the entire bulk read in a single thread, blocking the default thread pool executor (8 threads). Other async tasks cannot proceed.
+**What goes wrong:** The current workflow runs `uv run docs/visualize_benchmarks.py benchmark_results.json` to generate PNG plots. If the benchmark JSON schema changes (new fields, renamed benchmarks, different parametrize structure), this script crashes and the `if: always()` guard means it fails silently with a non-zero exit buried in the logs.
 
-**Prevention:** Keep bulk operations as single `to_thread()` calls (do not parallelize individual reads). But document that the async adapter is for convenience, not performance -- true async requires native async backends (MongoDB, Redis).
+**Prevention:**
+- Make the visualize script robust to missing/extra fields. Use `.get()` with defaults instead of direct key access.
+- If switching to github-action-benchmark's built-in dashboard, the custom visualize script becomes redundant for CI. Keep it as a local development tool only.
+- Add a basic test for the visualize script that feeds it a minimal valid JSON.
 
-**Phase:** Async test coverage phase.
+**Phase:** Dashboard phase. Decide whether custom visualization is needed alongside the Pages dashboard.
+
+---
+
+### Pitfall 12: Multiple Python Versions Generate Conflicting Benchmark Names
+
+**What goes wrong:** The current workflow runs benchmarks on Python 3.11, 3.12, and 3.13. If all three versions push results to the same benchmark namespace on `gh-pages`, the dashboard mixes results from different Python versions, making trends meaningless. Or worse, the three versions produce artifacts with different names that github-action-benchmark cannot correlate.
+
+**Prevention:**
+- Run benchmarks on a single Python version (3.12) for the dashboard. Performance differences between Python minor versions are real but orthogonal to code regression detection.
+- If multi-version tracking is desired, use the `name` input of github-action-benchmark to create separate namespaces: `name: "Python ${{ matrix.python-version }}"`. This creates separate charts per version.
+- Upload artifacts with version-specific names (already done: `benchmark-results-${{ matrix.python-version }}`).
+
+**Phase:** Workflow setup phase. Decide single-version vs. multi-version tracking upfront.
 
 ## Phase-Specific Warnings
 
 | Phase Topic | Likely Pitfall | Mitigation |
 |-------------|---------------|------------|
-| Backend splitting | Registry collision on new extensions (#5) | Design extension scheme first, write registry tests before implementing backends |
-| Backend splitting | Metadata cache desync (#1) | Extract shared base class before splitting |
-| Backend splitting | Per-atom misclassification (#8) | Test with `n_atoms == n_frames` edge case |
-| Declutter/abstraction | Breaking postprocess behavior (#3) | Extract shared function, add type-identity tests |
-| Declutter/abstraction | String serialization asymmetry (#11) | Decide convention, document it |
-| H5MD compliance | Wrong spec version (#9) | Separate spec vs. znh5md interop tests |
-| Performance optimization | Chunk cache thrashing (#2) | Benchmark random access specifically |
-| Performance optimization | Benchmarks measuring setup (#10) | Separate cold-start from warm-path benchmarks |
-| Test restructuring | Test explosion (#7) | Layer the test pyramid, mark slow tests |
-| Zarr maintenance | API breakage on version bump (#4) | Pin zarr version immediately |
+| Workflow trigger design | Fork PRs cannot comment (#1) | Use two-workflow pattern (pull_request + workflow_run) or accept no fork comments |
+| Workflow trigger design | GITHUB_TOKEN cannot trigger Pages rebuild (#9) | Use deploy-pages action or branch-based Pages config |
+| Benchmark storage | JSON on main causes merge conflicts (#4) | Store on gh-pages or as release assets, never on main |
+| Benchmark storage | Data grows unbounded (#6) | Set max-items-in-chart from day one |
+| PR comments | False regressions from runner variance (#2) | Use fail-on-alert: false, track trends not individual runs |
+| GitHub Pages deployment | Pages not configured (#5) | Document one-time setup, verify before implementing |
+| GitHub Pages deployment | gh-pages push race condition (#3) | Use concurrency groups or single-version benchmarks |
+| Benchmark suite | Names change silently (#10) | Establish naming convention before CI integration |
+| Workflow structure | Unnecessary service containers (#7) | Separate benchmark workflow from test workflow |
+| Multi-version matrix | Conflicting benchmark data (#12) | Single Python version for benchmarks or separate namespaces |
 
 ## Sources
 
-- [HDF5 Chunk Cache Performance](https://support.hdfgroup.org/documentation/hdf5/latest/improve_compressed_perf.html) -- HDF Group documentation on chunk cache tuning, 1000x slowdown from misconfigured cache
-- [HDF5 Chunking Guide](https://support.hdfgroup.org/documentation/hdf5-docs/advanced_topics/chunking_in_hdf5.html) -- official chunking best practices
-- [Zarr v3 Migration Guide](https://zarr.readthedocs.io/en/stable/user-guide/v3_migration/) -- comprehensive list of breaking changes
-- [Zarr v3 Migration Issues](https://github.com/zarr-developers/zarr-python/issues/2689) -- community-reported migration problems
-- [h5py Thread Safety](https://docs.h5py.org/en/latest/threads.html) -- global lock behavior, concurrent access limitations
-- [h5py Single Index Performance](https://github.com/h5py/h5py/issues/994) -- fancy indexing performance issues
-- [NASA HDF5 Compression Pitfalls](https://ntrs.nasa.gov/api/citations/20180008456/downloads/20180008456.pdf) -- overcoming compression performance issues
+- [GitHub Security Lab: Preventing pwn requests](https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/) -- definitive guide on pull_request_target security risks
+- [github-action-benchmark repository](https://github.com/benchmark-action/github-action-benchmark) -- official docs, auto-push behavior, alert configuration
+- [GitHub community: PR comment permissions](https://github.com/orgs/community/discussions/26644) -- GITHUB_TOKEN scoping for fork PRs
+- [GitHub blog: pull_request_target changes (Nov 2025)](https://github.blog/changelog/2025-11-07-actions-pull_request_target-and-environment-branch-protections-changes/) -- recent security hardening
+- [CodSpeed: Unrelated benchmark regression](https://codspeed.io/blog/unrelated-benchmark-regression) -- runner hardware variance causing false regressions
+- [pytest-codspeed documentation](https://codspeed.io/docs/reference/pytest-codspeed) -- instrumentation vs. walltime modes
+- [GitHub Actions Security Cheat Sheet](https://blog.gitguardian.com/github-actions-security-cheat-sheet/) -- comprehensive permissions guide
+- [Continuous Benchmarks on a Budget](https://blog.martincostello.com/continuous-benchmarks-on-a-budget) -- practical gh-pages benchmark deployment patterns
 
 ---
 
-*Pitfalls analysis: 2026-03-06*
+*Pitfalls analysis: 2026-03-09 -- CI benchmark infrastructure milestone*
