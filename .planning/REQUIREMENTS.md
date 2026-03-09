@@ -16,7 +16,7 @@ Requirements for CI benchmark infrastructure milestone. Each maps to roadmap pha
 
 ### PR Feedback
 
-- [ ] **PR-01**: PRs receive a full benchmark comparison summary (tables with deltas for all benchmarks) vs main — showing both regressions and improvements
+- [ ] **PR-01**: PRs receive a full benchmark comparison summary (tables with deltas for all benchmarks) vs main -- showing both regressions and improvements
 - [ ] **PR-02**: Alert threshold is configurable (starting at 150%)
 - [ ] **PR-03**: Fail-on-regression gate blocks PR merge on benchmark regression
 
@@ -54,22 +54,22 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CI-01 | — | Pending |
-| CI-02 | — | Pending |
-| CI-03 | — | Pending |
-| CI-04 | — | Pending |
-| PR-01 | — | Pending |
-| PR-02 | — | Pending |
-| PR-03 | — | Pending |
-| DASH-01 | — | Pending |
-| DASH-02 | — | Pending |
-| DASH-03 | — | Pending |
+| CI-01 | Phase 5 | Pending |
+| CI-02 | Phase 5 | Pending |
+| CI-03 | Phase 5 | Pending |
+| CI-04 | Phase 5 | Pending |
+| PR-01 | Phase 6 | Pending |
+| PR-02 | Phase 6 | Pending |
+| PR-03 | Phase 6 | Pending |
+| DASH-01 | Phase 7 | Pending |
+| DASH-02 | Phase 7 | Pending |
+| DASH-03 | Phase 7 | Pending |
 
 **Coverage:**
 - v0.3.1 requirements: 10 total
-- Mapped to phases: 0
-- Unmapped: 10 ⚠️
+- Mapped to phases: 10
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-09*
-*Last updated: 2026-03-09 after initial definition*
+*Last updated: 2026-03-09 after roadmap creation*
