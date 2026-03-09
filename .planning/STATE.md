@@ -1,34 +1,34 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: Maintenance & Performance Overhaul
-status: shipped
-stopped_at: v1.0 milestone complete and archived
-last_updated: "2026-03-06T18:40:00.000Z"
-last_activity: 2026-03-06 -- v1.0 milestone shipped
+milestone: v0.3.1
+milestone_name: CI Benchmark Infrastructure
+status: active
+stopped_at: null
+last_updated: "2026-03-09T00:00:00.000Z"
+last_activity: 2026-03-09 -- Milestone v0.3.1 started
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 13
-  completed_plans: 13
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-06)
+See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Every storage backend must be fast, correct, and tested through a single parametrized test suite
-**Current focus:** v1.0 shipped — planning next milestone
+**Current focus:** v0.3.1 — CI Benchmark Infrastructure
 
 ## Current Position
 
-Milestone: v1.0 — SHIPPED 2026-03-06
-All 4 phases complete, 13 plans executed, 30/30 requirements satisfied.
-
-Progress: [██████████] 100%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-09 — Milestone v0.3.1 started
 
 ## Accumulated Context
 
@@ -42,10 +42,10 @@ None.
 
 ### Blockers/Concerns
 
-None — milestone complete.
+None.
 
 ## Session Continuity
 
-Last session: 2026-03-06
-Stopped at: v1.0 milestone shipped
-Next action: /gsd:new-milestone for v2.0
+Last session: 2026-03-09
+Stopped at: Milestone v0.3.1 started — defining requirements
+Next action: Define requirements and create roadmap
