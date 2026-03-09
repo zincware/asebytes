@@ -26,6 +26,13 @@ Every storage backend must be fast, correct, and tested through a single paramet
 
 ### Active
 
+- [ ] PR benchmark comments showing perf diff vs base branch (BENCH-01)
+- [ ] Benchmark JSON committed to repo, overwritten per merge/tag (BENCH-02)
+- [ ] GitHub Pages dashboard tracking performance over releases (BENCH-03)
+- [ ] Evaluate and select CI benchmark tooling (CML, github-action-benchmark, etc.) (BENCH-04)
+
+### Backlog
+
 - [ ] Store schema in backend metadata at write time for O(1) introspection (OPT-01)
 - [ ] Improve cache-to secondary backend pattern in ASEIO (OPT-02)
 - [ ] Investigate pytest-codspeed for CI-stable benchmarks (OPT-03)
@@ -83,4 +90,4 @@ Known performance characteristics:
 | Facade bounds-check elimination | Delegate IndexError to backend instead of pre-checking len() | ✓ Good — saves round-trip for positive indices |
 
 ---
-*Last updated: 2026-03-06 after v1.0 milestone*
+*Last updated: 2026-03-09 after v0.3.1 milestone start*

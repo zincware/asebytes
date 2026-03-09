@@ -154,7 +154,8 @@ def aseio(tmp_path, request):
     """Yield an ASEIO facade for each read-write backend."""
     factory = request.param
     path = factory(tmp_path)
-    db = ASEIO(path)
+    group = f"test_{uuid.uuid4().hex[:8]}"
+    db = ASEIO(path, group=group)
     yield db
     # Cleanup for network backends
     if path.startswith(("mongodb://", "redis://", "memory://")):
@@ -169,7 +170,8 @@ def objectio(tmp_path, request):
     """Yield an ObjectIO facade for each read-write backend."""
     factory = request.param
     path = factory(tmp_path)
-    db = ObjectIO(path)
+    group = f"test_{uuid.uuid4().hex[:8]}"
+    db = ObjectIO(path, group=group)
     yield db
     if path.startswith(("mongodb://", "redis://", "memory://")):
         try:
@@ -183,7 +185,8 @@ def blobio(tmp_path, request):
     """Yield a BlobIO facade for each read-write backend."""
     factory = request.param
     path = factory(tmp_path)
-    db = BlobIO(path)
+    group = f"test_{uuid.uuid4().hex[:8]}"
+    db = BlobIO(path, group=group)
     yield db
     if path.startswith(("mongodb://", "redis://", "memory://")):
         try:
@@ -216,7 +219,8 @@ def async_aseio(tmp_path, request):
     """Yield an AsyncASEIO facade for each read-write backend."""
     factory = request.param
     path = factory(tmp_path)
-    db = AsyncASEIO(path)
+    group = f"test_{uuid.uuid4().hex[:8]}"
+    db = AsyncASEIO(path, group=group)
     yield db
     _sync_cleanup(db, path)
 
@@ -226,7 +230,8 @@ def async_objectio(tmp_path, request):
     """Yield an AsyncObjectIO facade for each read-write backend."""
     factory = request.param
     path = factory(tmp_path)
-    db = AsyncObjectIO(path)
+    group = f"test_{uuid.uuid4().hex[:8]}"
+    db = AsyncObjectIO(path, group=group)
     yield db
     _sync_cleanup(db, path)
 
@@ -236,7 +241,8 @@ def async_blobio(tmp_path, request):
     """Yield an AsyncBlobIO facade for each read-write backend."""
     factory = request.param
     path = factory(tmp_path)
-    db = AsyncBlobIO(path)
+    group = f"test_{uuid.uuid4().hex[:8]}"
+    db = AsyncBlobIO(path, group=group)
     yield db
     _sync_cleanup(db, path)
 

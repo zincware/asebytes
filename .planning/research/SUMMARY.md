@@ -1,179 +1,154 @@
 # Project Research Summary
 
-**Project:** asebytes maintenance and performance overhaul
-**Domain:** Multi-backend scientific IO library (columnar storage for ASE Atoms)
-**Researched:** 2026-03-06
+**Project:** asebytes -- CI Benchmark Infrastructure
+**Domain:** CI/CD pipeline enhancement for a Python scientific storage library
+**Researched:** 2026-03-09
 **Confidence:** HIGH
 
 ## Executive Summary
 
-asebytes is a Python IO library providing a unified MutableSequence facade over multiple storage backends (HDF5, Zarr, LMDB, MongoDB, Redis) for ASE Atoms trajectory data. The codebase has a clean layered architecture (Facade -> Backend ABC -> Store) but suffers from one structural problem that blocks all other improvements: the ColumnarBackend conflates padded and ragged storage strategies in a single 990-line class, while the H5MDBackend reimplements much of the same logic independently. This duplication must be resolved before testing, benchmarking, or optimization work can proceed cleanly.
+The asebytes project needs CI benchmark infrastructure that provides PR feedback on performance regressions, persists historical benchmark data, and serves an interactive GitHub Pages dashboard. Research unanimously points to `benchmark-action/github-action-benchmark@v1` as the single tool that handles all three requirements out of the box. It natively parses pytest-benchmark JSON (which asebytes already produces), auto-generates Chart.js dashboards on a `gh-pages` branch, and posts PR comments on regression detection. No new Python packages are needed -- the entire addition is a GitHub Actions workflow job.
 
-The recommended approach is a bottom-up refactor: extract a shared BaseColumnarBackend, split into dedicated RaggedColumnarBackend and PaddedColumnarBackend, refactor H5MDBackend to inherit shared logic, then build a contract test suite parametrized across all backends. Only after correctness is proven should performance optimization begin. The stack is mature and stable -- h5py, zarr v3, lmdb, msgpack, pytest-benchmark are all well-chosen with no substitutions needed. The ad-hoc benchmark script should be migrated to pytest-benchmark fixtures for statistical rigor.
+The recommended approach is a post-matrix aggregation job that downloads benchmark artifacts from all Python version matrix legs and runs github-action-benchmark serially for each version, storing results in per-version directories on `gh-pages`. Results are only committed to `gh-pages` on main branch pushes (not PRs), while PR runs get comparison comments against the latest baseline. This architecture avoids race conditions, keeps the main branch clean, and leverages existing infrastructure (pytest-benchmark JSON output, artifact uploads, workflow triggers) without modification.
 
-The key risks are: (1) metadata cache desync after the backend split, mitigated by extracting shared metadata management into the base class first; (2) HDF5 chunk cache thrashing on random access, mitigated by benchmarking access patterns before and after changes; (3) Zarr v3 API instability, mitigated by pinning to a specific minor version immediately; and (4) test suite explosion from Cartesian parametrization, mitigated by layering the test pyramid with slow-marked full-matrix tests.
+The primary risks are CI runner variance causing false regression alerts (mitigated by using informational thresholds, not blocking gates) and gh-pages push race conditions on concurrent merges (mitigated by concurrency groups). Fork PRs will not receive benchmark comments due to GitHub token scoping -- this is an acceptable tradeoff for a project with minimal fork contributions. The entire implementation is low complexity with no external service dependencies.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The existing stack is well-chosen. No major technology changes needed -- only version floor corrections and tooling improvements.
+The stack is minimal and well-proven. No new Python dependencies are required.
 
 **Core technologies:**
-- **h5py >=3.12**: HDF5 read/write -- mature, stable, only viable Python HDF5 binding (bump floor from 3.8)
-- **zarr >=3.0,<3.2**: Zarr v3 columnar storage -- pin upper bound due to rapid breaking changes in v3 releases
-- **lmdb >=1.6.0**: Embedded key-value blob backend -- fix floor from nonexistent 1.7.5 to actual latest 1.6.2
-- **msgpack + msgpack-numpy**: Binary serialization -- 3x faster decode than JSON, cross-language, no reason to switch
-- **pytest-benchmark >=5.2.1**: Statistical microbenchmarks -- replace ad-hoc `time.perf_counter()` scripts
-- **anyio pytest plugin**: Async testing -- simpler than pytest-asyncio, already a dependency
+- **benchmark-action/github-action-benchmark@v1**: PR comments, historical storage, and Chart.js dashboard -- single tool covering all three BENCH requirements. Native pytest-benchmark JSON support via `tool: 'pytest'`.
+- **GitHub Pages (gh-pages branch)**: Free static hosting for the benchmark dashboard. Auto-generated by github-action-benchmark. Zero maintenance.
+- **Existing pytest-benchmark + uv**: Already produces `benchmark_results.json` in CI. No changes needed to benchmark execution.
 
-**Action items:** Fix lmdb version floor, bump h5py floor to 3.12, pin zarr upper bound, migrate benchmarks to pytest-benchmark.
+**Rejected alternatives:** Bencher.dev (external SaaS, overkill), CML (stale, ML-focused), asv (incompatible benchmark format), conbench (enterprise-grade, requires PostgreSQL), custom scripts (reinvents the wheel).
 
 ### Expected Features
 
-Most table-stakes features are already implemented. The gaps are in testing, benchmarking, and backend variant separation.
+**Must have (table stakes):**
+- PR comment with regression alert and configurable threshold
+- Historical baseline storage committed on main merges
+- GitHub Pages time-series dashboard with per-benchmark charts
+- Baseline established on push-to-main for PR comparison
+- Exclude noisy service-dependent benchmarks (Redis/MongoDB) from tracking
 
-**Must have (table stakes -- already implemented but need validation):**
-- MutableSequence API, slicing with lazy views, context managers, compression
-- Column-oriented reads, bulk write (`extend`), async support, multiple backends
-- Variable particle count support (ragged trajectories)
-- Padded storage for uniform-size trajectories
+**Should have (differentiators):**
+- Full comparison table in PR comments (not just alert-based)
+- Percentage delta column showing exact regression/improvement
+- Fail-on-regression gate (after threshold is calibrated)
+- Tagged release benchmark snapshots
 
-**Must have (table stakes -- gaps to close):**
-- H5MD read/write interoperability with znh5md (partially implemented, untested)
-- Reproducible benchmark suite (ad-hoc only)
-- Parametrized test suite with full coverage (exists but "messy")
-- Split padded vs ragged into separate backend variants
-
-**Should have (differentiators -- already implemented):**
-- Unified facade across all backends (core value prop)
-- Lazy concatenation (`db1 + db2`)
-- Fast `dict_to_atoms` bypass (~6x speedup)
-- Sync-to-async adapter
-- Extension-based dispatch for padded vs ragged (planned, not yet implemented)
-
-**Defer:**
-- Cache-to improvements -- nice but not core maintenance scope
-- Schema-in-metadata optimization -- post-overhaul polish
-- New backend types -- explicitly out of scope
+**Defer (v2+):**
+- Per-backend grouping in PR comments (requires custom formatting)
+- Visualization PNGs embedded in PR comments
+- README performance badge
+- Memory profiling pipeline
 
 ### Architecture Approach
 
-The target architecture introduces a BaseColumnarBackend template method class that owns shared logic (~60% of current ColumnarBackend: scalar columns, JSON serialization, fill values, postprocessing, classification). RaggedColumnarBackend and PaddedColumnarBackend inherit from it, overriding only per-atom storage methods. H5MDBackend also inherits shared logic but uses h5py directly instead of ColumnarStore due to H5MD's incompatible nested layout. The registry dispatches based on file extension to separate variants.
+The architecture adds a single new `benchmark` job to the existing `tests.yml` workflow. This job uses `needs: [test]` to wait for all matrix legs, downloads all benchmark artifacts, then runs github-action-benchmark once per Python version. Each version gets its own `benchmark-data-dir-path` on gh-pages for clean data separation. The `auto-push` flag is conditional on main branch pushes only.
 
 **Major components:**
-1. **BaseColumnarBackend** -- shared columnar logic: classification, scalar write/read, serialization, postprocessing
-2. **RaggedColumnarBackend** -- offset+flat ragged storage for variable-size molecular data (default)
-3. **PaddedColumnarBackend** -- NaN-padded storage for uniform-size data (opt-in via extension)
-4. **H5MDBackend (refactored)** -- H5MD 1.1 spec compliance, inherits from BaseColumnarBackend, uses h5py direct
-5. **ColumnarStore** -- array-level I/O abstraction (HDF5Store, ZarrStore) -- keep as-is, it works well
-6. **Contract test suite** -- single parametrized test suite replacing 40+ per-feature test files
+1. **test job (existing, unchanged)** -- runs benchmarks per Python version, uploads JSON artifacts
+2. **benchmark job (new, post-matrix)** -- downloads artifacts, runs github-action-benchmark per version, pushes to gh-pages
+3. **gh-pages branch** -- stores historical data.js + auto-generated index.html dashboard
+4. **GitHub Pages** -- serves the interactive Chart.js dashboard
+
+**Key patterns:**
+- Post-matrix aggregation job (avoids race conditions)
+- Conditional auto-push (main only, not PRs)
+- Per-suite benchmark-data-dir-path (separate charts per Python version)
 
 ### Critical Pitfalls
 
-1. **Metadata cache desync after backend split** -- Extract shared metadata management into BaseColumnarBackend before splitting. Add invariant assertions in tests that verify `_n_frames` matches on-disk state after every mutation.
-2. **HDF5 chunk cache thrashing on random access** -- Set `rdcc_nslots` per HDF Group recommendation. Benchmark random vs sequential access patterns explicitly. The offset+flat ragged layout helps (contiguous reads) but scalar columns still use fancy indexing.
-3. **Duplicated postprocessing logic** -- Extract `_postprocess()` into shared function BEFORE the backend split to avoid quadrupling the duplication. Add type-identity round-trip tests.
-4. **Zarr v3 API surface instability** -- Pin zarr to specific minor version immediately. All zarr calls already isolated in ZarrStore (good).
-5. **Registry collision on new file extensions** -- Design extension scheme and write registry resolution tests before implementing new backends. Put specific patterns before general ones.
+1. **Fork PRs cannot write comments** -- `GITHUB_TOKEN` is read-only for fork PRs. Accept this limitation or use a two-workflow pattern (pull_request + workflow_run). For asebytes, accepting no fork comments is the pragmatic choice.
+2. **CI runner variance causes false regressions** -- GitHub shared runners have 15-40% variance. Set `fail-on-alert: false` and use alerts as informational only. Track trends over time, not individual runs.
+3. **gh-pages push race condition** -- concurrent merges race on gh-pages pushes. Use `concurrency: { group: benchmark-deploy, cancel-in-progress: false }` to serialize pushes.
+4. **Benchmark JSON on main causes merge conflicts** -- never commit benchmark data to main branch. Let github-action-benchmark manage it on gh-pages.
+5. **GITHUB_TOKEN cannot trigger Pages rebuild** -- use branch-based Pages deployment (Settings > Pages > Source: gh-pages) rather than Actions-based deployment. Branch-based deploys rebuild automatically on any push.
 
 ## Implications for Roadmap
 
-Based on research, the dependency chain dictates a 6-phase structure. The ordering is non-negotiable for phases 1-3 due to hard dependencies; phases 4-6 can be reordered.
+Based on research, suggested phase structure:
 
-### Phase 1: Extract BaseColumnarBackend and Split Variants
-**Rationale:** Everything else depends on this. The shared base class must exist before padded/ragged can be separated. Doing this first is a pure refactor with no behavior changes -- low risk, high unlock.
-**Delivers:** BaseColumnarBackend, RaggedColumnarBackend, PaddedColumnarBackend as separate classes. Updated registry with new extension patterns.
-**Addresses:** Padded vs ragged separation (table stakes), extension-based dispatch (differentiator), postprocessing deduplication
-**Avoids:** Metadata cache desync (Pitfall 1), duplicated postprocessing (Pitfall 3), registry collision (Pitfall 5), per-atom misclassification (Pitfall 8)
+### Phase 1: Foundation -- gh-pages Branch and Pages Setup
+**Rationale:** Everything downstream depends on the gh-pages branch existing and Pages being configured. This is a manual one-time setup with zero code complexity.
+**Delivers:** Empty gh-pages branch, GitHub Pages enabled, dashboard URL accessible (empty).
+**Addresses:** Prerequisite for all BENCH features. Avoids Pitfall 5 (Pages not configured).
+**Avoids:** Pitfall 4 (benchmark JSON on main) by establishing gh-pages as the storage location from the start.
 
-### Phase 2: H5MD Backend Refactor and Compliance
-**Rationale:** H5MD interop with znh5md is the hardest requirement and most likely to surface design issues in the BaseColumnarBackend API. Test it early before the base class solidifies.
-**Delivers:** H5MDBackend inheriting from BaseColumnarBackend. Verified round-trip with znh5md-written files. Separate spec compliance vs znh5md interop test suites.
-**Addresses:** H5MD read/write interoperability (table stakes), znh5md compatibility
-**Avoids:** Wrong spec version testing (Pitfall 9), duplicated H5MD logic (Architecture anti-pattern 2)
+### Phase 2: Core Integration -- Benchmark Job in Workflow
+**Rationale:** The benchmark job is the core deliverable. It consumes existing artifacts and wires up github-action-benchmark with auto-push on main. Once merged, every subsequent push to main starts accumulating baseline data.
+**Delivers:** New `benchmark` job in tests.yml, auto-push to gh-pages on main, per-version data directories, working dashboard with real data.
+**Addresses:** BENCH-02 (committed results), BENCH-03 (GitHub Pages dashboard), table stakes features (historical storage, baseline on main).
+**Uses:** benchmark-action/github-action-benchmark@v1, actions/download-artifact@v4.
+**Avoids:** Pitfall 3 (race condition) via concurrency group. Pitfall 7 (unnecessary services) since benchmark job does not start Redis/MongoDB.
 
-### Phase 3: Contract Test Suite
-**Rationale:** Every subsequent change needs proof of correctness. The test harness must exist before optimization work begins. Build it after backends are stable but before any performance tuning.
-**Delivers:** `tests/contract/` directory with parametrized test classes covering all backend variants. Central conftest fixtures. Layered test pyramid with `@pytest.mark.slow` for full matrix.
-**Addresses:** Parametrized test suite (table stakes), reproducible correctness validation
-**Avoids:** Test suite explosion (Pitfall 7), per-test-file fixtures (Architecture anti-pattern 3)
+### Phase 3: PR Feedback -- Alert Comments
+**Rationale:** PR comments require at least one baseline data point on gh-pages. Phase 2 must run on main first to seed the baseline. Then PR comments become meaningful.
+**Delivers:** PR comments on regression detection, configurable alert threshold (start at 150%).
+**Addresses:** BENCH-01 (PR comments), table stakes feature (regression detection with threshold).
+**Avoids:** Pitfall 1 (fork PR issues) by documenting the limitation. Pitfall 2 (false regressions) by using `fail-on-alert: false`.
 
-### Phase 4: Benchmark Suite Migration
-**Rationale:** Performance baselines must be established before optimization. Migrating to pytest-benchmark provides statistical rigor (warmup, rounds, stddev) and CI integration.
-**Delivers:** Structured benchmark suite using pytest-benchmark fixtures. Cold-start vs warm-path separation. Multiple dataset sizes. Random vs sequential access patterns. Baseline results saved.
-**Uses:** pytest-benchmark >=5.2.1, molify for synthetic data generation
-**Avoids:** Benchmarks measuring setup overhead (Pitfall 10)
-
-### Phase 5: Performance Optimization
-**Rationale:** Only optimize after correctness is proven and baselines are established. The benchmark results from Phase 4 identify where to focus.
-**Delivers:** HDF5 chunk cache tuning (`rdcc_nslots`), backend-specific optimizations (MongoDB TTL, Redis Lua bounds -- validated 1.9-3.5x improvements). Zarr version pin with compatibility verification.
-**Addresses:** Per-backend performance optimizations (differentiator), chunk cache configuration
-**Avoids:** Chunk cache thrashing (Pitfall 2), Zarr API breakage (Pitfall 4)
-
-### Phase 6: Codebase Declutter
-**Rationale:** Lowest risk, no downstream dependencies. Remove dead code after everything else is stable and tested.
-**Delivers:** Legacy Zarr backend removed, old ColumnarBackend alias removed, string serialization convention documented, caching policy documented with `refresh()` method.
-**Addresses:** Code hygiene, documented conventions
-**Avoids:** String serialization asymmetry (Pitfall 11), stale cache confusion (Pitfall 6)
+### Phase 4: Polish and Hardening
+**Rationale:** After the pipeline is proven with real data, tune thresholds, add optional enhancements.
+**Delivers:** Calibrated alert threshold, `max-items-in-chart` limit, optional fail-on-regression gate, README link to dashboard.
+**Addresses:** Differentiator features (fail gate, release snapshots). Pitfall 6 (unbounded data growth).
 
 ### Phase Ordering Rationale
 
-- **Phase 1 before Phase 2:** H5MDBackend refactor depends on BaseColumnarBackend existing
-- **Phase 1 before Phase 3:** Contract tests need all backend variants to parametrize against
-- **Phase 3 before Phase 4:** Benchmark fixtures reuse test data fixtures
-- **Phase 4 before Phase 5:** Must establish baselines before optimizing
-- **Phase 6 is independent:** Can run anytime after Phase 3, but doing it last avoids disruption during active development
-- **Phases 2 and 3 can partially overlap:** H5MD compliance tests can be written as contract tests are being built
+- Phases 1-2 are strictly sequential: gh-pages must exist before the benchmark job can push to it.
+- Phase 3 depends on Phase 2 running at least once on main to establish a baseline.
+- Phase 4 requires real data from Phases 2-3 to calibrate thresholds and validate the pipeline.
+- The entire sequence is low complexity -- each phase is essentially a workflow YAML change plus configuration.
 
 ### Research Flags
 
 Phases likely needing deeper research during planning:
-- **Phase 1 (Backend Split):** The extension naming scheme (`.h5p` vs `.h5-padded` vs constructor param) needs a user decision. Registry ordering semantics need careful design. Recommend `/gsd:research-phase`.
-- **Phase 2 (H5MD Compliance):** H5MD 1.1 spec vs znh5md conventions have subtle differences (variable particle count, PBC handling, connectivity groups). Needs reference file generation and cross-tool validation. Recommend `/gsd:research-phase`.
+- **Phase 2:** The exact workflow YAML for post-matrix artifact download and sequential github-action-benchmark calls needs careful construction. The ARCHITECTURE.md provides a concrete template that should be validated against the existing tests.yml structure.
 
 Phases with standard patterns (skip research-phase):
-- **Phase 3 (Contract Tests):** Well-documented pytest parametrization patterns. Architecture research already provides the fixture design.
-- **Phase 4 (Benchmarks):** pytest-benchmark usage is straightforward. Stack research already covers the approach.
-- **Phase 5 (Performance):** HDF5 chunk cache tuning is well-documented by HDF Group. Optimizations are already benchmarked in `benchmarks/proposals/RESULTS.md`.
-- **Phase 6 (Declutter):** Straightforward code removal with test coverage as safety net.
+- **Phase 1:** One-time manual git commands + repo settings. Fully documented.
+- **Phase 3:** Single configuration flag (`comment-on-alert: true`). Trivial addition to Phase 2's YAML.
+- **Phase 4:** Threshold tuning based on observed data. No research needed, just observation.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All versions verified against PyPI. Only correction needed: lmdb floor fix. Established tools with stable APIs. |
-| Features | HIGH | Based on direct codebase analysis and comparison with znh5md/ASE DB. Most features already implemented; gaps are clear. |
-| Architecture | HIGH | Based on direct codebase analysis. The BaseColumnarBackend extraction is a well-understood refactoring pattern. Component boundaries are clear. |
-| Pitfalls | HIGH | Top pitfalls sourced from HDF Group documentation, Zarr migration guides, and direct code inspection. Prevention strategies are concrete. |
+| Stack | HIGH | github-action-benchmark is the clear winner. 1.2k stars, active maintenance, native pytest support. All alternatives thoroughly evaluated and rejected with clear rationale. |
+| Features | HIGH | Feature landscape is well-bounded. Table stakes are all handled by a single tool. Differentiators clearly separated from MVP. |
+| Architecture | HIGH | Post-matrix aggregation is a well-documented GitHub Actions pattern. ARCHITECTURE.md provides a complete workflow template ready for implementation. |
+| Pitfalls | HIGH | Pitfalls are well-documented across GitHub community and security labs. Prevention strategies are concrete and actionable. |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Extension naming convention:** `.h5p`/`.zarrp` vs `.h5-padded`/`.h5-ragged` vs constructor parameter. Architecture research recommends extension-based but the exact names are a user decision. Resolve in Phase 1 planning.
-- **Offset caching policy:** The "never cache" rule conflicts with ragged backend performance. Architecture research recommends pragmatic caching with `refresh()` method and documented limitations. Needs explicit user sign-off.
-- **znh5md reference files:** No actual znh5md-written test fixtures exist in the repo. Phase 2 needs to generate these. Verify znh5md version compatibility (>=0.4.8 recommended).
-- **Async adapter performance characteristics:** The SyncToAsyncAdapter starves the thread pool on bulk reads (Pitfall 13). This is documented but not measured. Low priority -- async is for convenience, not performance.
+- **Service-dependent benchmark filtering:** The exact mechanism for excluding Redis/MongoDB benchmarks from gh-pages tracking needs to be determined. Options: separate pytest marks, separate benchmark JSON files, or post-processing. Resolve during Phase 2 implementation.
+- **Fork PR comment strategy:** If fork contributions become common, the two-workflow pattern (pull_request + workflow_run) should be implemented. For now, accept the limitation.
+- **Threshold calibration:** The 150% alert threshold is a starting guess. Real CI variance data is needed to set this properly. Collect data during Phase 2, adjust in Phase 4.
+- **Single vs. multi-version tracking:** Research recommends all three Python versions with separate `benchmark-data-dir-path`, but single-version (3.12) is simpler and sufficient for regression detection. Decide during Phase 2 planning.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- h5py PyPI and docs -- version verification, API stability
-- zarr PyPI, docs, and migration guide -- v3 breaking changes, API surface
-- lmdb PyPI -- version verification (1.6.2 is actual latest, not 1.7.5)
-- pytest-benchmark docs -- fixture API, grouping, baseline comparison
-- anyio docs -- pytest plugin usage
-- HDF Group chunk cache documentation -- `rdcc_nslots`/`rdcc_nbytes` tuning
-- H5MD 1.1 specification -- spec compliance requirements
-- Direct codebase analysis of `src/asebytes/` -- architecture, patterns, duplication
+- [benchmark-action/github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark) -- feature list, inputs, pytest example, auto-push behavior
+- [github-action-benchmark pytest example](https://github.com/benchmark-action/github-action-benchmark/blob/master/examples/pytest/README.md) -- workflow configuration template
+- [GitHub Security Lab: Preventing pwn requests](https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/) -- pull_request_target security risks
+- [GitHub Docs: Events that trigger workflows](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows) -- workflow_run and pull_request security model
+- [github-action-benchmark action.yml](https://github.com/benchmark-action/github-action-benchmark/blob/master/action.yml) -- full input parameter definitions
 
 ### Secondary (MEDIUM confidence)
-- znh5md GitHub repository -- interop conventions, NaN padding approach
-- MDAnalysis documentation -- feature comparison
-- pytest-codspeed PyPI -- optional CI enhancement
-- Internal benchmark results (`benchmarks/proposals/RESULTS.md`) -- performance data
+- [openpgpjs/github-action-pull-request-benchmark](https://github.com/openpgpjs/github-action-pull-request-benchmark) -- fork for PR-only comparison
+- [Bencher Prior Art](https://bencher.dev/docs/reference/prior-art/) -- CI benchmarking pitfalls catalog
+- [CodSpeed: Unrelated benchmark regression](https://codspeed.io/blog/unrelated-benchmark-regression) -- runner variance analysis
+- [Continuous Benchmarks on a Budget](https://blog.martincostello.com/continuous-benchmarks-on-a-budget) -- practical gh-pages deployment patterns
+- [nils-braun/pytest-benchmark-commenter](https://github.com/nils-braun/pytest-benchmark-commenter) -- lightweight PR comment alternative
 
 ---
-*Research completed: 2026-03-06*
+*Research completed: 2026-03-09*
 *Ready for roadmap: yes*

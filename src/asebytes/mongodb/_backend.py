@@ -57,6 +57,9 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         Database name.
     group : str | None
         Group name (maps to MongoDB collection). Defaults to ``"default"``.
+    cache_ttl : float | None
+        Metadata cache time-to-live in seconds. ``None`` disables caching
+        (every read hits MongoDB). Defaults to ``1.0``.
     """
 
     def __init__(
@@ -64,6 +67,7 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         uri: str = "mongodb://localhost:27017",
         database: str = "asebytes",
         group: str | None = None,
+        cache_ttl: float | None = 1.0,
     ):
         self._client = MongoClient(uri)
         self.group = group if group is not None else DEFAULT_GROUP
@@ -71,7 +75,7 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         self._sort_keys: list[int] | None = None
         self._count: int | None = None
         self._cache_loaded_at: float = 0.0
-        self._cache_ttl: float = 1.0
+        self._cache_ttl: float | None = cache_ttl
 
     @classmethod
     def from_uri(
@@ -162,10 +166,11 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         self._cache_loaded_at = 0.0
 
     def _ensure_cache(self) -> None:
-        now = time.monotonic()
-        if (self._sort_keys is not None
-                and (now - self._cache_loaded_at) < self._cache_ttl):
-            return
+        if self._cache_ttl is not None:
+            now = time.monotonic()
+            if (self._sort_keys is not None
+                    and (now - self._cache_loaded_at) < self._cache_ttl):
+                return
         meta = self._col.find_one({"_id": META_ID})
         if meta is None:
             self._sort_keys = []
@@ -173,7 +178,8 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         else:
             self._sort_keys = meta.get("sort_keys", [])
             self._count = meta.get("count", len(self._sort_keys))
-        self._cache_loaded_at = now
+        if self._cache_ttl is not None:
+            self._cache_loaded_at = now
 
     def _resolve_sort_key(self, index: int) -> int:
         n = len(self._sort_keys)
