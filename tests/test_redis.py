@@ -9,7 +9,7 @@ import uuid
 
 import pytest
 
-redis_mod = pytest.importorskip("redis")
+import redis as redis_mod
 
 from asebytes._backends import ReadBackend, ReadWriteBackend
 

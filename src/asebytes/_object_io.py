@@ -192,12 +192,15 @@ class ObjectIO(MutableSequence):
         index: int | slice | str | list[int] | list[str],
     ) -> dict[str, Any] | RowView[dict[str, Any]] | ColumnView:
         if isinstance(index, int):
-            n = len(self)
             if index < 0:
+                n = len(self)
                 index += n
-            if index < 0 or index >= n:
-                raise IndexError(index)
-            return self._backend.get(index)
+                if index < 0:
+                    raise IndexError(index - n)
+            try:
+                return self._backend.get(index)
+            except IndexError:
+                raise IndexError(index) from None
         if isinstance(index, slice):
             indices = range(len(self))[index]
             return RowView(self, list(indices))
@@ -294,3 +297,26 @@ class ObjectIO(MutableSequence):
 
     def __repr__(self) -> str:
         return f"ObjectIO(backend={self._backend!r})"
+
+    def __add__(self, other: Any) -> "ConcatView":
+        from ._concat import ConcatView
+
+        if isinstance(other, ConcatView):
+            if type(other._sources[0]) is not type(self):
+                raise TypeError(
+                    f"Cannot concat {type(self).__name__} "
+                    f"with {type(other._sources[0]).__name__}"
+                )
+            return ConcatView([self] + other._sources)
+        if type(other) is not type(self):
+            raise TypeError(
+                f"Cannot concat {type(self).__name__} with {type(other).__name__}"
+            )
+        return ConcatView([self, other])
+
+    def __radd__(self, other: Any) -> "ConcatView":
+        if other == []:
+            from ._concat import ConcatView
+
+            return ConcatView([self])
+        return NotImplemented

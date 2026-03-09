@@ -31,7 +31,7 @@ from asebytes._async_backends import AsyncReadWriteBackend
 
 
 class _PermissiveBlobBackend(ReadWriteBackend[bytes, bytes]):
-    """Backend that silently returns None for out-of-bounds get()."""
+    """Backend that raises IndexError for out-of-bounds get()."""
 
     def __init__(self, rows: list[dict[bytes, bytes] | None] | None = None):
         self._rows: list[dict[bytes, bytes] | None] = rows or []
@@ -46,7 +46,7 @@ class _PermissiveBlobBackend(ReadWriteBackend[bytes, bytes]):
     def get(self, index: int, keys=None) -> dict[bytes, bytes] | None:
         if 0 <= index < len(self._rows):
             return self._rows[index]
-        return None  # permissive: no IndexError
+        raise IndexError(index)
 
     def set(self, index, data):
         self._rows[index] = data
@@ -73,7 +73,7 @@ class _PermissiveBlobBackend(ReadWriteBackend[bytes, bytes]):
 
 
 class _PermissiveObjectBackend(ReadWriteBackend[str, Any]):
-    """Backend that silently returns None for out-of-bounds get()."""
+    """Backend that raises IndexError for out-of-bounds get()."""
 
     def __init__(self, rows: list[dict[str, Any] | None] | None = None):
         self._rows: list[dict[str, Any] | None] = rows or []
@@ -88,7 +88,7 @@ class _PermissiveObjectBackend(ReadWriteBackend[str, Any]):
     def get(self, index: int, keys=None) -> dict[str, Any] | None:
         if 0 <= index < len(self._rows):
             return self._rows[index]
-        return None  # permissive: no IndexError
+        raise IndexError(index)
 
     def keys(self, index: int) -> list[str]:
         row = self.get(index)
@@ -134,7 +134,7 @@ class _PermissiveAsyncBlobBackend(AsyncReadWriteBackend[bytes, bytes]):
     async def get(self, index: int, keys=None) -> dict[bytes, bytes] | None:
         if 0 <= index < len(self._rows):
             return self._rows[index]
-        return None  # permissive: no IndexError
+        raise IndexError(index)
 
     async def set(self, index, data):
         self._rows[index] = data
@@ -176,7 +176,7 @@ class _PermissiveAsyncObjectBackend(AsyncReadWriteBackend[str, Any]):
     async def get(self, index: int, keys=None) -> dict[str, Any] | None:
         if 0 <= index < len(self._rows):
             return self._rows[index]
-        return None  # permissive: no IndexError
+        raise IndexError(index)
 
     async def keys(self, index: int) -> list[str]:
         row = await self.get(index)

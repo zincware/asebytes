@@ -31,7 +31,7 @@ dev = [
     "pytest-benchmark>=5.2.1",
     "znh5md>=0.4.8",
     "asebytes[zarr]",
-    "asebytes[h5md]",
+    "asebytes[h5]",
     "asebytes[mongodb]",
     "asebytes[redis]",
     "anyio>=4.0",
@@ -44,13 +44,13 @@ Discord = "https://discord.gg/7ncfwhsnm4"
 
 [project.optional-dependencies]
 lmdb = [
-    "lmdb>=1.7.5",
+    "lmdb>=1.6.0",
 ]
 hf = [
     "datasets>=4.5.0",
 ]
-h5md = [
-    "h5py>=3.8.0",
+h5 = [
+    "h5py>=3.12.0",
 ]
 zarr = [
     "zarr>=3.0",
@@ -71,4 +71,11 @@ addopts = ["-v", "--strict-markers", "-m", "not benchmark"]
 
 markers = [
     "benchmark: marks tests as benchmark tests (deselect with '-m \"not benchmark\"')",
+    "mongodb: marks tests requiring MongoDB",
+    "redis: marks tests requiring Redis",
+    "hf: marks tests requiring HuggingFace network access",
+    "supports_variable_particles: backend supports variable particle counts",
+    "supports_per_atom_arrays: backend supports per-atom custom arrays",
+    "supports_constraints: backend supports constraint round-trip",
+    "supports_nested_info: backend supports nested dict info values",
 ]

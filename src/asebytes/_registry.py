@@ -34,9 +34,11 @@ class _RegistryEntry(NamedTuple):
 _REGISTRY: list[_RegistryEntry] = [
     # -- Object-level, pattern-based ----------------------------------------
     _RegistryEntry("pattern", "*.lmdb", "object", "asebytes.lmdb", "LMDBObjectBackend", "LMDBObjectReadBackend", False),
-    _RegistryEntry("pattern", "*.h5", "object", "asebytes.h5md", "H5MDBackend", "H5MDBackend", False),
+    _RegistryEntry("pattern", "*.h5", "object", "asebytes.columnar", "RaggedColumnarBackend", "RaggedColumnarBackend", False),
+    _RegistryEntry("pattern", "*.h5p", "object", "asebytes.columnar", "PaddedColumnarBackend", "PaddedColumnarBackend", False),
     _RegistryEntry("pattern", "*.h5md", "object", "asebytes.h5md", "H5MDBackend", "H5MDBackend", False),
-    _RegistryEntry("pattern", "*.zarr", "object", "asebytes.zarr", "ZarrBackend", "ZarrBackend", False),
+    _RegistryEntry("pattern", "*.zarr", "object", "asebytes.columnar", "RaggedColumnarBackend", "RaggedColumnarBackend", False),
+    _RegistryEntry("pattern", "*.zarrp", "object", "asebytes.columnar", "PaddedColumnarBackend", "PaddedColumnarBackend", False),
     _RegistryEntry("pattern", "*.traj", "object", "asebytes.ase", None, "ASEReadOnlyBackend", False),
     _RegistryEntry("pattern", "*.xyz", "object", "asebytes.ase", None, "ASEReadOnlyBackend", False),
     _RegistryEntry("pattern", "*.extxyz", "object", "asebytes.ase", None, "ASEReadOnlyBackend", False),
@@ -69,10 +71,9 @@ _EXTRAS_HINT: dict[str, str] = {
     "asebytes.lmdb": "lmdb",
     "asebytes.hf": "hf",
     "asebytes.hf._backend": "hf",
-    "asebytes.h5md": "h5md",
-    "asebytes.h5md._backend": "h5md",
-    "asebytes.zarr": "zarr",
-    "asebytes.zarr._backend": "zarr",
+    "asebytes.h5md": "h5",
+    "asebytes.h5md._backend": "h5",
+    "asebytes.columnar": "columnar",
     "asebytes.mongodb": "mongodb",
     "asebytes.mongodb._backend": "mongodb",
     "asebytes.mongodb._async_backend": "mongodb",
@@ -93,7 +94,7 @@ def _import_module(module_path: str):
         hint = _EXTRAS_HINT.get(module_path, module_path)
         raise ImportError(
             f"Backend '{module_path}' requires additional dependencies. "
-            f"Install them with: pip install asebytes[{hint}]"
+            f"Install them with: uv add asebytes[{hint}]"
         ) from None
 
 

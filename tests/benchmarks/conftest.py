@@ -4,7 +4,11 @@ Provides pre-populated database fixtures for every backend so that setup
 cost is excluded from benchmarked operations.  Each fixture yields a
 namespace with the relevant handles and metadata.
 
-Datasets: ethanol (1000 small molecules), lemat (1000 periodic structures).
+Datasets: 2x2 parametrization matrix (frames x atoms):
+  - ethanol_100:   100 frames, ~9 atoms (small molecule)
+  - ethanol_1000: 1000 frames, ~9 atoms (small molecule)
+  - periodic_100:  100 frames, ~108 atoms (Cu FCC bulk)
+  - periodic_1000: 1000 frames, ~108 atoms (Cu FCC bulk)
 """
 
 from __future__ import annotations
@@ -27,7 +31,7 @@ from asebytes._convert import atoms_to_dict
 # Dataset parametrisation
 # ---------------------------------------------------------------------------
 
-DATASETS = ["ethanol", "lemat"]
+DATASETS = ["ethanol_100", "ethanol_1000", "periodic_100", "periodic_1000"]
 
 
 @pytest.fixture(params=DATASETS)
@@ -94,6 +98,26 @@ def bench_zarr(dataset, tmp_path):
 def bench_h5md(dataset, tmp_path):
     name, frames = dataset
     p = str(tmp_path / f"bench_{name}.h5")
+    aseio = ASEIO(p)
+    aseio.extend(frames)
+    objectio = ObjectIO(p)
+    return BenchDB(aseio=aseio, objectio=objectio, frames=frames, name=name)
+
+
+@pytest.fixture
+def bench_h5_padded(dataset, tmp_path):
+    name, frames = dataset
+    p = str(tmp_path / f"bench_{name}.h5p")
+    aseio = ASEIO(p)
+    aseio.extend(frames)
+    objectio = ObjectIO(p)
+    return BenchDB(aseio=aseio, objectio=objectio, frames=frames, name=name)
+
+
+@pytest.fixture
+def bench_zarr_padded(dataset, tmp_path):
+    name, frames = dataset
+    p = str(tmp_path / f"bench_{name}.zarrp")
     aseio = ASEIO(p)
     aseio.extend(frames)
     objectio = ObjectIO(p)

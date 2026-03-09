@@ -1,0 +1,1967 @@
+{
+    "machine_info": {
+        "node": "MacBook-Pro-von-Fabian.local",
+        "processor": "arm",
+        "machine": "arm64",
+        "python_compiler": "Clang 14.0.6 ",
+        "python_implementation": "CPython",
+        "python_implementation_version": "3.11.5",
+        "python_version": "3.11.5",
+        "python_build": [
+            "main",
+            "Sep 11 2023 08:31:25"
+        ],
+        "release": "25.3.0",
+        "system": "Darwin",
+        "cpu": {
+            "python_version": "3.11.5.final.0 (64 bit)",
+            "cpuinfo_version": [
+                9,
+                0,
+                0
+            ],
+            "cpuinfo_version_string": "9.0.0",
+            "arch": "ARM_8",
+            "bits": 64,
+            "count": 11,
+            "arch_string_raw": "arm64",
+            "brand_raw": "Apple M3 Pro"
+        }
+    },
+    "commit_info": {
+        "id": "de6a1e52203fbad8225d0fda7d6f0a329bf52170",
+        "time": "2026-03-06T18:17:42+01:00",
+        "author_time": "2026-03-06T18:17:42+01:00",
+        "dirty": true,
+        "project": "asebytes",
+        "branch": "perf-analysis"
+    },
+    "benchmarks": [
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_asebytes_lmdb[ethanol_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_lmdb[ethanol_100]",
+            "params": {
+                "dataset": "ethanol_100"
+            },
+            "param": "ethanol_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.0017427910352125764,
+                "max": 0.0021270839497447014,
+                "mean": 0.0018097702742955045,
+                "stddev": 6.0697768419796406e-05,
+                "rounds": 481,
+                "median": 0.0017913749907165766,
+                "iqr": 5.38855092599988e-05,
+                "q1": 0.0017708645027596503,
+                "q3": 0.0018247500120196491,
+                "iqr_outliers": 36,
+                "stddev_outliers": 57,
+                "outliers": "57;36",
+                "ld15iqr": 0.0017427910352125764,
+                "hd15iqr": 0.0019083750084973872,
+                "ops": 552.5563184472535,
+                "total": 0.8704995019361377,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_asebytes_lmdb[ethanol_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_lmdb[ethanol_1000]",
+            "params": {
+                "dataset": "ethanol_1000"
+            },
+            "param": "ethanol_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.01769716595299542,
+                "max": 0.02998829202260822,
+                "mean": 0.01898391754048961,
+                "stddev": 0.0017299658898643016,
+                "rounds": 55,
+                "median": 0.01868620899040252,
+                "iqr": 0.0007273337396327406,
+                "q1": 0.018332905980059877,
+                "q3": 0.019060239719692618,
+                "iqr_outliers": 3,
+                "stddev_outliers": 3,
+                "outliers": "3;3",
+                "ld15iqr": 0.01769716595299542,
+                "hd15iqr": 0.021987250016536564,
+                "ops": 52.67616643757341,
+                "total": 1.0441154647269286,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_asebytes_lmdb[periodic_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_lmdb[periodic_100]",
+            "params": {
+                "dataset": "periodic_100"
+            },
+            "param": "periodic_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.0015681670047342777,
+                "max": 0.002121084020473063,
+                "mean": 0.0016603596687761952,
+                "stddev": 5.215079579198695e-05,
+                "rounds": 565,
+                "median": 0.0016453340067528188,
+                "iqr": 4.844751674681902e-05,
+                "q1": 0.0016282087162835523,
+                "q3": 0.0016766562330303714,
+                "iqr_outliers": 34,
+                "stddev_outliers": 94,
+                "outliers": "94;34",
+                "ld15iqr": 0.0015681670047342777,
+                "hd15iqr": 0.0017545419977977872,
+                "ops": 602.2791439743125,
+                "total": 0.9381032128585503,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_asebytes_lmdb[periodic_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_lmdb[periodic_1000]",
+            "params": {
+                "dataset": "periodic_1000"
+            },
+            "param": "periodic_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.016421500011347234,
+                "max": 0.017803082999307662,
+                "mean": 0.0170494647955538,
+                "stddev": 0.00030950981556277917,
+                "rounds": 58,
+                "median": 0.01703158297459595,
+                "iqr": 0.00044300005538389087,
+                "q1": 0.01683562499238178,
+                "q3": 0.017278625047765672,
+                "iqr_outliers": 0,
+                "stddev_outliers": 14,
+                "outliers": "14;0",
+                "ld15iqr": 0.016421500011347234,
+                "hd15iqr": 0.017803082999307662,
+                "ops": 58.65286752348862,
+                "total": 0.9888689581421204,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_asebytes_zarr[ethanol_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_zarr[ethanol_100]",
+            "params": {
+                "dataset": "ethanol_100"
+            },
+            "param": "ethanol_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.014555000001564622,
+                "max": 0.01848470902768895,
+                "mean": 0.015527683065929374,
+                "stddev": 0.000588681465778314,
+                "rounds": 61,
+                "median": 0.01545695902314037,
+                "iqr": 0.0005591044609900564,
+                "q1": 0.015209447548841126,
+                "q3": 0.015768552009831183,
+                "iqr_outliers": 2,
+                "stddev_outliers": 14,
+                "outliers": "14;2",
+                "ld15iqr": 0.014555000001564622,
+                "hd15iqr": 0.01675716700265184,
+                "ops": 64.40110837876297,
+                "total": 0.9471886670216918,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_asebytes_zarr[ethanol_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_zarr[ethanol_1000]",
+            "params": {
+                "dataset": "ethanol_1000"
+            },
+            "param": "ethanol_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.11666629201499745,
+                "max": 0.16593025001930073,
+                "mean": 0.12503450944010788,
+                "stddev": 0.015409131723023724,
+                "rounds": 9,
+                "median": 0.12066258396953344,
+                "iqr": 0.0010494897287571803,
+                "q1": 0.11986835449351929,
+                "q3": 0.12091784422227647,
+                "iqr_outliers": 3,
+                "stddev_outliers": 1,
+                "outliers": "1;3",
+                "ld15iqr": 0.12041695899097249,
+                "hd15iqr": 0.16593025001930073,
+                "ops": 7.997792005406352,
+                "total": 1.125310584960971,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_asebytes_zarr[periodic_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_zarr[periodic_100]",
+            "params": {
+                "dataset": "periodic_100"
+            },
+            "param": "periodic_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.028308208973612636,
+                "max": 0.03178441699128598,
+                "mean": 0.029909248795935556,
+                "stddev": 0.0007983707585969235,
+                "rounds": 34,
+                "median": 0.02994347902131267,
+                "iqr": 0.000852125056553632,
+                "q1": 0.02942287496989593,
+                "q3": 0.03027500002644956,
+                "iqr_outliers": 1,
+                "stddev_outliers": 10,
+                "outliers": "10;1",
+                "ld15iqr": 0.028308208973612636,
+                "hd15iqr": 0.03178441699128598,
+                "ops": 33.43447395896792,
+                "total": 1.0169144590618089,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_asebytes_zarr[periodic_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_zarr[periodic_1000]",
+            "params": {
+                "dataset": "periodic_1000"
+            },
+            "param": "periodic_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.25174495799001306,
+                "max": 0.2703728750348091,
+                "mean": 0.2623060000129044,
+                "stddev": 0.006754175857954556,
+                "rounds": 5,
+                "median": 0.26310520904371515,
+                "iqr": 0.006721948288031854,
+                "q1": 0.2592688642325811,
+                "q3": 0.26599081252061296,
+                "iqr_outliers": 0,
+                "stddev_outliers": 2,
+                "outliers": "2;0",
+                "ld15iqr": 0.25174495799001306,
+                "hd15iqr": 0.2703728750348091,
+                "ops": 3.8123413111053654,
+                "total": 1.311530000064522,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_asebytes_h5md[ethanol_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_h5md[ethanol_100]",
+            "params": {
+                "dataset": "ethanol_100"
+            },
+            "param": "ethanol_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.0019105839892290533,
+                "max": 0.00474474998190999,
+                "mean": 0.0020266071915580083,
+                "stddev": 0.0002187668258446751,
+                "rounds": 381,
+                "median": 0.0019918750040233135,
+                "iqr": 6.741723336745054e-05,
+                "q1": 0.001961759990081191,
+                "q3": 0.0020291772234486416,
+                "iqr_outliers": 22,
+                "stddev_outliers": 12,
+                "outliers": "12;22",
+                "ld15iqr": 0.0019105839892290533,
+                "hd15iqr": 0.0021351249888539314,
+                "ops": 493.4355331243167,
+                "total": 0.7721373399836011,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_asebytes_h5md[ethanol_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_h5md[ethanol_1000]",
+            "params": {
+                "dataset": "ethanol_1000"
+            },
+            "param": "ethanol_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.017823832982685417,
+                "max": 0.01916000002529472,
+                "mean": 0.018307239905051474,
+                "stddev": 0.00030315523406958874,
+                "rounds": 45,
+                "median": 0.01827016699826345,
+                "iqr": 0.0003097600274486467,
+                "q1": 0.01808902072662022,
+                "q3": 0.018398780754068866,
+                "iqr_outliers": 3,
+                "stddev_outliers": 13,
+                "outliers": "13;3",
+                "ld15iqr": 0.017823832982685417,
+                "hd15iqr": 0.019017542013898492,
+                "ops": 54.62319853710293,
+                "total": 0.8238257957273163,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_asebytes_h5md[periodic_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_h5md[periodic_100]",
+            "params": {
+                "dataset": "periodic_100"
+            },
+            "param": "periodic_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.0016734169912524521,
+                "max": 0.0020658749854192138,
+                "mean": 0.0017430028032681803,
+                "stddev": 4.986414457066865e-05,
+                "rounds": 339,
+                "median": 0.0017341250204481184,
+                "iqr": 5.0957969506271183e-05,
+                "q1": 0.0017094477516366169,
+                "q3": 0.001760405721142888,
+                "iqr_outliers": 13,
+                "stddev_outliers": 65,
+                "outliers": "65;13",
+                "ld15iqr": 0.0016734169912524521,
+                "hd15iqr": 0.0018555829883553088,
+                "ops": 573.7225425713438,
+                "total": 0.5908779503079131,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_asebytes_h5md[periodic_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_h5md[periodic_1000]",
+            "params": {
+                "dataset": "periodic_1000"
+            },
+            "param": "periodic_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.016206500004045665,
+                "max": 0.017015749996062368,
+                "mean": 0.016565520838699548,
+                "stddev": 0.00018103376229418322,
+                "rounds": 38,
+                "median": 0.016571082989685237,
+                "iqr": 0.00027129199588671327,
+                "q1": 0.016418582992628217,
+                "q3": 0.01668987498851493,
+                "iqr_outliers": 0,
+                "stddev_outliers": 10,
+                "outliers": "10;0",
+                "ld15iqr": 0.016206500004045665,
+                "hd15iqr": 0.017015749996062368,
+                "ops": 60.366348256545585,
+                "total": 0.6294897918705828,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_aselmdb[ethanol_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_aselmdb[ethanol_100]",
+            "params": {
+                "dataset": "ethanol_100"
+            },
+            "param": "ethanol_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.006181583972647786,
+                "max": 0.007343999983277172,
+                "mean": 0.006372622116709706,
+                "stddev": 0.00017678252636469836,
+                "rounds": 145,
+                "median": 0.006312625017017126,
+                "iqr": 0.00018993671983480453,
+                "q1": 0.006255323241930455,
+                "q3": 0.0064452599617652595,
+                "iqr_outliers": 6,
+                "stddev_outliers": 25,
+                "outliers": "25;6",
+                "ld15iqr": 0.006181583972647786,
+                "hd15iqr": 0.0067609589896164834,
+                "ops": 156.92127693840368,
+                "total": 0.9240302069229074,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_aselmdb[ethanol_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_aselmdb[ethanol_1000]",
+            "params": {
+                "dataset": "ethanol_1000"
+            },
+            "param": "ethanol_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.06415745802223682,
+                "max": 0.06592604197794572,
+                "mean": 0.06488939593327814,
+                "stddev": 0.000511323510726958,
+                "rounds": 16,
+                "median": 0.06496029198751785,
+                "iqr": 0.0005388339632190764,
+                "q1": 0.06455220800125971,
+                "q3": 0.06509104196447879,
+                "iqr_outliers": 1,
+                "stddev_outliers": 5,
+                "outliers": "5;1",
+                "ld15iqr": 0.06415745802223682,
+                "hd15iqr": 0.06592604197794572,
+                "ops": 15.410838483197468,
+                "total": 1.0382303349324502,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_aselmdb[periodic_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_aselmdb[periodic_100]",
+            "params": {
+                "dataset": "periodic_100"
+            },
+            "param": "periodic_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.009097875037696213,
+                "max": 0.01131779100978747,
+                "mean": 0.009412124617564686,
+                "stddev": 0.0002880048662602259,
+                "rounds": 101,
+                "median": 0.009342750010546297,
+                "iqr": 0.00020769800175912678,
+                "q1": 0.009259833270334639,
+                "q3": 0.009467531272093765,
+                "iqr_outliers": 8,
+                "stddev_outliers": 15,
+                "outliers": "15;8",
+                "ld15iqr": 0.009097875037696213,
+                "hd15iqr": 0.009812959004193544,
+                "ops": 106.24593708989185,
+                "total": 0.9506245863740332,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_aselmdb[periodic_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_aselmdb[periodic_1000]",
+            "params": {
+                "dataset": "periodic_1000"
+            },
+            "param": "periodic_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.09442033298546448,
+                "max": 0.10493075003614649,
+                "mean": 0.09641146955651823,
+                "stddev": 0.002887435927573343,
+                "rounds": 11,
+                "median": 0.0957816670415923,
+                "iqr": 0.0007428745593642816,
+                "q1": 0.09530324998195283,
+                "q3": 0.09604612454131711,
+                "iqr_outliers": 1,
+                "stddev_outliers": 1,
+                "outliers": "1;1",
+                "ld15iqr": 0.09442033298546448,
+                "hd15iqr": 0.10493075003614649,
+                "ops": 10.372209910292685,
+                "total": 1.0605261651217006,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_znh5md[ethanol_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_znh5md[ethanol_100]",
+            "params": {
+                "dataset": "ethanol_100"
+            },
+            "param": "ethanol_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.006402416038326919,
+                "max": 0.007780625019222498,
+                "mean": 0.006645650357021006,
+                "stddev": 0.00019861066943610445,
+                "rounds": 143,
+                "median": 0.006580165994819254,
+                "iqr": 0.0002035412471741438,
+                "q1": 0.006511761021101847,
+                "q3": 0.006715302268275991,
+                "iqr_outliers": 9,
+                "stddev_outliers": 22,
+                "outliers": "22;9",
+                "ld15iqr": 0.006402416038326919,
+                "hd15iqr": 0.007030333974398673,
+                "ops": 150.47436236899202,
+                "total": 0.9503280010540038,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_znh5md[ethanol_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_znh5md[ethanol_1000]",
+            "params": {
+                "dataset": "ethanol_1000"
+            },
+            "param": "ethanol_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.056659708032384515,
+                "max": 0.05887945898575708,
+                "mean": 0.05757646299833949,
+                "stddev": 0.0005486751988314587,
+                "rounds": 18,
+                "median": 0.057495249988278374,
+                "iqr": 0.0006577079766429961,
+                "q1": 0.057255292020272464,
+                "q3": 0.05791299999691546,
+                "iqr_outliers": 0,
+                "stddev_outliers": 5,
+                "outliers": "5;0",
+                "ld15iqr": 0.056659708032384515,
+                "hd15iqr": 0.05887945898575708,
+                "ops": 17.3682082560167,
+                "total": 1.0363763339701109,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_znh5md[periodic_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_znh5md[periodic_100]",
+            "params": {
+                "dataset": "periodic_100"
+            },
+            "param": "periodic_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.006099957972764969,
+                "max": 0.00695974996779114,
+                "mean": 0.006313609133164088,
+                "stddev": 0.00014265849167541348,
+                "rounds": 150,
+                "median": 0.006288208503974602,
+                "iqr": 0.00015829195035621524,
+                "q1": 0.006213625019881874,
+                "q3": 0.0063719169702380896,
+                "iqr_outliers": 7,
+                "stddev_outliers": 38,
+                "outliers": "38;7",
+                "ld15iqr": 0.006099957972764969,
+                "hd15iqr": 0.006624125002417713,
+                "ops": 158.3880121351203,
+                "total": 0.9470413699746132,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_znh5md[periodic_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_znh5md[periodic_1000]",
+            "params": {
+                "dataset": "periodic_1000"
+            },
+            "param": "periodic_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.055151459004264325,
+                "max": 0.05717425001785159,
+                "mean": 0.05620874131809136,
+                "stddev": 0.0006966406325978217,
+                "rounds": 19,
+                "median": 0.05614387500099838,
+                "iqr": 0.0013550940057029948,
+                "q1": 0.0554894582455745,
+                "q3": 0.05684455225127749,
+                "iqr_outliers": 0,
+                "stddev_outliers": 9,
+                "outliers": "9;0",
+                "ld15iqr": 0.055151459004264325,
+                "hd15iqr": 0.05717425001785159,
+                "ops": 17.790827130265942,
+                "total": 1.0679660850437358,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_extxyz[ethanol_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_extxyz[ethanol_100]",
+            "params": {
+                "dataset": "ethanol_100"
+            },
+            "param": "ethanol_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.013079957978334278,
+                "max": 0.013835166988428682,
+                "mean": 0.01337189250075057,
+                "stddev": 0.00017703348995065784,
+                "rounds": 74,
+                "median": 0.013334708492038772,
+                "iqr": 0.0002532079815864563,
+                "q1": 0.013239333988167346,
+                "q3": 0.013492541969753802,
+                "iqr_outliers": 0,
+                "stddev_outliers": 23,
+                "outliers": "23;0",
+                "ld15iqr": 0.013079957978334278,
+                "hd15iqr": 0.013835166988428682,
+                "ops": 74.78373012225978,
+                "total": 0.9895200450555421,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_extxyz[ethanol_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_extxyz[ethanol_1000]",
+            "params": {
+                "dataset": "ethanol_1000"
+            },
+            "param": "ethanol_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.13299816596554592,
+                "max": 0.14124620804795995,
+                "mean": 0.13490518737671664,
+                "stddev": 0.0026540473302503922,
+                "rounds": 8,
+                "median": 0.13401020847959444,
+                "iqr": 0.0013723540178034455,
+                "q1": 0.13355800000135787,
+                "q3": 0.1349303540191613,
+                "iqr_outliers": 1,
+                "stddev_outliers": 1,
+                "outliers": "1;1",
+                "ld15iqr": 0.13299816596554592,
+                "hd15iqr": 0.14124620804795995,
+                "ops": 7.412613402385671,
+                "total": 1.0792414990137331,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_extxyz[periodic_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_extxyz[periodic_100]",
+            "params": {
+                "dataset": "periodic_100"
+            },
+            "param": "periodic_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.013572291005402803,
+                "max": 0.014763750019483268,
+                "mean": 0.013916414282710987,
+                "stddev": 0.00020658192125064324,
+                "rounds": 71,
+                "median": 0.013901792000979185,
+                "iqr": 0.00026828151021618396,
+                "q1": 0.013754895495367236,
+                "q3": 0.01402317700558342,
+                "iqr_outliers": 1,
+                "stddev_outliers": 21,
+                "outliers": "21;1",
+                "ld15iqr": 0.013572291005402803,
+                "hd15iqr": 0.014763750019483268,
+                "ops": 71.85759058943415,
+                "total": 0.98806541407248,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_extxyz[periodic_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_extxyz[periodic_1000]",
+            "params": {
+                "dataset": "periodic_1000"
+            },
+            "param": "periodic_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.13808479200815782,
+                "max": 0.14113829203415662,
+                "mean": 0.13964628650865052,
+                "stddev": 0.0009304156734810118,
+                "rounds": 8,
+                "median": 0.13945302099455148,
+                "iqr": 0.0008996249816846102,
+                "q1": 0.13931047901860438,
+                "q3": 0.140210104000289,
+                "iqr_outliers": 0,
+                "stddev_outliers": 3,
+                "outliers": "3;0",
+                "ld15iqr": 0.13808479200815782,
+                "hd15iqr": 0.14113829203415662,
+                "ops": 7.1609494602497294,
+                "total": 1.1171702920692042,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_sqlite[ethanol_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_sqlite[ethanol_100]",
+            "params": {
+                "dataset": "ethanol_100"
+            },
+            "param": "ethanol_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.014034625026397407,
+                "max": 0.01639941695611924,
+                "mean": 0.014825585250615735,
+                "stddev": 0.0006204330533597482,
+                "rounds": 66,
+                "median": 0.014579896000213921,
+                "iqr": 0.0008355419849976897,
+                "q1": 0.01438574999338016,
+                "q3": 0.015221291978377849,
+                "iqr_outliers": 0,
+                "stddev_outliers": 20,
+                "outliers": "20;0",
+                "ld15iqr": 0.014034625026397407,
+                "hd15iqr": 0.01639941695611924,
+                "ops": 67.45096285210515,
+                "total": 0.9784886265406385,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_sqlite[ethanol_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_sqlite[ethanol_1000]",
+            "params": {
+                "dataset": "ethanol_1000"
+            },
+            "param": "ethanol_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.1400456249830313,
+                "max": 0.14767466601915658,
+                "mean": 0.1435173034385246,
+                "stddev": 0.002465786056107569,
+                "rounds": 7,
+                "median": 0.14286458399146795,
+                "iqr": 0.0028836247511208057,
+                "q1": 0.142040156017174,
+                "q3": 0.14492378076829482,
+                "iqr_outliers": 0,
+                "stddev_outliers": 2,
+                "outliers": "2;0",
+                "ld15iqr": 0.1400456249830313,
+                "hd15iqr": 0.14767466601915658,
+                "ops": 6.967800927421608,
+                "total": 1.004621124069672,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_sqlite[periodic_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_sqlite[periodic_100]",
+            "params": {
+                "dataset": "periodic_100"
+            },
+            "param": "periodic_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.014199958008248359,
+                "max": 0.016840333002619445,
+                "mean": 0.015220192312083852,
+                "stddev": 0.0006301018041364675,
+                "rounds": 65,
+                "median": 0.015159458969719708,
+                "iqr": 0.0008719170145923272,
+                "q1": 0.014806302249780856,
+                "q3": 0.015678219264373183,
+                "iqr_outliers": 0,
+                "stddev_outliers": 21,
+                "outliers": "21;0",
+                "ld15iqr": 0.014199958008248359,
+                "hd15iqr": 0.016840333002619445,
+                "ops": 65.7021921599548,
+                "total": 0.9893125002854504,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_trajectory",
+            "name": "test_read_trajectory_sqlite[periodic_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_trajectory_sqlite[periodic_1000]",
+            "params": {
+                "dataset": "periodic_1000"
+            },
+            "param": "periodic_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.14647229196270928,
+                "max": 0.16146866598865017,
+                "mean": 0.15320519641474156,
+                "stddev": 0.005599883842543826,
+                "rounds": 7,
+                "median": 0.15197579195955768,
+                "iqr": 0.009383948257891461,
+                "q1": 0.14826881223416422,
+                "q3": 0.15765276049205568,
+                "iqr_outliers": 0,
+                "stddev_outliers": 3,
+                "outliers": "3;0",
+                "ld15iqr": 0.14647229196270928,
+                "hd15iqr": 0.16146866598865017,
+                "ops": 6.5271937466983925,
+                "total": 1.0724363749031909,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_asebytes_lmdb[ethanol_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_lmdb[ethanol_100]",
+            "params": {
+                "dataset": "ethanol_100"
+            },
+            "param": "ethanol_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.0018949999939650297,
+                "max": 0.0024152499972842634,
+                "mean": 0.001975118764924374,
+                "stddev": 5.142478854590578e-05,
+                "rounds": 469,
+                "median": 0.001966166018974036,
+                "iqr": 4.8749789129942656e-05,
+                "q1": 0.0019436039874562994,
+                "q3": 0.001992353776586242,
+                "iqr_outliers": 22,
+                "stddev_outliers": 80,
+                "outliers": "80;22",
+                "ld15iqr": 0.0018949999939650297,
+                "hd15iqr": 0.0020664589828811586,
+                "ops": 506.29866808960696,
+                "total": 0.9263307007495314,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_asebytes_lmdb[ethanol_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_lmdb[ethanol_1000]",
+            "params": {
+                "dataset": "ethanol_1000"
+            },
+            "param": "ethanol_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.019351249968167394,
+                "max": 0.020607540966011584,
+                "mean": 0.01987501160474494,
+                "stddev": 0.00024322628561500114,
+                "rounds": 50,
+                "median": 0.019855166494380683,
+                "iqr": 0.00034429202787578106,
+                "q1": 0.01970154099399224,
+                "q3": 0.02004583302186802,
+                "iqr_outliers": 1,
+                "stddev_outliers": 16,
+                "outliers": "16;1",
+                "ld15iqr": 0.019351249968167394,
+                "hd15iqr": 0.020607540966011584,
+                "ops": 50.31443603088317,
+                "total": 0.993750580237247,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_asebytes_lmdb[periodic_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_lmdb[periodic_100]",
+            "params": {
+                "dataset": "periodic_100"
+            },
+            "param": "periodic_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.0017797499895095825,
+                "max": 0.0022685410222038627,
+                "mean": 0.0018632698147817873,
+                "stddev": 5.643756249365551e-05,
+                "rounds": 519,
+                "median": 0.0018513749819248915,
+                "iqr": 5.026093276683241e-05,
+                "q1": 0.001828207794460468,
+                "q3": 0.0018784687272273004,
+                "iqr_outliers": 30,
+                "stddev_outliers": 69,
+                "outliers": "69;30",
+                "ld15iqr": 0.0017797499895095825,
+                "hd15iqr": 0.0019595000194385648,
+                "ops": 536.6909247746886,
+                "total": 0.9670370338717476,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_asebytes_lmdb[periodic_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_lmdb[periodic_1000]",
+            "params": {
+                "dataset": "periodic_1000"
+            },
+            "param": "periodic_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.01854020799510181,
+                "max": 0.020575125003233552,
+                "mean": 0.01906071315506079,
+                "stddev": 0.00037438565941244877,
+                "rounds": 52,
+                "median": 0.019001000007847324,
+                "iqr": 0.0003655829932540655,
+                "q1": 0.018837395997252315,
+                "q3": 0.01920297899050638,
+                "iqr_outliers": 1,
+                "stddev_outliers": 15,
+                "outliers": "15;1",
+                "ld15iqr": 0.01854020799510181,
+                "hd15iqr": 0.020575125003233552,
+                "ops": 52.463934159488204,
+                "total": 0.9911570840631612,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_asebytes_zarr[ethanol_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_zarr[ethanol_100]",
+            "params": {
+                "dataset": "ethanol_100"
+            },
+            "param": "ethanol_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.492715209024027,
+                "max": 0.49507395800901577,
+                "mean": 0.49389460020465775,
+                "stddev": 0.0008428175324913087,
+                "rounds": 5,
+                "median": 0.4939483749913052,
+                "iqr": 0.0008388439455302432,
+                "q1": 0.49345502103096806,
+                "q3": 0.4942938649764983,
+                "iqr_outliers": 0,
+                "stddev_outliers": 2,
+                "outliers": "2;0",
+                "ld15iqr": 0.492715209024027,
+                "hd15iqr": 0.49507395800901577,
+                "ops": 2.024723492797096,
+                "total": 2.469473001023289,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_asebytes_zarr[ethanol_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_zarr[ethanol_1000]",
+            "params": {
+                "dataset": "ethanol_1000"
+            },
+            "param": "ethanol_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 5.033362040994689,
+                "max": 5.349881083006039,
+                "mean": 5.1979184750118295,
+                "stddev": 0.13695101353210007,
+                "rounds": 5,
+                "median": 5.232415709004272,
+                "iqr": 0.24145210449933074,
+                "q1": 5.067404416520731,
+                "q3": 5.308856521020061,
+                "iqr_outliers": 0,
+                "stddev_outliers": 2,
+                "outliers": "2;0",
+                "ld15iqr": 5.033362040994689,
+                "hd15iqr": 5.349881083006039,
+                "ops": 0.19238470260881194,
+                "total": 25.989592375059146,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_asebytes_zarr[periodic_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_zarr[periodic_100]",
+            "params": {
+                "dataset": "periodic_100"
+            },
+            "param": "periodic_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.4321913330350071,
+                "max": 0.4484214580152184,
+                "mean": 0.43730942499823866,
+                "stddev": 0.006424141880137324,
+                "rounds": 5,
+                "median": 0.4351184169645421,
+                "iqr": 0.006005969029502012,
+                "q1": 0.43362958323268685,
+                "q3": 0.43963555226218887,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 0.4321913330350071,
+                "hd15iqr": 0.4484214580152184,
+                "ops": 2.28671037676361,
+                "total": 2.1865471249911934,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_asebytes_zarr[periodic_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_zarr[periodic_1000]",
+            "params": {
+                "dataset": "periodic_1000"
+            },
+            "param": "periodic_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 4.374323749972973,
+                "max": 4.533875916036777,
+                "mean": 4.462506358395331,
+                "stddev": 0.05955481465761826,
+                "rounds": 5,
+                "median": 4.470941125007812,
+                "iqr": 0.07679954123159405,
+                "q1": 4.425146812995081,
+                "q3": 4.501946354226675,
+                "iqr_outliers": 0,
+                "stddev_outliers": 2,
+                "outliers": "2;0",
+                "ld15iqr": 4.374323749972973,
+                "hd15iqr": 4.533875916036777,
+                "ops": 0.22408931656056827,
+                "total": 22.312531791976653,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_asebytes_h5md[ethanol_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_h5md[ethanol_100]",
+            "params": {
+                "dataset": "ethanol_100"
+            },
+            "param": "ethanol_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.013600458041764796,
+                "max": 0.02312949998304248,
+                "mean": 0.014243967878596428,
+                "stddev": 0.0011893776153763713,
+                "rounds": 65,
+                "median": 0.014079665997996926,
+                "iqr": 0.0004887392569798976,
+                "q1": 0.013806854258291423,
+                "q3": 0.014295593515271321,
+                "iqr_outliers": 3,
+                "stddev_outliers": 2,
+                "outliers": "2;3",
+                "ld15iqr": 0.013600458041764796,
+                "hd15iqr": 0.015157749992795289,
+                "ops": 70.2051569143624,
+                "total": 0.9258579121087678,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_asebytes_h5md[ethanol_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_h5md[ethanol_1000]",
+            "params": {
+                "dataset": "ethanol_1000"
+            },
+            "param": "ethanol_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.14081470796372741,
+                "max": 0.14477408298989758,
+                "mean": 0.14289364284403355,
+                "stddev": 0.0016992486160530083,
+                "rounds": 7,
+                "median": 0.14299041696358472,
+                "iqr": 0.0032679900468792766,
+                "q1": 0.1412281664670445,
+                "q3": 0.14449615651392378,
+                "iqr_outliers": 0,
+                "stddev_outliers": 3,
+                "outliers": "3;0",
+                "ld15iqr": 0.14081470796372741,
+                "hd15iqr": 0.14477408298989758,
+                "ops": 6.998211957487054,
+                "total": 1.000255499908235,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_asebytes_h5md[periodic_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_h5md[periodic_100]",
+            "params": {
+                "dataset": "periodic_100"
+            },
+            "param": "periodic_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.010149125009775162,
+                "max": 0.011409749975427985,
+                "mean": 0.010438083278486596,
+                "stddev": 0.00026622893884307313,
+                "rounds": 82,
+                "median": 0.010388603521278128,
+                "iqr": 0.00035791704431176186,
+                "q1": 0.010226957965642214,
+                "q3": 0.010584875009953976,
+                "iqr_outliers": 3,
+                "stddev_outliers": 15,
+                "outliers": "15;3",
+                "ld15iqr": 0.010149125009775162,
+                "hd15iqr": 0.01113312499364838,
+                "ops": 95.80302947582813,
+                "total": 0.8559228288359009,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_asebytes_h5md[periodic_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_h5md[periodic_1000]",
+            "params": {
+                "dataset": "periodic_1000"
+            },
+            "param": "periodic_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.10332295799162239,
+                "max": 0.10466462501790375,
+                "mean": 0.10396698143772988,
+                "stddev": 0.0005329013212921484,
+                "rounds": 9,
+                "median": 0.10399266600143164,
+                "iqr": 0.0010153027396881953,
+                "q1": 0.10343968724191654,
+                "q3": 0.10445498998160474,
+                "iqr_outliers": 0,
+                "stddev_outliers": 4,
+                "outliers": "4;0",
+                "ld15iqr": 0.10332295799162239,
+                "hd15iqr": 0.10466462501790375,
+                "ops": 9.618438336588058,
+                "total": 0.9357028329395689,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_aselmdb[ethanol_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_aselmdb[ethanol_100]",
+            "params": {
+                "dataset": "ethanol_100"
+            },
+            "param": "ethanol_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.006468082952778786,
+                "max": 0.0075327500235289335,
+                "mean": 0.0067576131340056815,
+                "stddev": 0.00020704511689581854,
+                "rounds": 141,
+                "median": 0.006704290979541838,
+                "iqr": 0.0002638642326928675,
+                "q1": 0.006601822984521277,
+                "q3": 0.006865687217214145,
+                "iqr_outliers": 3,
+                "stddev_outliers": 39,
+                "outliers": "39;3",
+                "ld15iqr": 0.006468082952778786,
+                "hd15iqr": 0.00735062500461936,
+                "ops": 147.98124428991014,
+                "total": 0.9528234518948011,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_aselmdb[ethanol_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_aselmdb[ethanol_1000]",
+            "params": {
+                "dataset": "ethanol_1000"
+            },
+            "param": "ethanol_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.06755674997111782,
+                "max": 0.07107708300463855,
+                "mean": 0.06868816659552976,
+                "stddev": 0.0009547503649503581,
+                "rounds": 15,
+                "median": 0.06833079201169312,
+                "iqr": 0.0008853337203618139,
+                "q1": 0.06809691651142202,
+                "q3": 0.06898225023178384,
+                "iqr_outliers": 1,
+                "stddev_outliers": 5,
+                "outliers": "5;1",
+                "ld15iqr": 0.06755674997111782,
+                "hd15iqr": 0.07107708300463855,
+                "ops": 14.55854843074353,
+                "total": 1.0303224989329465,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_aselmdb[periodic_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_aselmdb[periodic_100]",
+            "params": {
+                "dataset": "periodic_100"
+            },
+            "param": "periodic_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.009503917011898011,
+                "max": 0.01159574999473989,
+                "mean": 0.010096596357544339,
+                "stddev": 0.0004119265458486752,
+                "rounds": 99,
+                "median": 0.009983833006117493,
+                "iqr": 0.00048269749095197767,
+                "q1": 0.009812635777052492,
+                "q3": 0.01029533326800447,
+                "iqr_outliers": 5,
+                "stddev_outliers": 22,
+                "outliers": "22;5",
+                "ld15iqr": 0.009503917011898011,
+                "hd15iqr": 0.011116124980617315,
+                "ops": 99.04327801049351,
+                "total": 0.9995630393968895,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_aselmdb[periodic_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_aselmdb[periodic_1000]",
+            "params": {
+                "dataset": "periodic_1000"
+            },
+            "param": "periodic_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.10072670900262892,
+                "max": 0.10379141598241404,
+                "mean": 0.10244719599722885,
+                "stddev": 0.001083938044685901,
+                "rounds": 10,
+                "median": 0.10216195901739411,
+                "iqr": 0.0018283749814145267,
+                "q1": 0.10185233398806304,
+                "q3": 0.10368070896947756,
+                "iqr_outliers": 0,
+                "stddev_outliers": 5,
+                "outliers": "5;0",
+                "ld15iqr": 0.10072670900262892,
+                "hd15iqr": 0.10379141598241404,
+                "ops": 9.761126112490668,
+                "total": 1.0244719599722885,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_znh5md[ethanol_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_znh5md[ethanol_100]",
+            "params": {
+                "dataset": "ethanol_100"
+            },
+            "param": "ethanol_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.09702191699761897,
+                "max": 0.10653479199390858,
+                "mean": 0.09943635618864474,
+                "stddev": 0.0025518818285822156,
+                "rounds": 11,
+                "median": 0.09912050003185868,
+                "iqr": 0.0016400832537328824,
+                "q1": 0.09790295851416886,
+                "q3": 0.09954304176790174,
+                "iqr_outliers": 1,
+                "stddev_outliers": 1,
+                "outliers": "1;1",
+                "ld15iqr": 0.09702191699761897,
+                "hd15iqr": 0.10653479199390858,
+                "ops": 10.056683876296306,
+                "total": 1.0937999180750921,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_znh5md[ethanol_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_znh5md[ethanol_1000]",
+            "params": {
+                "dataset": "ethanol_1000"
+            },
+            "param": "ethanol_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.9927268750034273,
+                "max": 1.0287000000244007,
+                "mean": 1.0061738832155243,
+                "stddev": 0.014661954064024103,
+                "rounds": 5,
+                "median": 0.999507041007746,
+                "iqr": 0.020817968776100315,
+                "q1": 0.9959951875061961,
+                "q3": 1.0168131562822964,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 0.9927268750034273,
+                "hd15iqr": 1.0287000000244007,
+                "ops": 0.9938639997335313,
+                "total": 5.030869416077621,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_znh5md[periodic_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_znh5md[periodic_100]",
+            "params": {
+                "dataset": "periodic_100"
+            },
+            "param": "periodic_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.102299333026167,
+                "max": 0.10648595896782354,
+                "mean": 0.10363968320889398,
+                "stddev": 0.0013971846374459733,
+                "rounds": 10,
+                "median": 0.102901728998404,
+                "iqr": 0.0022921659983694553,
+                "q1": 0.10262891702586785,
+                "q3": 0.1049210830242373,
+                "iqr_outliers": 0,
+                "stddev_outliers": 2,
+                "outliers": "2;0",
+                "ld15iqr": 0.102299333026167,
+                "hd15iqr": 0.10648595896782354,
+                "ops": 9.648813746221327,
+                "total": 1.0363968320889398,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_znh5md[periodic_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_znh5md[periodic_1000]",
+            "params": {
+                "dataset": "periodic_1000"
+            },
+            "param": "periodic_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 1.0715840839548036,
+                "max": 1.1160261249751784,
+                "mean": 1.083410050184466,
+                "stddev": 0.01846000135843967,
+                "rounds": 5,
+                "median": 1.0770254170056432,
+                "iqr": 0.015205041447188705,
+                "q1": 1.0730042397626676,
+                "q3": 1.0882092812098563,
+                "iqr_outliers": 1,
+                "stddev_outliers": 1,
+                "outliers": "1;1",
+                "ld15iqr": 1.0715840839548036,
+                "hd15iqr": 1.1160261249751784,
+                "ops": 0.9230115595011656,
+                "total": 5.41705025092233,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_sqlite[ethanol_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_sqlite[ethanol_100]",
+            "params": {
+                "dataset": "ethanol_100"
+            },
+            "param": "ethanol_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.028421082999557257,
+                "max": 0.032013207965064794,
+                "mean": 0.030157295330850917,
+                "stddev": 0.0010586792315284567,
+                "rounds": 33,
+                "median": 0.030332124966662377,
+                "iqr": 0.0017729372630128637,
+                "q1": 0.029246603982755914,
+                "q3": 0.031019541245768778,
+                "iqr_outliers": 0,
+                "stddev_outliers": 14,
+                "outliers": "14;0",
+                "ld15iqr": 0.028421082999557257,
+                "hd15iqr": 0.032013207965064794,
+                "ops": 33.159472327646036,
+                "total": 0.9951907459180802,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_sqlite[ethanol_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_sqlite[ethanol_1000]",
+            "params": {
+                "dataset": "ethanol_1000"
+            },
+            "param": "ethanol_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.2900751249981113,
+                "max": 0.3390886670094915,
+                "mean": 0.30795648341299964,
+                "stddev": 0.022246586650962453,
+                "rounds": 5,
+                "median": 0.29504412499954924,
+                "iqr": 0.03653069798019715,
+                "q1": 0.29122056253254414,
+                "q3": 0.3277512605127413,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 0.2900751249981113,
+                "hd15iqr": 0.3390886670094915,
+                "ops": 3.247212037614102,
+                "total": 1.5397824170649983,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_sqlite[periodic_100]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_sqlite[periodic_100]",
+            "params": {
+                "dataset": "periodic_100"
+            },
+            "param": "periodic_100",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.02812262496445328,
+                "max": 0.034048416011501104,
+                "mean": 0.03050349354673403,
+                "stddev": 0.0014674871461116676,
+                "rounds": 33,
+                "median": 0.030439082998782396,
+                "iqr": 0.0024573744885856286,
+                "q1": 0.029455375246470794,
+                "q3": 0.03191274973505642,
+                "iqr_outliers": 0,
+                "stddev_outliers": 13,
+                "outliers": "13;0",
+                "ld15iqr": 0.02812262496445328,
+                "hd15iqr": 0.034048416011501104,
+                "ops": 32.783130183692315,
+                "total": 1.006615287042223,
+                "iterations": 1
+            }
+        },
+        {
+            "group": "read_single",
+            "name": "test_read_single_sqlite[periodic_1000]",
+            "fullname": "tests/benchmarks/test_bench_read.py::test_read_single_sqlite[periodic_1000]",
+            "params": {
+                "dataset": "periodic_1000"
+            },
+            "param": "periodic_1000",
+            "extra_info": {},
+            "options": {
+                "disable_gc": true,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.2918768330127932,
+                "max": 0.30225204199086875,
+                "mean": 0.29548390021082016,
+                "stddev": 0.004588491852069568,
+                "rounds": 5,
+                "median": 0.2932047920185141,
+                "iqr": 0.007315239767194726,
+                "q1": 0.2918906772538321,
+                "q3": 0.29920591702102683,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 0.2918768330127932,
+                "hd15iqr": 0.30225204199086875,
+                "ops": 3.3842791410514272,
+                "total": 1.4774195010541007,
+                "iterations": 1
+            }
+        }
+    ],
+    "datetime": "2026-03-06T17:33:14.529980+00:00",
+    "version": "5.2.1"
+}

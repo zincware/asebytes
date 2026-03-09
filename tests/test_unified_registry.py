@@ -1,9 +1,12 @@
 """Tests for unified backend registry."""
 from __future__ import annotations
 
+import fnmatch
+
 import pytest
 
 from asebytes._registry import resolve_backend, parse_uri
+from asebytes.columnar import RaggedColumnarBackend, PaddedColumnarBackend
 
 
 class TestResolveByExtension:
@@ -11,17 +14,40 @@ class TestResolveByExtension:
         cls = resolve_backend("data.lmdb", layer="object")
         assert cls is not None
 
-    def test_zarr_object(self):
-        cls = resolve_backend("data.zarr", layer="object")
-        assert cls is not None
-
-    def test_h5md_object(self):
+    def test_h5_resolves_to_ragged(self):
         cls = resolve_backend("data.h5", layer="object")
-        assert cls is not None
+        assert cls is RaggedColumnarBackend
+
+    def test_zarr_resolves_to_ragged(self):
+        cls = resolve_backend("data.zarr", layer="object")
+        assert cls is RaggedColumnarBackend
+
+    def test_h5p_resolves_to_padded(self):
+        cls = resolve_backend("data.h5p", layer="object")
+        assert cls is PaddedColumnarBackend
+
+    def test_zarrp_resolves_to_padded(self):
+        cls = resolve_backend("data.zarrp", layer="object")
+        assert cls is PaddedColumnarBackend
+
+    def test_h5md_resolves_to_h5md(self):
+        from asebytes.h5md import H5MDBackend
+        cls = resolve_backend("data.h5md", layer="object")
+        assert cls is H5MDBackend
 
     def test_lmdb_blob(self):
         cls = resolve_backend("data.lmdb", layer="blob")
         assert cls is not None
+
+
+class TestNoGlobCollisions:
+    """Verify that padded extensions do not collide with ragged patterns (ARCH-06)."""
+
+    def test_h5p_does_not_match_h5_pattern(self):
+        assert fnmatch.fnmatch("file.h5p", "*.h5") is False
+
+    def test_zarrp_does_not_match_zarr_pattern(self):
+        assert fnmatch.fnmatch("file.zarrp", "*.zarr") is False
 
 
 class TestResolveByScheme:

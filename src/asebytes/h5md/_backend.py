@@ -1,33 +1,33 @@
 """H5MD read-write backend for asebytes.
 
-Produces files compatible with znh5md and standard H5MD readers.
+Thin specialization of :class:`~asebytes.columnar.PaddedColumnarBackend`
+that produces files compatible with znh5md and standard H5MD readers.
 Supports ZnH5MD extensions: variable particle count (NaN padding)
 and per-frame PBC.
 """
 
 from __future__ import annotations
 
-import enum
 import json
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import h5py
 import numpy as np
 
-from asebytes._columnar import concat_varying, get_fill_value, get_version, jsonable
-from asebytes._backends import ReadWriteBackend
+from asebytes.columnar._padded import PaddedColumnarBackend
+from asebytes.columnar._utils import get_fill_value, get_version, jsonable
 from asebytes.h5md._mapping import (
     ASE_TO_H5MD,
     H5MD_TO_ASE,
     KNOWN_PARTICLE_ELEMENTS,
     ORIGIN_ATTR,
 )
+from asebytes.h5md._store import H5MDStore
 
 
 def _strip_nan_rows(arr: np.ndarray) -> np.ndarray:
-    """Remove trailing NaN rows — fallback for files without ``_n_atoms``."""
+    """Remove trailing NaN rows -- fallback for files without ``_n_atoms``."""
     if arr.ndim == 0:
         return arr
     if arr.ndim == 1:
@@ -45,23 +45,14 @@ def _strip_nan_rows(arr: np.ndarray) -> np.ndarray:
     return arr[:last]
 
 
-class _PostProc(enum.IntEnum):
-    """Type tags for fast-path postprocessing dispatch."""
-
-    SCALAR_FLOAT = 0
-    SCALAR_INT = 1
-    PER_ATOM = 2  # per-atom array, slice by _n_atoms
-    SPECIES = 3  # per-atom int (species/numbers), slice by _n_atoms
-    STRING_JSON = 4  # decode + json.loads
-    NDARRAY_FLOAT = 5  # float ndarray, no per-atom slicing
-    NDARRAY_PLAIN = 6  # return as-is
-
-
-class H5MDBackend(ReadWriteBackend[str, Any]):
+class H5MDBackend(PaddedColumnarBackend):
     """Read-write H5MD backend using h5py.
 
-    Supports standard H5MD files and ZnH5MD extensions
-    (variable particle count via NaN padding, per-frame PBC).
+    Inherits padded columnar storage from
+    :class:`~asebytes.columnar.PaddedColumnarBackend` and adds
+    H5MD-specific concerns: metadata skeleton, connectivity,
+    auto-inferred variable shape, and znh5md compatibility.
+
     Append-only: ``insert`` and ``delete`` raise
     ``NotImplementedError``.
     """
@@ -71,162 +62,176 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         file: str | Path | None = None,
         *,
         file_handle: h5py.File | None = None,
+        file_factory: Any = None,
         group: str | None = None,
         readonly: bool = False,
         compression: str | None = "gzip",
         compression_opts: int | None = None,
-        variable_shape: bool = True,
+        chunk_frames: int = 64,
         pbc_group: bool = True,
-        chunk_size: int | tuple[int, ...] | list[int] | None = (64, 64),
         author_name: str | None = None,
         author_email: str | None = None,
         rdcc_nbytes: int = 64 * 1024 * 1024,
+        # Legacy compat -- silently ignored
+        variable_shape: bool = True,
+        chunk_size: int | tuple[int, ...] | list[int] | None = None,
     ):
-        if file_handle is not None:
-            self._file = file_handle
-            self._owns_file = False
-        elif file is not None:
-            mode = "r" if readonly else "a"
-            self._file = h5py.File(file, mode, rdcc_nbytes=rdcc_nbytes)
-            self._owns_file = True
-        else:
-            raise ValueError("Provide either file or file_handle")
+        # Resolve particles group: if group not given, sniff from file
+        resolved_group = self._resolve_particles_group(
+            file, file_handle, group, readonly, rdcc_nbytes
+        )
 
-        self._readonly = readonly
-        self._compression = compression
-        self._compression_opts = compression_opts
-        self._variable_shape = variable_shape
+        store = H5MDStore(
+            path=file if file_handle is None and file_factory is None else None,
+            file_handle=file_handle,
+            file_factory=file_factory,
+            group=resolved_group,
+            readonly=readonly,
+            compression=compression,
+            compression_opts=compression_opts,
+            chunk_frames=chunk_frames,
+            rdcc_nbytes=rdcc_nbytes,
+        )
+
         self._pbc_group = pbc_group
-        self._chunk_size = chunk_size
         self._author_name = author_name
         self._author_email = author_email
+        self._h5md_initialized = False
+        self._conn_cache: dict[str, tuple[str, Any]] = {}
 
-        # Resolve particles group name
-        self._grp_name = self._resolve_particles_group(group)
-
-        self._n_frames = 0
-        self._max_atoms = 0
-        self._discover()
+        super().__init__(
+            store=store,
+            group=resolved_group,
+            readonly=readonly,
+        )
 
     # ------------------------------------------------------------------
-    # Initialisation helpers
+    # Group resolution
     # ------------------------------------------------------------------
 
-    def _resolve_particles_group(self, requested: str | None) -> str:
-        """Pick the particles group – from arg, file, or default."""
+    @staticmethod
+    def _resolve_particles_group(
+        file: str | Path | None,
+        file_handle: h5py.File | None,
+        requested: str | None,
+        readonly: bool,
+        rdcc_nbytes: int,
+    ) -> str:
+        """Pick the particles group -- from arg, file, or default."""
         if requested is not None:
             return requested
-        if "particles" in self._file:
-            groups = list(self._file["particles"].keys())
-            if groups:
-                return groups[0]
+        # Try to sniff from an existing file
+        f = file_handle
+        opened = False
+        if f is None and file is not None and Path(file).exists():
+            mode = "r" if readonly else "a"
+            f = h5py.File(str(file), mode, rdcc_nbytes=rdcc_nbytes)
+            opened = True
+        try:
+            if f is not None and "particles" in f:
+                groups = list(f["particles"].keys())
+                if groups:
+                    return groups[0]
+        finally:
+            if opened and f is not None:
+                f.close()
         return "atoms"
 
     @staticmethod
-    def list_groups(path: str, **kwargs) -> list[str]:
-        """List particles group names in an H5MD file.
+    def list_groups(path: str, **kwargs: Any) -> list[str]:
+        """List particles group names in an H5MD file."""
+        return H5MDStore.list_groups(path)
 
-        Args:
-            path: Path to the H5MD file.
-            **kwargs: Unused, for API compatibility.
+    # ------------------------------------------------------------------
+    # H5MD skeleton
+    # ------------------------------------------------------------------
 
-        Returns:
-            List of group names (particles groups in the file).
-        """
-        path_obj = Path(path)
-        if not path_obj.exists():
-            return []
-        with h5py.File(path, "r") as f:
-            if "particles" not in f:
-                return []
-            return list(f["particles"].keys())
+    def _init_h5md(self) -> None:
+        """Create mandatory H5MD skeleton on first write."""
+        f = self._store._file
+        if "h5md" in f:
+            self._h5md_initialized = True
+            return
+        h5md = f.create_group("h5md")
+        h5md.attrs["version"] = np.array([1, 1])
+        author = h5md.create_group("author")
+        if self._author_name is not None:
+            author.attrs["name"] = self._author_name
+        if self._author_email is not None:
+            author.attrs["email"] = self._author_email
+        creator = h5md.create_group("creator")
+        creator.attrs["name"] = "asebytes"
+        creator.attrs["version"] = get_version()
+        f.require_group("particles")
+        self._h5md_initialized = True
 
-    def _classify(self, ds: h5py.Dataset, h5_name: str) -> _PostProc:
-        """Classify a dataset for fast-path postprocessing dispatch."""
-        dtype = ds.dtype
-        frame_ndim = ds.ndim - 1  # ndim of a single value after frame indexing
-
-        # String types
-        if dtype.kind in ("S", "U", "O") or dtype == h5py.string_dtype():
-            return _PostProc.STRING_JSON
-
-        # Species (per-atom integer)
-        if h5_name == "species":
-            return _PostProc.SPECIES
-
-        # Scalar float
-        if frame_ndim == 0 and dtype.kind == "f":
-            return _PostProc.SCALAR_FLOAT
-
-        # Scalar int
-        if frame_ndim == 0 and dtype.kind in ("i", "u"):
-            return _PostProc.SCALAR_INT
-
-        # Per-atom array (any numeric dtype) with variable shape
-        if frame_ndim >= 1 and self._variable_shape:
-            return _PostProc.PER_ATOM
-
-        # Float array without per-atom slicing
-        if frame_ndim >= 1 and dtype.kind == "f":
-            return _PostProc.NDARRAY_FLOAT
-
-        # Everything else
-        return _PostProc.NDARRAY_PLAIN
+    # ------------------------------------------------------------------
+    # _discover override (znh5md compat)
+    # ------------------------------------------------------------------
 
     def _discover(self) -> None:
-        """Read frame count, max-atoms, and cache dataset references.
+        """Populate caches, with fallback for foreign H5MD files.
 
-        The cache stores ``(dataset, h5_name, tag, is_per_atom)`` tuples.
-        ``is_per_atom`` is True only for datasets inside the particles
-        group (not box, not observables).
+        Files written by znh5md lack our ``asebytes/{grp}`` metadata.
+        When the base ``_discover`` finds n_frames=0 but the file has
+        particles data, we sniff from the species dataset.
         """
-        self._col_cache: dict[str, tuple[h5py.Dataset, str, _PostProc, bool]] = {}
-        self._box_cache: dict[str, tuple[str, Any]] = {}
-        self._conn_cache: dict[str, tuple[str, Any]] = {}
-        self._n_atoms_ds: h5py.Dataset | None = None
+        super()._discover()
 
-        pgrp = f"particles/{self._grp_name}"
-        if pgrp in self._file:
-            grp = self._file[pgrp]
-            if "species" in grp and isinstance(grp["species"], h5py.Group):
-                if "value" in grp["species"]:
-                    ds = grp["species"]["value"]
-                    self._n_frames = ds.shape[0]
-                    if ds.ndim > 1:
-                        self._max_atoms = ds.shape[1]
+        if self._n_frames == 0:
+            # Sniff from species dataset (standard H5MD)
+            f = self._store._file
+            pgrp = f"particles/{self.group}"
+            if pgrp in f:
+                grp = f[pgrp]
+                if "species" in grp and isinstance(grp["species"], h5py.Group):
+                    if "value" in grp["species"]:
+                        ds = grp["species"]["value"]
+                        self._n_frames = ds.shape[0]
+                        if ds.ndim > 1:
+                            self._max_atoms = ds.shape[1]
 
-            # Cache _n_atoms dataset if present (stored in asebytes/ group)
-            meta_path = f"asebytes/{self._grp_name}"
-            if meta_path in self._file and "_n_atoms" in self._file[meta_path]:
-                self._n_atoms_ds = self._file[meta_path]["_n_atoms"]
+            if self._n_frames > 0:
+                # Rebuild column lists from store
+                self._columns = []
+                self._per_atom_cols = set()
+                for col in self._store.list_arrays():
+                    if col.startswith("_"):
+                        continue
+                    self._columns.append(col)
+                    # Per-atom detection: particles/ columns with ndim >= 2
+                    if col not in ("cell", "pbc") and self._store.has_array(col):
+                        shape = self._store.get_shape(col)
+                        if len(shape) >= 2 and shape[1] > 1:
+                            self._per_atom_cols.add(col)
 
-            # Cache particle dataset references (per-atom)
-            for name in grp:
-                if name == "box":
-                    self._cache_box(grp["box"])
-                    continue
-                elem = grp[name]
-                if not isinstance(elem, h5py.Group) or "value" not in elem:
-                    continue
-                key = self._h5_to_key(name, elem)
-                ds = elem["value"]
-                self._col_cache[key] = (ds, name, self._classify(ds, name), True)
+                # Rebuild known_arrays and shapes
+                self._known_arrays = set()
+                self._array_shapes = {}
+                for name in self._store.list_arrays():
+                    self._known_arrays.add(name)
+                    self._array_shapes[name] = self._store.get_shape(name)
 
-        # Cache observable dataset references (NOT per-atom)
-        opath = f"observables/{self._grp_name}"
-        if opath in self._file:
-            for name in self._file[opath]:
-                elem = self._file[opath][name]
-                if not isinstance(elem, h5py.Group) or "value" not in elem:
-                    continue
-                key = self._h5_to_key(name, elem)
-                ds = elem["value"]
-                self._col_cache[key] = (ds, name, self._classify(ds, name), False)
+                # Re-run variant discovery with updated state
+                self._discover_variant()
 
-        # Cache connectivity dataset references
-        conn_path = f"connectivity/{self._grp_name}"
-        if conn_path in self._file:
-            conn = self._file[conn_path]
+    # ------------------------------------------------------------------
+    # _discover_variant override
+    # ------------------------------------------------------------------
+
+    def _discover_variant(self) -> None:
+        """Extend padded discovery with H5MD-specific state."""
+        super()._discover_variant()
+        # Check if H5MD skeleton exists
+        f = self._store._file
+        self._h5md_initialized = "h5md" in f
+
+        # Discover connectivity datasets
+        self._conn_cache = {}
+        grp_name = self.group
+        conn_path = f"connectivity/{grp_name}"
+        if conn_path in f:
+            conn = f[conn_path]
             if "bonds" in conn:
                 obj = conn["bonds"]
                 if isinstance(obj, h5py.Group) and "value" in obj:
@@ -240,745 +245,234 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                 elif isinstance(obj, h5py.Dataset):
                     self._conn_cache["bond_orders"] = ("static", obj)
 
-    def _cache_box(self, box_grp: h5py.Group) -> None:
-        """Cache box/cell/pbc dataset references."""
-        if "edges" in box_grp:
-            edges = box_grp["edges"]
-            if isinstance(edges, h5py.Group) and "value" in edges:
-                self._box_cache["cell"] = ("td", edges["value"])
-            elif isinstance(edges, h5py.Dataset):
-                self._box_cache["cell"] = ("static", edges)
-
-        if "pbc" in box_grp:
-            pbc_obj = box_grp["pbc"]
-            if isinstance(pbc_obj, h5py.Group) and "value" in pbc_obj:
-                self._box_cache["pbc"] = ("td", pbc_obj["value"])
-            elif isinstance(pbc_obj, h5py.Dataset):
-                self._box_cache["pbc"] = ("static", pbc_obj)
-        elif "boundary" in box_grp.attrs:
-            self._box_cache["pbc"] = ("boundary", box_grp.attrs["boundary"])
-
     # ------------------------------------------------------------------
-    # ReadBackend
+    # extend override
     # ------------------------------------------------------------------
 
-    def __len__(self) -> int:
-        return self._n_frames
+    def extend(self, data: list[dict[str, Any] | None]) -> int:
+        if not data:
+            return self._n_frames
 
-    def schema(self, index: int = 0) -> dict:
-        """O(1) metadata read from HDF5 dataset attrs."""
-        from asebytes._schema import SchemaEntry
+        # Initialize H5MD skeleton on first write
+        if not self._h5md_initialized:
+            self._init_h5md()
 
-        result = {}
-        for col_name, (ds, _, _, is_per_atom) in self._col_cache.items():
-            dtype = ds.dtype
-            if dtype.kind in ("S", "U", "O") or dtype == h5py.string_dtype():
-                entry = SchemaEntry(dtype=str, shape=())
-            elif is_per_atom:
-                entry = SchemaEntry(dtype=dtype, shape=("N",) + ds.shape[2:])
-            else:
-                entry = SchemaEntry(dtype=dtype, shape=ds.shape[1:])
-            result[col_name] = entry
-        # Box columns
-        for box_key, (kind, ref) in self._box_cache.items():
-            if kind == "td":
-                result[box_key] = SchemaEntry(dtype=ref.dtype, shape=ref.shape[1:])
-            elif kind == "static":
-                result[box_key] = SchemaEntry(dtype=ref.dtype, shape=ref.shape)
-            elif kind == "boundary":
-                result[box_key] = SchemaEntry(dtype=np.dtype("bool"), shape=(3,))
+        # Convert constraints to JSON-serialized info column so they
+        # survive the columnar round-trip (base strips "constraints" key).
+        for row in data:
+            if row is None:
+                continue
+            constraints = row.pop("constraints", None)
+            if constraints:
+                row["info.constraints_json"] = json.dumps(constraints)
+
+        # Extract connectivity data before base extend.  Remove from
+        # rows so base doesn't try to store it as a regular column.
+        conn_key = "info.connectivity"
+        conn_data = [
+            row.get(conn_key) if row is not None else None for row in data
+        ]
+        for row in data:
+            if row is not None:
+                row.pop(conn_key, None)
+
+        # Species (arrays.numbers) must be stored as float64 for znh5md
+        # compat.  Convert in-place before base sees them.
+        for row in data:
+            if row is None:
+                continue
+            nums = row.get("arrays.numbers")
+            if nums is not None and isinstance(nums, np.ndarray):
+                if nums.dtype.kind != "f":
+                    row["arrays.numbers"] = nums.astype(np.float64)
+
+        # Save n_frames before extend for connectivity offset
+        n_frames_before = self._n_frames
+
+        result = super().extend(data)
+
+        # Ensure all per-atom arrays are extended to match n_frames.
+        # Base extend skips per-atom columns not in the current batch,
+        # but H5MD requires all datasets to be aligned.
+        for col in self._per_atom_cols:
+            if col not in self._known_arrays:
+                continue
+            shape = self._array_shapes.get(col)
+            if shape is None:
+                continue
+            if shape[0] < self._n_frames:
+                deficit = self._n_frames - shape[0]
+                dtype = self._store.get_dtype(col)
+                fv = get_fill_value(dtype)
+                if self._max_atoms > 0:
+                    pad_shape = (deficit, self._max_atoms) + shape[2:]
+                else:
+                    pad_shape = (deficit,) + shape[1:]
+                self._store.append_array(
+                    col, np.full(pad_shape, fv, dtype=dtype)
+                )
+                # Update cached shape
+                self._array_shapes[col] = self._store.get_shape(col)
+
+        # Write connectivity AFTER base extend (particles group must exist)
+        if not all(v is None for v in conn_data):
+            self._write_connectivity_from(conn_data, n_frames_before)
+
         return result
 
-    def _needs_n_atoms(self, keys: list[str] | None) -> bool:
-        """Return True if any per-atom column would be read for the given keys."""
-        if self._n_atoms_ds is None:
-            return False
-        if not any(is_pa for _, _, _, is_pa in self._col_cache.values()):
-            return False
-        if keys is not None:
-            return any(
-                is_pa for k, (_, _, _, is_pa) in self._col_cache.items()
-                if k in keys
-            )
-        return True
+    # ------------------------------------------------------------------
+    # get override
+    # ------------------------------------------------------------------
 
-    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
+    def get(
+        self, index: int, keys: list[str] | None = None
+    ) -> dict[str, Any] | None:
         index = self._check_index(index)
         result: dict[str, Any] = {}
 
-        # Read _n_atoms only when per-atom columns will be accessed
+        # Read n_atoms for this frame
         n_atoms: int | None = None
-        if self._needs_n_atoms(keys) and index < self._n_atoms_ds.shape[0]:
-            n_atoms = int(self._n_atoms_ds[index])
+        if self._n_atoms_cache is not None and self._per_atom_cols:
+            if keys is None or (self._per_atom_cols & set(keys)):
+                n_atoms = int(self._n_atoms_cache[index])
 
-        for box_key in ("cell", "pbc"):
-            if keys is not None and box_key not in keys:
+        for col_name in self._columns:
+            if keys is not None and col_name not in keys:
                 continue
-            if box_key not in self._box_cache:
+            if col_name not in self._known_arrays:
                 continue
-            kind, ref = self._box_cache[box_key]
-            if kind == "td":
-                val = ref[index]
-                if box_key == "pbc":
-                    val = np.asarray(val, dtype=bool)
-                result[box_key] = val
-            elif kind == "static":
-                val = ref[()]
-                if box_key == "pbc":
-                    val = np.asarray(val, dtype=bool)
-                result[box_key] = val
-            elif kind == "boundary":
-                result[box_key] = np.array(
-                    [b not in ("none", b"none") for b in ref], dtype=bool
-                )
 
-        for key, (ds, h5_name, tag, is_per_atom) in self._col_cache.items():
-            if keys is not None and key not in keys:
-                continue
-            # Skip columns shorter than the requested index (backward compat)
-            if index >= ds.shape[0]:
-                continue
-            val = ds[index]
-            na = n_atoms if is_per_atom else None
-            val = self._postprocess_typed(val, tag, n_atoms=na)
+            if col_name in self._per_atom_cols:
+                if n_atoms is not None and n_atoms > 0:
+                    val = self._store.get_slice(col_name, index)
+                    val = self._postprocess(
+                        val, col_name, is_per_atom=True, n_atoms=n_atoms
+                    )
+                elif self._n_atoms_cache is None:
+                    # No _n_atoms metadata (e.g. znh5md file): read and
+                    # rely on NaN-strip fallback in _unpad_per_atom
+                    val = self._store.get_slice(col_name, index)
+                    val = self._postprocess(
+                        val, col_name, is_per_atom=True, n_atoms=None
+                    )
+                else:
+                    continue
+            else:
+                arr_len = self._array_shapes[col_name][0]
+                if index >= arr_len:
+                    continue
+                val = self._store.get_slice(col_name, index)
+                val = self._postprocess(val, col_name, is_per_atom=False)
+
             if val is not None:
-                result[key] = val
+                result[col_name] = val
 
-        # Connectivity (H5MD connectivity/ group)
+        # Add connectivity from H5MD connectivity/ group
         if self._conn_cache and (keys is None or "info.connectivity" in keys):
             conn = self._read_connectivity_frame(index)
             if conn is not None:
                 result["info.connectivity"] = conn
 
+        # Reconstruct constraints from JSON column
+        json_key = "info.constraints_json"
+        if json_key in result:
+            raw = result.pop(json_key)
+            if isinstance(raw, str) and raw:
+                result["constraints"] = json.loads(raw)
+
         return result if result else None
+
+    # ------------------------------------------------------------------
+    # get_many override
+    # ------------------------------------------------------------------
 
     def get_many(
         self, indices: list[int], keys: list[str] | None = None
-    ) -> list[dict[str, Any]]:
-        """Bulk columnar read — each dataset is accessed once."""
-        if not indices:
-            return []
-
-        n = len(indices)
-        checked = [self._check_index(i) for i in indices]
-
-        # Sort + deduplicate for efficient HDF5 chunk access
-        # (h5py requires sorted, unique indices for fancy indexing)
-        order = np.argsort(checked)
-        sorted_idx = np.array(checked)[order]
-        unique_sorted, inverse = np.unique(sorted_idx, return_inverse=True)
-
-        # Use slice for contiguous ranges (fastest HDF5 path)
-        n_unique = len(unique_sorted)
-        if n_unique == 1:
-            h5_sel = [int(unique_sorted[0])]
-        elif np.all(np.diff(unique_sorted) == 1):
-            h5_sel = slice(int(unique_sorted[0]), int(unique_sorted[-1]) + 1)
+    ) -> list[dict[str, Any] | None]:
+        # For files with _n_atoms, delegate to base (handles padded path)
+        # For files without _n_atoms (znh5md), fall back to per-frame get
+        if self._n_atoms_cache is not None:
+            results = super().get_many(indices, keys)
         else:
-            h5_sel = unique_sorted
+            # No _n_atoms metadata -- fall back to individual gets
+            # which handle NaN-strip fallback
+            results = [self.get(i, keys) for i in indices]
 
-        # Bulk-read _n_atoms only when per-atom columns will be accessed
-        n_atoms_map: list[int | None] = [None] * n_unique
-        if self._needs_n_atoms(keys):
-            na_bulk = self._n_atoms_ds[h5_sel]
-            for j in range(n_unique):
-                n_atoms_map[j] = int(na_bulk[j])
+        # Inject connectivity (only when not already done by get())
+        if self._n_atoms_cache is not None and self._conn_cache and (
+            keys is None or "info.connectivity" in keys
+        ):
+            checked = [self._check_index(i) for i in indices]
+            for j, idx in enumerate(checked):
+                conn = self._read_connectivity_frame(idx)
+                if conn is not None:
+                    if results[j] is None:
+                        results[j] = {}
+                    results[j]["info.connectivity"] = conn
 
-        unique_rows: list[dict[str, Any]] = [{} for _ in range(n_unique)]
+        return results
 
-        # Box columns
-        for box_key in ("cell", "pbc"):
-            if keys is not None and box_key not in keys:
-                continue
-            if box_key not in self._box_cache:
-                continue
-            kind, ref = self._box_cache[box_key]
-            if kind == "td":
-                bulk = ref[h5_sel]
-                for j in range(n_unique):
-                    v = bulk[j]
-                    if box_key == "pbc":
-                        v = np.asarray(v, dtype=bool)
-                    unique_rows[j][box_key] = v
-            elif kind == "static":
-                val = ref[()]
-                if box_key == "pbc":
-                    val = np.asarray(val, dtype=bool)
-                for row in unique_rows:
-                    row[box_key] = val
-            elif kind == "boundary":
-                pbc = np.array([b not in ("none", b"none") for b in ref], dtype=bool)
-                for row in unique_rows:
-                    row[box_key] = pbc
+    # ------------------------------------------------------------------
+    # Postprocessing override -- species int coercion + nan-strip fallback
+    # ------------------------------------------------------------------
 
-        # Regular columns — one bulk read per dataset
-        for key, (ds, h5_name, tag, is_per_atom) in self._col_cache.items():
-            if keys is not None and key not in keys:
-                continue
-            # Skip columns shorter than max requested index (backward compat)
-            max_requested = int(unique_sorted[-1])
-            if max_requested >= ds.shape[0]:
-                # Column is short - handle each index individually
-                for j in range(n_unique):
-                    idx = int(unique_sorted[j])
-                    if idx < ds.shape[0]:
-                        na = n_atoms_map[j] if is_per_atom else None
-                        val = self._postprocess_typed(ds[idx], tag, n_atoms=na)
-                        if val is not None:
-                            unique_rows[j][key] = val
-                continue
-            bulk = ds[h5_sel]
-            for j in range(n_unique):
-                na = n_atoms_map[j] if is_per_atom else None
-                val = self._postprocess_typed(bulk[j], tag, n_atoms=na)
-                if val is not None:
-                    unique_rows[j][key] = val
+    def _postprocess(
+        self,
+        val: Any,
+        col_name: str,
+        *,
+        is_per_atom: bool = False,
+        n_atoms: int | None = None,
+    ) -> Any:
+        """Extend base postprocessing with H5MD-specific handling.
 
-        # Connectivity (H5MD connectivity/ group)
-        if self._conn_cache and (keys is None or "info.connectivity" in keys):
-            if "bonds" in self._conn_cache:
-                kind, ref = self._conn_cache["bonds"]
-                if kind == "td":
-                    bonds_bulk = ref[h5_sel]
-                    orders_bulk = None
-                    if "bond_orders" in self._conn_cache:
-                        _, oref = self._conn_cache["bond_orders"]
-                        orders_bulk = oref[h5_sel]
-                    for j in range(n_unique):
-                        conn = self._assemble_connectivity(
-                            bonds_bulk[j],
-                            orders_bulk[j] if orders_bulk is not None else None,
-                        )
-                        if conn is not None:
-                            unique_rows[j]["info.connectivity"] = conn
-                elif kind == "static":
-                    bonds = ref[()]
-                    orders = None
-                    if "bond_orders" in self._conn_cache:
-                        _, oref = self._conn_cache["bond_orders"]
-                        orders = oref[()]
-                    conn = self._assemble_connectivity(bonds, orders)
-                    if conn is not None:
-                        for row in unique_rows:
-                            row["info.connectivity"] = conn
+        - Species (arrays.numbers) stored as float must come back as int.
+        - Files without _n_atoms (e.g. znh5md) fall back to NaN-strip.
+        """
+        result = super()._postprocess(
+            val, col_name, is_per_atom=is_per_atom, n_atoms=n_atoms
+        )
 
-        # Map deduplicated rows back to original order
-        result: list[dict[str, Any] | None] = [None] * n
-        for j in range(n):
-            src = unique_rows[inverse[j]]
-            row = dict(src) if n_unique < n else src
-            result[order[j]] = row if row else None
+        # Species: coerce float -> int for arrays.numbers
+        if col_name == "arrays.numbers" and isinstance(result, np.ndarray):
+            if result.dtype.kind == "f":
+                result = result.astype(int)
 
-        return result  # type: ignore[return-value]
-
-    def iter_rows(
-        self, indices: list[int], keys: list[str] | None = None
-    ) -> Iterator[dict[str, Any]]:
-        """Yield rows using bulk columnar read."""
-        yield from self.get_many(indices, keys)
-
-    def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
-        """Optimised: reads a single HDF5 dataset directly."""
-        is_per_atom = False
-        if key in self._col_cache:
-            ds, h5_name, tag, is_per_atom = self._col_cache[key]
-        else:
-            h5_path = self._find_dataset_path(key)
-            if h5_path is None:
-                return super().get_column(key, indices)
-            grp = self._file[h5_path]
-            ds = grp["value"]
-            h5_name = h5_path.rsplit("/", 1)[-1]
-            tag = self._classify(ds, h5_name)
-            # Infer is_per_atom from path (particles/ vs observables/)
-            is_per_atom = h5_path.startswith(f"/particles/{self._grp_name}/")
-
-        # Bulk-read _n_atoms for per-atom slicing
-        n_atoms_all: np.ndarray | None = None
-        if is_per_atom and self._n_atoms_ds is not None:
-            n_atoms_all = self._n_atoms_ds[()]
-
-        if indices is None:
-            raw = ds[()]
-            result = []
-            for i in range(len(raw)):
-                na = int(n_atoms_all[i]) if n_atoms_all is not None and i < len(n_atoms_all) else None
-                result.append(self._postprocess_typed(raw[i], tag, n_atoms=na))
-            return result
-
-        order = np.argsort(indices)
-        sorted_idx = [indices[j] for j in order]
-        raw = ds[sorted_idx]
-        result: list[Any] = [None] * len(indices)
-        for j in range(len(indices)):
-            idx = sorted_idx[j]
-            na = int(n_atoms_all[idx]) if n_atoms_all is not None and idx < len(n_atoms_all) else None
-            result[order[j]] = self._postprocess_typed(raw[j], tag, n_atoms=na)
         return result
 
-    # ------------------------------------------------------------------
-    # ReadWriteBackend (append-only)
-    # ------------------------------------------------------------------
-
-    def extend(self, data: list[dict[str, Any]]) -> int:
-        if not data:
-            return self._n_frames
-
-        if self._n_frames == 0 and "h5md" not in self._file:
-            self._init_h5md()
-
-        n_new = len(data)
-        all_keys = sorted({k for row in data if row is not None for k in row})
-
-        # Determine new max atoms and per-frame n_atoms
-        new_max = 0
-        n_atoms_values: list[int] = []
-        for row in data:
-            if row is None:
-                n_atoms_values.append(0)
-                continue
-            pos = row.get("arrays.positions")
-            nums = row.get("arrays.numbers")
-            if pos is not None:
-                na = len(pos)
-            elif nums is not None:
-                na = len(nums)
-            else:
-                na = 0
-            n_atoms_values.append(na)
-            new_max = max(new_max, na)
-        max_atoms = max(self._max_atoms, new_max)
-
-        for key in all_keys:
-            if key == "constraints":
-                continue
-            h5_path, origin = self._key_to_h5(key, data)
-            if h5_path is None:
-                continue
-            values = [row.get(key) if row is not None else None for row in data]
-            self._write_element(h5_path, origin, key, values, max_atoms)
-
-        # Write _n_atoms length column
-        self._write_n_atoms(n_atoms_values)
-
-        self._write_connectivity(data)
-
-        # Extend existing columns not in this batch so all datasets stay aligned
-        new_total = self._n_frames + n_new
-        touched = set(all_keys)
-        for key, (ds, h5_name, _tag, _pa) in list(self._col_cache.items()):
-            if key not in touched and ds.shape[0] < new_total:
-                target = (new_total,) + ds.shape[1:]
-                ds.resize(target)
-        for box_key in ("cell", "pbc"):
-            if box_key not in touched and box_key in self._box_cache:
-                kind, ref = self._box_cache[box_key]
-                if kind == "td" and ref.shape[0] < new_total:
-                    target = (new_total,) + ref.shape[1:]
-                    ref.resize(target)
-
-        self._max_atoms = max_atoms
-        self._n_frames += n_new
-        # Only do a full cache rebuild when new columns were created.
-        # For append-only workloads (same schema each extend), existing
-        # h5py.Dataset references remain valid after resize/write.
-        known = set(self._col_cache) | set(self._box_cache)
-        new_cols = set(all_keys) - known - {"constraints"}
-        if new_cols or self._n_frames == n_new:
-            self._discover()
-        return self._n_frames
-
-    def set(self, index: int, data: dict[str, Any] | None) -> None:
-        if data is None:
-            raise TypeError(
-                "H5MDBackend.set() does not support None rows. "
-                "H5MD is append-only and cannot represent placeholder rows."
-            )
-        index = self._check_index(index)
-        for key, val in data.items():
-            h5_path = self._find_dataset_path(key)
-            if h5_path is None:
-                continue
-            ds = self._file[h5_path]["value"]
-            val = self._serialize_value(val)
-            val = self._pad_value(val, ds)
-            ds[index] = val
-        # Update _n_atoms if per-atom data changed
-        if self._n_atoms_ds is not None:
-            pos = data.get("arrays.positions")
-            nums = data.get("arrays.numbers")
-            if pos is not None:
-                self._n_atoms_ds[index] = np.int32(len(pos))
-            elif nums is not None:
-                self._n_atoms_ds[index] = np.int32(len(nums))
-
-    def set_column(self, key: str, start: int, values: list[Any]) -> None:
-        if not values:
-            return
-        h5_path = self._find_dataset_path(key)
-        if h5_path is None:
-            for i, v in enumerate(values):
-                self.update(start + i, {key: v})
-            return
-        ds = self._file[h5_path]["value"]
-        serialized = [self._pad_value(self._serialize_value(v), ds) for v in values]
-        ds[start : start + len(serialized)] = serialized
-
-    def update_many(self, start: int, data: list[dict[str, Any]]) -> None:
-        if not data:
-            return
-        from collections import defaultdict
-
-        columns: dict[str, list[tuple[int, Any]]] = defaultdict(list)
-        for i, row_data in enumerate(data):
-            for key, value in row_data.items():
-                columns[key].append((i, value))
-        for key, pairs in columns.items():
-            h5_path = self._find_dataset_path(key)
-            if h5_path is None:
-                for offset, value in pairs:
-                    self.update(start + offset, {key: value})
-                continue
-            ds = self._file[h5_path]["value"]
-            offsets = [p[0] for p in pairs]
-            vals = [self._pad_value(self._serialize_value(p[1]), ds) for p in pairs]
-            if len(offsets) == len(data) and offsets == list(range(len(data))):
-                ds[start : start + len(vals)] = vals
-            else:
-                for offset, val in zip(offsets, vals):
-                    ds[start + offset] = val
-
-    def insert(self, index: int, data: dict[str, Any]) -> None:
-        raise NotImplementedError("H5MD backend does not support insert")
-
-    def delete(self, index: int) -> None:
-        raise NotImplementedError("H5MD backend does not support delete")
-
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
-
-    def close(self) -> None:
-        if self._owns_file:
-            self._file.close()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        self.close()
-
-    # ------------------------------------------------------------------
-    # Internal: read helpers
-    # ------------------------------------------------------------------
-
-    def _check_index(self, index: int) -> int:
-        if index < 0:
-            index += self._n_frames
-        if index < 0 or index >= self._n_frames:
-            raise IndexError(f"Index {index} out of range for {self._n_frames} frames")
-        return index
-
-    def _h5_to_key(self, h5_name: str, grp: h5py.Group) -> str:
-        """Map an H5MD group name + origin attribute to an asebytes key."""
-        ase_name = H5MD_TO_ASE.get(h5_name, h5_name)
-        origin = grp.attrs.get(ORIGIN_ATTR, None)
-        if isinstance(origin, bytes):
-            origin = origin.decode()
-
-        # Core properties always go to arrays.*
-        if ase_name in ("positions", "numbers"):
-            return f"arrays.{ase_name}"
-
-        # Origin-based routing (znh5md files have this)
-        if origin == "calc":
-            return f"calc.{ase_name}"
-        if origin == "info":
-            return f"info.{ase_name}"
-        if origin == "arrays":
-            return f"arrays.{ase_name}"
-        if origin == "atoms":
-            if ase_name in ("positions", "numbers"):
-                return f"arrays.{ase_name}"
-            return f"arrays.{ase_name}"
-
-        # No origin — use heuristics
-        if h5_name in KNOWN_PARTICLE_ELEMENTS:
-            return f"arrays.{ase_name}"
-        # Observables default to calc.*
-        return f"calc.{ase_name}"
-
-    def _postprocess_typed(
-        self, val: Any, tag: _PostProc, n_atoms: int | None = None
+    def _unpad_per_atom(
+        self, val: Any, col_name: str, *, n_atoms: int | None = None
     ) -> Any:
-        """Fast-path postprocessor using pre-classified type tags.
-
-        When *n_atoms* is provided, per-atom arrays are sliced to
-        ``val[:n_atoms]`` instead of scanning for NaN.
-        """
-        if tag == _PostProc.SCALAR_FLOAT:
-            v = float(val)
-            if v != v:  # NaN check
-                return None
-            return v
-
-        if tag == _PostProc.SCALAR_INT:
-            return int(val)
-
-        if tag == _PostProc.PER_ATOM:
-            if isinstance(val, np.ndarray):
-                if n_atoms is not None:
-                    val = val[:n_atoms]
-                elif val.ndim >= 1 and val.dtype.kind == "f":
-                    # Fallback for files without _n_atoms (e.g. znh5md)
-                    val = _strip_nan_rows(val)
-                if val.size == 0:
-                    return None
-                # All-NaN slice means column absent for this frame
-                if val.dtype.kind == "f" and np.all(np.isnan(val)):
-                    return None
-                if val.ndim == 0:
-                    v = val.item()
-                    if isinstance(v, float) and v != v:
-                        return None
-                    return v
-            elif isinstance(val, np.floating):
-                return None if np.isnan(val) else val.item()
-            return val
-
-        if tag == _PostProc.SPECIES:
-            if isinstance(val, np.ndarray):
-                if n_atoms is not None:
-                    val = val[:n_atoms]
-                elif val.dtype.kind == "f":
-                    # Fallback for files without _n_atoms (e.g. znh5md)
-                    val = _strip_nan_rows(val)
-                if val.size == 0:
-                    return None
-                # All-NaN means column absent for this frame
-                if val.dtype.kind == "f" and np.all(np.isnan(val)):
-                    return None
-                if val.dtype.kind == "f":
-                    val = val.astype(int)
-            return val
-
-        if tag == _PostProc.STRING_JSON:
-            # Delegate to existing _postprocess for string handling
-            return self._postprocess(val, "")
-
-        if tag == _PostProc.NDARRAY_FLOAT:
-            if isinstance(val, np.ndarray) and val.ndim == 0:
-                v = val.item()
-                if isinstance(v, float) and v != v:
-                    return None
-                return v
-            return val
-
-        # NDARRAY_PLAIN
-        if isinstance(val, np.ndarray) and val.ndim == 0:
-            return val.item()
+        """Trim padding, with NaN-strip fallback for znh5md files."""
+        if n_atoms is not None and isinstance(val, np.ndarray) and val.ndim >= 1:
+            return val[:n_atoms]
+        # Fallback for files without _n_atoms metadata
+        if isinstance(val, np.ndarray) and val.dtype.kind == "f":
+            return _strip_nan_rows(val)
         return val
 
-    def _postprocess(self, val: Any, h5_name: str, n_atoms: int | None = None) -> Any:
-        """Postprocess a value after reading.
-
-        When *n_atoms* is provided, per-atom arrays are sliced to
-        ``val[:n_atoms]`` instead of scanning for NaN.
-        """
-        if isinstance(val, bytes):
-            val = val.decode()
-        if isinstance(val, str):
-            if val == "":
-                return None
-            try:
-                return json.loads(val)
-            except (json.JSONDecodeError, ValueError):
-                return val
-
-        # Handle numpy scalars (h5py returns np.float64 for scalar datasets)
-        if isinstance(val, np.floating):
-            return None if np.isnan(val) else val.item()
-        if isinstance(val, np.integer):
-            return val.item()
-
-        if isinstance(val, np.ndarray):
-            # String arrays
-            if val.dtype.kind in ("S", "U", "O"):
-                items = []
-                for v in val.flat:
-                    if isinstance(v, bytes):
-                        v = v.decode()
-                    if isinstance(v, str) and v == "":
-                        items.append(None)
-                    elif isinstance(v, str):
-                        try:
-                            items.append(json.loads(v))
-                        except (json.JSONDecodeError, ValueError):
-                            items.append(v)
-                    else:
-                        items.append(v)
-                return items if len(items) > 1 else items[0] if items else None
-
-            # Slice per-atom data using _n_atoms
-            if self._variable_shape and val.ndim >= 1:
-                if n_atoms is not None:
-                    val = val[:n_atoms]
-                elif val.dtype.kind == "f":
-                    # Fallback for files without _n_atoms
-                    val = _strip_nan_rows(val)
-                if val.size == 0:
-                    return None
-                # All-NaN slice means column absent for this frame
-                if val.dtype.kind == "f" and np.all(np.isnan(val)):
-                    return None
-
-            # Species/numbers should be int
-            if h5_name == "species" and val.dtype.kind == "f":
-                val = val.astype(int)
-
-            # Scalar
-            if val.ndim == 0:
-                v = val.item()
-                if isinstance(v, float) and np.isnan(v):
-                    return None
-                return v
-
-        return val
-
-    def _read_connectivity_frame(self, index: int) -> list[list] | None:
-        """Read connectivity for a single frame from the H5MD connectivity/ group."""
-        if "bonds" not in self._conn_cache:
-            return None
-        kind, ref = self._conn_cache["bonds"]
-        if kind == "td":
-            bonds = ref[index]
-        else:
-            bonds = ref[()]
-        orders = None
-        if "bond_orders" in self._conn_cache:
-            okind, oref = self._conn_cache["bond_orders"]
-            if okind == "td":
-                orders = oref[index]
-            else:
-                orders = oref[()]
-        return self._assemble_connectivity(bonds, orders)
-
-    @staticmethod
-    def _assemble_connectivity(
-        bonds: np.ndarray, orders: np.ndarray | None
-    ) -> list[list] | None:
-        """Build connectivity list from bonds + optional bond_orders arrays.
-
-        Strips -1 padding from time-dependent storage.
-        """
-        if bonds.ndim == 1:
-            # Scalar / empty
-            return None
-        # Strip -1 padding rows
-        valid = np.all(bonds >= 0, axis=1)
-        bonds = bonds[valid]
-        if len(bonds) == 0:
-            return None
-        if orders is not None:
-            orders = orders[valid]
-            return [
-                [int(b[0]), int(b[1]), float(orders[i])] for i, b in enumerate(bonds)
-            ]
-        return [[int(b[0]), int(b[1])] for b in bonds]
-
-    def _find_dataset_path(self, key: str) -> str | None:
-        """Find the H5MD group path for an asebytes key."""
-        # Fast path: check cache
-        if key in self._col_cache:
-            ds, _, _tag, _pa = self._col_cache[key]
-            return ds.parent.name
-        if key in self._box_cache:
-            kind, ref = self._box_cache[key]
-            if kind in ("td", "static"):
-                return ref.parent.name
-            return None
-
-        # Slow path: walk the tree (needed for uncached keys during writes)
-        ppath = f"particles/{self._grp_name}"
-        if ppath in self._file:
-            particles = self._file[ppath]
-            for name in particles:
-                if name == "box":
-                    if key == "cell" and "edges" in particles["box"]:
-                        return f"{ppath}/box/edges"
-                    if key == "pbc" and "pbc" in particles["box"]:
-                        return f"{ppath}/box/pbc"
-                    continue
-                grp = particles[name]
-                if not isinstance(grp, h5py.Group) or "value" not in grp:
-                    continue
-                if self._h5_to_key(name, grp) == key:
-                    return f"{ppath}/{name}"
-
-        opath = f"observables/{self._grp_name}"
-        if opath in self._file:
-            for name in self._file[opath]:
-                grp = self._file[opath][name]
-                if not isinstance(grp, h5py.Group) or "value" not in grp:
-                    continue
-                if self._h5_to_key(name, grp) == key:
-                    return f"{opath}/{name}"
-
-        return None
-
     # ------------------------------------------------------------------
-    # Internal: write helpers
+    # Connectivity (H5MD connectivity/ group)
     # ------------------------------------------------------------------
 
-    def _write_n_atoms(self, n_atoms_values: list[int]) -> None:
-        """Write or extend the ``_n_atoms`` dataset.
-
-        Stored under ``asebytes/{particles_group}/_n_atoms`` to avoid
-        conflicts with the standard H5MD particles group layout (znh5md
-        expects all entries there to be time-dependent element groups).
-        """
-        meta_path = f"asebytes/{self._grp_name}"
-        self._file.require_group(meta_path)
-        grp = self._file[meta_path]
-
-        arr = np.array(n_atoms_values, dtype=np.int32)
-        ds_name = "_n_atoms"
-
-        if ds_name in grp:
-            ds = grp[ds_name]
-            old_len = ds.shape[0]
-            n_new = len(arr)
-            shift = self._n_frames - old_len
-            ds.resize((old_len + n_new + shift,))
-            ds[old_len + shift :] = arr
-        else:
-            total = self._n_frames + len(arr)
-            chunks = (min(64, total),)
-            ds = grp.create_dataset(
-                ds_name,
-                shape=(total,),
-                maxshape=(None,),
-                dtype=np.int32,
-                fillvalue=0,
-                compression=self._compression,
-                compression_opts=self._compression_opts,
-                chunks=chunks,
-            )
-            ds[self._n_frames :] = arr
-
-    def _write_connectivity(self, data: list[dict[str, Any]]) -> None:
+    def _write_connectivity_from(
+        self,
+        raw: list[Any],
+        n_frames_before: int,
+    ) -> None:
         """Write connectivity to H5MD-standard ``connectivity/bonds``.
 
         Stores bonds as ``int32[n_frames, max_bonds, 2]`` with ``-1`` fill,
         and optional bond orders as ``float64[n_frames, max_bonds]`` with
         ``NaN`` fill.
-        """
-        conn_key = "info.connectivity"
-        raw = [row.get(conn_key) if row is not None else None for row in data]
 
-        # Nothing to write if no frame has connectivity
-        if all(v is None for v in raw):
-            return
+        Parameters
+        ----------
+        raw : list
+            Per-frame connectivity data (extracted before base extend).
+        n_frames_before : int
+            Frame count before the extend call (for offset calculation).
+        """
 
         # Parse tuples into bonds / bond_orders per frame
         bonds_list: list[np.ndarray | None] = []
@@ -1010,12 +504,12 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         if max_bonds == 0:
             return
 
-        # Check existing connectivity datasets for max_bonds
-        n_new = len(data)
-        grp_name = self._grp_name
+        n_new = len(raw)
+        grp_name = self.group
+        f = self._store._file
         bonds_path = f"connectivity/{grp_name}/bonds"
-        if bonds_path in self._file:
-            existing_ds = self._file[bonds_path]["value"]
+        if bonds_path in f:
+            existing_ds = f[bonds_path]["value"]
             old_max = existing_ds.shape[1]
             max_bonds = max(max_bonds, old_max)
 
@@ -1032,20 +526,25 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
                 if o is not None and len(o) > 0:
                     orders_arr[i, : len(o)] = o
 
-        # Write or extend connectivity/{grp}/bonds
-        if bonds_path in self._file:
-            self._extend_connectivity_ds(bonds_path, bonds_arr, -1)
+        if bonds_path in f:
+            self._extend_connectivity_ds(
+                bonds_path, bonds_arr, -1, n_frames_before
+            )
         else:
-            self._create_connectivity_ds(bonds_path, bonds_arr, np.int32, -1, grp_name)
+            self._create_connectivity_ds(
+                bonds_path, bonds_arr, np.int32, -1, grp_name, n_frames_before
+            )
 
-        # Write or extend connectivity/{grp}/bond_orders
         if orders_arr is not None:
             bo_path = f"connectivity/{grp_name}/bond_orders"
-            if bo_path in self._file:
-                self._extend_connectivity_ds(bo_path, orders_arr, np.nan)
+            if bo_path in f:
+                self._extend_connectivity_ds(
+                    bo_path, orders_arr, np.nan, n_frames_before
+                )
             else:
                 self._create_connectivity_ds(
-                    bo_path, orders_arr, np.float64, np.nan, grp_name
+                    bo_path, orders_arr, np.float64, np.nan, grp_name,
+                    n_frames_before
                 )
 
     def _create_connectivity_ds(
@@ -1055,44 +554,46 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
         dtype: Any,
         fillvalue: Any,
         particles_group: str,
+        n_frames_before: int,
     ) -> None:
         """Create an H5MD time-dependent connectivity dataset."""
-        grp = self._file.require_group(h5_path)
+        f = self._store._file
+        grp = f.require_group(h5_path)
         n = data.shape[0]
-        full_shape = (self._n_frames + n,) + data.shape[1:]
+        full_shape = (n_frames_before + n,) + data.shape[1:]
         maxshape = tuple(None for _ in full_shape)
-        chunks = self._get_chunks(full_shape)
+        chunks_0 = max(1, min(64, full_shape[0]))
+        chunks = (chunks_0,) + data.shape[1:]
         ds = grp.create_dataset(
             "value",
             shape=full_shape,
             maxshape=maxshape,
             fillvalue=fillvalue,
             dtype=dtype,
-            compression=self._compression,
-            compression_opts=self._compression_opts,
+            compression=self._store._compression,
+            compression_opts=self._store._compression_opts,
             chunks=chunks,
         )
-        ds[self._n_frames :] = data
+        ds[n_frames_before:] = data
 
-        # H5MD spec: object reference to particles group
-        grp.attrs["particles_group"] = self._file[f"particles/{particles_group}"].ref
+        grp.attrs["particles_group"] = f[f"particles/{particles_group}"].ref
 
-        # Linear step/time
         grp.create_dataset("step", data=1)
         time_ds = grp.create_dataset("time", data=1.0)
         time_ds.attrs["unit"] = "fs"
 
     def _extend_connectivity_ds(
-        self, h5_path: str, data: np.ndarray, fillvalue: Any
+        self, h5_path: str, data: np.ndarray, fillvalue: Any,
+        n_frames_before: int,
     ) -> None:
         """Extend an existing connectivity dataset, growing N dim if needed."""
-        grp = self._file[h5_path]
+        f = self._store._file
+        grp = f[h5_path]
         ds = grp["value"]
         old_shape = ds.shape
         n_new = data.shape[0]
-        shift = self._n_frames - old_shape[0]
+        shift = n_frames_before - old_shape[0]
 
-        # Bonds dim may need widening
         if data.ndim >= 2 and old_shape[1] != data.shape[1]:
             new_second = max(old_shape[1], data.shape[1])
             target = (old_shape[0] + n_new + shift, new_second) + old_shape[2:]
@@ -1111,362 +612,102 @@ class H5MDBackend(ReadWriteBackend[str, Any]):
 
         ds[old_shape[0] + shift :] = data
 
-    def _init_h5md(self) -> None:
-        """Create mandatory H5MD skeleton."""
-        h5md = self._file.create_group("h5md")
-        h5md.attrs["version"] = np.array([1, 1])
-        author = h5md.create_group("author")
-        if self._author_name is not None:
-            author.attrs["name"] = self._author_name
-        if self._author_email is not None:
-            author.attrs["email"] = self._author_email
-        creator = h5md.create_group("creator")
-        creator.attrs["name"] = "asebytes"
-        creator.attrs["version"] = get_version()
-        self._file.require_group("particles")
-
-    def _key_to_h5(
-        self, key: str, data: list[dict[str, Any]]
-    ) -> tuple[str | None, str | None]:
-        """Map an asebytes key to (h5_path, origin)."""
-        grp = self._grp_name
-
-        if key == "cell":
-            return f"/particles/{grp}/box/edges", "atoms"
-        if key == "pbc":
-            return f"/particles/{grp}/box/pbc", "atoms"
-
-        prefix, sep, name = key.partition(".")
-        if not sep:
-            return None, None
-
-        h5md_name = ASE_TO_H5MD.get(name, name)
-
-        if prefix == "arrays":
-            origin = "atoms" if name in ("positions", "numbers") else "arrays"
-            return f"/particles/{grp}/{h5md_name}", origin
-
-        if prefix == "calc":
-            if h5md_name in KNOWN_PARTICLE_ELEMENTS:
-                return f"/particles/{grp}/{h5md_name}", "calc"
-            # Check if per-atom by inspecting data shape
-            if self._is_per_atom(key, data):
-                return f"/particles/{grp}/{h5md_name}", "calc"
-            return f"/observables/{grp}/{h5md_name}", "calc"
-
-        if prefix == "info":
-            if name == "connectivity":
-                return None, None  # handled by _write_connectivity
-            return f"/observables/{grp}/{name}", "info"
-
-        return None, None
-
-    def _is_per_atom(self, key: str, data: list[dict[str, Any]]) -> bool:
-        """Check if a calc result is per-atom (first dim == n_atoms)."""
-        for row in data:
-            if row is None:
-                continue
-            val = row.get(key)
-            if val is None or not isinstance(val, np.ndarray) or val.ndim < 1:
-                continue
-            n_atoms = None
-            pos = row.get("arrays.positions")
-            nums = row.get("arrays.numbers")
-            if pos is not None:
-                n_atoms = len(pos)
-            elif nums is not None:
-                n_atoms = len(nums)
-            if n_atoms is not None and val.shape[0] == n_atoms:
-                return True
-            break
-        return False
-
-    def _write_element(
-        self,
-        h5_path: str,
-        origin: str | None,
-        key: str,
-        values: list[Any],
-        max_atoms: int,
-    ) -> None:
-        """Create or extend an H5MD element."""
-        is_box = h5_path.endswith("/box/edges") or h5_path.endswith("/box/pbc")
-        is_pbc = h5_path.endswith("/box/pbc")
-        ppath = f"/particles/{self._grp_name}/"
-        is_per_atom = h5_path.startswith(ppath) and not is_box
-
-        # Ensure box group exists with attributes
-        if is_box:
-            box_path = f"/particles/{self._grp_name}/box"
-            if box_path not in self._file:
-                box_grp = self._file.require_group(box_path)
-                box_grp.attrs["dimension"] = 3
-                if is_pbc:
-                    first_pbc = next(
-                        (v for v in values if v is not None),
-                        np.array([False, False, False]),
-                    )
-                    box_grp.attrs["boundary"] = [
-                        "periodic" if p else "none" for p in first_pbc
-                    ]
-                else:
-                    box_grp.attrs["boundary"] = ["none", "none", "none"]
-            elif is_pbc and "boundary" not in self._file[box_path].attrs:
-                first_pbc = next(
-                    (v for v in values if v is not None),
-                    np.array([False, False, False]),
-                )
-                self._file[box_path].attrs["boundary"] = [
-                    "periodic" if p else "none" for p in first_pbc
-                ]
-
-            if is_pbc and not self._pbc_group:
-                return
-
-        # Prepare data
-        # Species (arrays.numbers) must stay float64 for znh5md compat
-        force_float = key == "arrays.numbers"
-        prepared, dtype, fillvalue = self._prepare_column(
-            values, is_per_atom, max_atoms, force_float=force_float
-        )
-        if prepared is None:
-            return
-
-        if h5_path in self._file:
-            self._extend_dataset(h5_path, prepared, fillvalue)
+    def _read_connectivity_frame(self, index: int) -> list[list] | None:
+        """Read connectivity for a single frame."""
+        if "bonds" not in self._conn_cache:
+            return None
+        kind, ref = self._conn_cache["bonds"]
+        if kind == "td":
+            bonds = ref[index]
         else:
-            self._create_dataset(h5_path, prepared, dtype, fillvalue, origin)
-
-    def _prepare_column(
-        self,
-        values: list[Any],
-        is_per_atom: bool,
-        max_atoms: int,
-        *,
-        force_float: bool = False,
-    ) -> tuple[Any, Any, Any]:
-        """Convert a column of values into HDF5-ready data."""
-        ref = next((v for v in values if v is not None), None)
-        if ref is None:
-            return None, None, None
-
-        # --- String / JSON types ---
-        if isinstance(ref, (dict, list, str)):
-            serialized = []
-            for v in values:
-                if v is None:
-                    serialized.append("")
-                else:
-                    serialized.append(json.dumps(jsonable(v)))
-            return serialized, h5py.string_dtype(), ""
-
-        # --- Boolean (PBC) ---
-        if isinstance(ref, np.ndarray) and ref.dtype == bool:
-            arr = np.array(
-                [v if v is not None else np.zeros_like(ref) for v in values],
-                dtype=bool,
-            )
-            return arr, bool, False
-
-        # --- Scalar ---
-        if isinstance(ref, (int, float, np.integer, np.floating)):
-            arr = np.array(
-                [float(v) if v is not None else np.nan for v in values],
-                dtype=np.float64,
-            )
-            return arr, np.float64, np.nan
-
-        # --- ndarray with string dtype ---
-        if isinstance(ref, np.ndarray) and ref.dtype.kind in ("S", "U", "O"):
-            serialized = []
-            for v in values:
-                if v is None:
-                    serialized.append("")
-                else:
-                    serialized.append(json.dumps(jsonable(v)))
-            return serialized, h5py.string_dtype(), ""
-
-        # --- Numeric ndarray ---
-        if isinstance(ref, np.ndarray):
-            if is_per_atom and self._variable_shape:
-                return self._pad_per_atom(
-                    values, ref, max_atoms, force_float=force_float
-                )
-            dtype = ref.dtype
-            fv = get_fill_value(dtype)
-            processed = []
-            for v in values:
-                if v is not None:
-                    processed.append(np.asarray(v, dtype=dtype))
-                else:
-                    processed.append(np.full_like(ref, fv, dtype=dtype))
-            return (
-                concat_varying(processed, fv),
-                dtype,
-                fv,
-            )
-
-        return None, None, None
-
-    def _pad_per_atom(
-        self,
-        values: list[Any],
-        ref: np.ndarray,
-        max_atoms: int,
-        *,
-        force_float: bool = False,
-    ) -> tuple[np.ndarray, Any, int | float]:
-        """Pad per-atom arrays to max_atoms, preserving original dtype.
-
-        When *force_float* is True (used for species/numbers), always
-        store as float64 with NaN fill for znh5md compatibility.
-        """
-        dtype = np.float64 if force_float else ref.dtype
-        fv = np.nan if force_float else get_fill_value(dtype)
-        padded = []
-        for v in values:
-            if v is None:
-                shape = (max_atoms,) + ref.shape[1:]
-                padded.append(np.full(shape, fv, dtype=dtype))
+            bonds = ref[()]
+        orders = None
+        if "bond_orders" in self._conn_cache:
+            okind, oref = self._conn_cache["bond_orders"]
+            if okind == "td":
+                orders = oref[index]
             else:
-                v = np.asarray(v, dtype=dtype)
-                if v.shape[0] < max_atoms:
-                    pad_shape = (max_atoms - v.shape[0],) + v.shape[1:]
-                    v = np.concatenate(
-                        [v, np.full(pad_shape, fv, dtype=dtype)]
-                    )
-                padded.append(v)
-        return np.array(padded), dtype, fv
-
-    def _get_chunks(self, shape: tuple[int, ...]) -> tuple[int, ...] | bool:
-        """Compute chunk shape for a dataset."""
-        if self._chunk_size is None:
-            return True
-        if isinstance(self._chunk_size, int):
-            return tuple([min(self._chunk_size, shape[0])] + list(shape[1:]))
-        if isinstance(self._chunk_size, (list, tuple)):
-            chunks = []
-            for i, s in enumerate(shape):
-                try:
-                    chunks.append(min(self._chunk_size[i], s))
-                except IndexError:
-                    chunks.append(s)
-            return tuple(max(1, c) for c in chunks)
-        return True
-
-    def _create_dataset(
-        self,
-        h5_path: str,
-        data: Any,
-        dtype: Any,
-        fillvalue: Any,
-        origin: str | None,
-    ) -> None:
-        """Create a new H5MD element (group with step/time/value)."""
-        grp = self._file.require_group(h5_path)
-
-        if dtype == h5py.string_dtype():
-            n = len(data)
-            total = self._n_frames + n
-            chunks = self._get_chunks((total,))
-            ds = grp.create_dataset(
-                "value",
-                shape=(total,),
-                maxshape=(None,),
-                fillvalue=fillvalue,
-                dtype=dtype,
-                compression=self._compression,
-                compression_opts=self._compression_opts,
-                chunks=chunks,
-            )
-            ds[self._n_frames :] = data
-        else:
-            arr = np.asarray(data)
-            n = arr.shape[0]
-            full_shape = (self._n_frames + n,) + arr.shape[1:]
-            maxshape = tuple(None for _ in full_shape)
-            chunks = self._get_chunks(full_shape)
-            ds = grp.create_dataset(
-                "value",
-                shape=full_shape,
-                maxshape=maxshape,
-                fillvalue=fillvalue,
-                dtype=dtype,
-                compression=self._compression,
-                compression_opts=self._compression_opts,
-                chunks=chunks,
-            )
-            ds[self._n_frames :] = arr
-
-        if origin is not None:
-            grp.attrs[ORIGIN_ATTR] = origin
-
-        # Linear step/time (matching znh5md default)
-        grp.create_dataset("step", data=1)
-        time_ds = grp.create_dataset("time", data=1.0)
-        time_ds.attrs["unit"] = "fs"
-
-    def _extend_dataset(self, h5_path: str, data: Any, fillvalue: Any) -> None:
-        """Extend an existing H5MD element."""
-        grp = self._file[h5_path]
-        ds = grp["value"]
-
-        if ds.dtype == h5py.string_dtype() or isinstance(data, list):
-            old_len = ds.shape[0]
-            n_new = len(data)
-            shift = self._n_frames - old_len
-            ds.resize((old_len + n_new + shift,))
-            ds[old_len + shift :] = data
-        else:
-            arr = np.asarray(data)
-            old_shape = ds.shape
-            n_new = arr.shape[0]
-            shift = self._n_frames - old_shape[0]
-
-            if arr.ndim > 1 and old_shape[1:] != arr.shape[1:]:
-                # Variable atom dimension — resize
-                new_second = max(old_shape[1], arr.shape[1])
-                target = (
-                    old_shape[0] + n_new + shift,
-                    new_second,
-                    *old_shape[2:],
-                )
-                ds.resize(target)
-                if arr.shape[1] < new_second:
-                    padded = np.full(
-                        (n_new, new_second, *old_shape[2:]),
-                        fillvalue,
-                        dtype=arr.dtype,
-                    )
-                    padded[:, : arr.shape[1]] = arr
-                    arr = padded
-            else:
-                target = (old_shape[0] + n_new + shift,) + old_shape[1:]
-                ds.resize(target)
-
-            ds[old_shape[0] + shift :] = arr
+                orders = oref[()]
+        return self._assemble_connectivity(bonds, orders)
 
     @staticmethod
-    def _serialize_value(val: Any) -> Any:
-        """Serialize a single value for HDF5 storage."""
-        if isinstance(val, (dict, list, str)):
-            return json.dumps(jsonable(val))
-        return val
+    def _assemble_connectivity(
+        bonds: np.ndarray, orders: np.ndarray | None
+    ) -> list[list] | None:
+        """Build connectivity list from bonds + optional bond_orders arrays.
 
-    def _pad_value(self, val: Any, ds: h5py.Dataset) -> Any:
-        """Pad a value to match dataset dimensions if needed.
-
-        Uses dtype-appropriate fill values when variable_shape is enabled,
-        ensuring consistency with single-row set() operations.
+        Strips -1 padding from time-dependent storage.
         """
-        if isinstance(val, np.ndarray) and self._variable_shape:
-            if ds.ndim > 1 and val.ndim >= 1 and val.shape[0] < ds.shape[1]:
-                fv = get_fill_value(ds.dtype)
-                padded = np.full(ds.shape[1:], fv, dtype=ds.dtype)
-                slices = tuple(slice(0, s) for s in val.shape)
-                padded[slices] = val
-                return padded
-        return val
+        if bonds.ndim == 1:
+            return None
+        valid = np.all(bonds >= 0, axis=1)
+        bonds = bonds[valid]
+        if len(bonds) == 0:
+            return None
+        if orders is not None:
+            orders = orders[valid]
+            return [
+                [int(b[0]), int(b[1]), float(orders[i])]
+                for i, b in enumerate(bonds)
+            ]
+        return [[int(b[0]), int(b[1])] for b in bonds]
+
+    # ------------------------------------------------------------------
+    # Schema override for box columns (H5MDStore exposes them as regular)
+    # ------------------------------------------------------------------
+
+    def schema(self, index: int = 0) -> dict:
+        """Schema with H5MD-aware column types."""
+        result = super().schema(index)
+
+        # Connectivity isn't a regular column -- add it if present
+        if self._conn_cache:
+            from asebytes._schema import SchemaEntry
+            result["info.connectivity"] = SchemaEntry(dtype=str, shape=())
+
+        return result
+
+    def keys(self, index: int) -> list[str]:
+        """Keys at index, including connectivity if present."""
+        result = super().keys(index)
+
+        if self._conn_cache:
+            conn = self._read_connectivity_frame(self._check_index(index))
+            if conn is not None:
+                result.append("info.connectivity")
+
+        return result
+
+    # ------------------------------------------------------------------
+    # _store_rewrite_array override for H5MDStore
+    # ------------------------------------------------------------------
+
+    def _store_rewrite_array(
+        self, name: str, data: np.ndarray, dtype: Any, fill_value: Any
+    ) -> None:
+        """Rewrite an array in H5MDStore (resize h5py dataset directly)."""
+        ds = self._store._get_ds(name)
+        ds.resize(data.shape)
+        ds[...] = data
+        self._store._ds_cache.pop(name, None)
+
+    # ------------------------------------------------------------------
+    # set override -- pad values for variable-shape storage
+    # ------------------------------------------------------------------
+
+    def set(self, index: int, data: dict[str, Any] | None) -> None:
+        if data is None:
+            raise TypeError(
+                "H5MDBackend.set() does not support None rows. "
+                "H5MD is append-only and cannot represent placeholder rows."
+            )
+        # Convert numbers to float for znh5md compat before passing to base
+        if "arrays.numbers" in data:
+            nums = data["arrays.numbers"]
+            if isinstance(nums, np.ndarray) and nums.dtype.kind != "f":
+                data = dict(data)
+                data["arrays.numbers"] = nums.astype(np.float64)
+        super().set(index, data)
 
 
 # Backward compatibility aliases

@@ -45,6 +45,9 @@ from ._async_object_io import AsyncObjectIO
 from ._async_io import AsyncASEIO
 from .io import ASEIO
 
+# Concat
+from ._concat import ConcatView
+
 # Views
 from ._views import ASEColumnView, ColumnView, RowView, ViewParent
 from ._async_views import (
@@ -105,6 +108,8 @@ __all__ = [
     "get_metadata",
     "atoms_to_dict",
     "dict_to_atoms",
+    # Concat
+    "ConcatView",
     # Views
     "RowView",
     "ColumnView",
@@ -156,11 +161,21 @@ else:
     __all__ += ["H5MDBackend"]
 
 try:
-    from .zarr import ZarrBackend
+    from .columnar import (
+        BaseColumnarBackend,
+        RaggedColumnarBackend,
+        PaddedColumnarBackend,
+        ColumnarBackend,
+    )
 except ImportError:
     pass
 else:
-    __all__ += ["ZarrBackend"]
+    __all__ += [
+        "BaseColumnarBackend",
+        "RaggedColumnarBackend",
+        "PaddedColumnarBackend",
+        "ColumnarBackend",
+    ]
 
 try:
     from .mongodb import MongoObjectBackend, AsyncMongoObjectBackend
@@ -185,7 +200,6 @@ _OPTIONAL_ATTRS: dict[str, str] = {
     "COLABFIT": "hf",
     "OPTIMADE": "hf",
     "H5MDBackend": "h5md",
-    "ZarrBackend": "zarr",
     "MongoObjectBackend": "mongodb",
     "AsyncMongoObjectBackend": "mongodb",
     "RedisBlobBackend": "redis",
@@ -198,7 +212,7 @@ def __getattr__(name: str):
         extra = _OPTIONAL_ATTRS[name]
         raise ImportError(
             f"'{name}' requires additional dependencies. "
-            f"Install them with: pip install asebytes[{extra}]"
+            f"Install them with: uv add asebytes[{extra}]"
         )
     raise AttributeError(f"module 'asebytes' has no attribute '{name}'")
 

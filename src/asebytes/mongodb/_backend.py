@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from collections.abc import Iterator
 from typing import Any
 
@@ -69,6 +70,8 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         self._col = self._client[database][self.group]
         self._sort_keys: list[int] | None = None
         self._count: int | None = None
+        self._cache_loaded_at: float = 0.0
+        self._cache_ttl: float = 1.0
 
     @classmethod
     def from_uri(
@@ -156,8 +159,13 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
     def _invalidate_cache(self) -> None:
         self._sort_keys = None
         self._count = None
+        self._cache_loaded_at = 0.0
 
     def _ensure_cache(self) -> None:
+        now = time.monotonic()
+        if (self._sort_keys is not None
+                and (now - self._cache_loaded_at) < self._cache_ttl):
+            return
         meta = self._col.find_one({"_id": META_ID})
         if meta is None:
             self._sort_keys = []
@@ -165,6 +173,7 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
         else:
             self._sort_keys = meta.get("sort_keys", [])
             self._count = meta.get("count", len(self._sort_keys))
+        self._cache_loaded_at = now
 
     def _resolve_sort_key(self, index: int) -> int:
         n = len(self._sort_keys)
@@ -255,7 +264,6 @@ class MongoObjectBackend(ReadWriteBackend[str, Any]):
             raise IndexError(index)
         sk = self._sort_keys[index]
         self._col.replace_one({"_id": sk}, self._row_to_doc(sk, data), upsert=True)
-        self._invalidate_cache()
 
     def delete(self, index: int) -> None:
         self._ensure_cache()

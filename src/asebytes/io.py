@@ -231,22 +231,18 @@ class ASEIO(MutableSequence):
         index: int | slice | str | list[int] | list[str],
     ) -> ase.Atoms | RowView[ase.Atoms] | ASEColumnView:
         if isinstance(index, int):
-            try:
-                n = len(self)
-            except TypeError:
-                # Backend with unknown length (file-based, streaming).
-                # Negative indexing requires known length -- let
-                # TypeError propagate naturally from len().
-                if index < 0:
-                    len(self)  # raises TypeError
-                # Positive: delegate to backend (may raise IndexError).
-                row = self._read_row(index)
-                return self._build_result(row)
             if index < 0:
+                try:
+                    n = len(self)
+                except TypeError:
+                    len(self)  # re-raise TypeError
                 index += n
-            if index < 0 or index >= n:
-                raise IndexError(index)
-            row = self._read_row(index)
+                if index < 0:
+                    raise IndexError(index - n)
+            try:
+                row = self._read_row(index)
+            except IndexError:
+                raise IndexError(index) from None
             return self._build_result(row)
         if isinstance(index, slice):
             indices = range(len(self))[index]
@@ -356,6 +352,29 @@ class ASEIO(MutableSequence):
 
     def __repr__(self) -> str:
         return f"ASEIO(backend={self._backend!r})"
+
+    def __add__(self, other: Any) -> "ConcatView":
+        from ._concat import ConcatView
+
+        if isinstance(other, ConcatView):
+            if type(other._sources[0]) is not type(self):
+                raise TypeError(
+                    f"Cannot concat {type(self).__name__} "
+                    f"with {type(other._sources[0]).__name__}"
+                )
+            return ConcatView([self] + other._sources)
+        if type(other) is not type(self):
+            raise TypeError(
+                f"Cannot concat {type(self).__name__} with {type(other).__name__}"
+            )
+        return ConcatView([self, other])
+
+    def __radd__(self, other: Any) -> "ConcatView":
+        if other == []:
+            from ._concat import ConcatView
+
+            return ConcatView([self])
+        return NotImplemented
 
     _VALID_PREFIXES = ("arrays.", "info.", "calc.")
     _VALID_TOP_LEVEL = ("cell", "pbc", "constraints")
