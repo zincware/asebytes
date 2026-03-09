@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 
 ## Current Position
 
-Phase: 5 of 7 (Benchmark Pipeline) -- first phase of v0.3.1
+Phase: 8 of 8 (Test Isolation Fix) -- maintenance
 Plan: 1 of 1 (complete)
-Status: Phase 5 complete
-Last activity: 2026-03-09 -- Completed 05-01 benchmark pipeline
+Status: Phase 8 complete
+Last activity: 2026-03-09 -- Completed 08-01 test isolation fix
 
 Progress: [██████████] 100%
 
@@ -48,6 +48,7 @@ Recent: github-action-benchmark selected as sole CI benchmark tool (research pha
 - workflow_run trigger chains benchmarks after Tests workflow (05-01)
 - Single Python 3.13 for benchmarks -- consistent baseline (CI-02, 05-01)
 - No separate release/tag trigger -- main pushes cover it (CI-04, 05-01)
+- Uniform group= on all backends, no conditional logic per backend type (08-01)
 
 ### Pending Todos
 
@@ -56,6 +57,7 @@ None.
 ### Roadmap Evolution
 
 - Phase 8 added: Fix failing tests in Redis/Mongo backends (test isolation)
+- Phase 8 completed: UUID-based group isolation for all facade fixtures
 
 ### Blockers/Concerns
 
@@ -63,6 +65,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-09T20:46:43.138Z
-Stopped at: Phase 8 context gathered
+Last session: 2026-03-09T20:55:36Z
+Stopped at: Completed 08-01-PLAN.md
 Next action: Next phase or plan

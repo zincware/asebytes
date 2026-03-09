@@ -84,7 +84,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 08-01-PLAN.md — Add unique group= to all facade fixtures for per-test isolation
+- [x] 08-01-PLAN.md — Add unique group= to all facade fixtures for per-test isolation
 
 ## Progress
 
@@ -100,4 +100,4 @@ Phases execute in numeric order: 5 -> 6 -> 7
 | 5. Benchmark Pipeline | 1/1 | Complete   | 2026-03-09 | - |
 | 6. PR Feedback | v0.3.1 | 0/1 | Not started | - |
 | 7. Dashboard and README | v0.3.1 | 0/? | Not started | - |
-| 8. Test Isolation Fix | Maintenance | 0/1 | Not started | - |
+| 8. Test Isolation Fix | Maintenance | 1/1 | Complete | 2026-03-09 |

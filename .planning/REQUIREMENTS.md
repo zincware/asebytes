@@ -30,9 +30,9 @@ Requirements for CI benchmark infrastructure milestone. Each maps to roadmap pha
 
 ### Test Isolation (Phase 8)
 
-- [ ] **ISO-01**: MongoDB contract tests pass without data leaking between tests
-- [ ] **ISO-02**: Redis contract tests pass without data leaking between tests
-- [ ] **ISO-03**: All other backend contract tests remain green after isolation changes (no regressions)
+- [x] **ISO-01**: MongoDB contract tests pass without data leaking between tests
+- [x] **ISO-02**: Redis contract tests pass without data leaking between tests
+- [x] **ISO-03**: All other backend contract tests remain green after isolation changes (no regressions)
 
 ## Future Requirements
 
@@ -72,9 +72,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DASH-01 | Phase 7 | Pending |
 | DASH-02 | Phase 7 | Pending |
 | DASH-03 | Phase 7 | Pending |
-| ISO-01 | Phase 8 | Pending |
-| ISO-02 | Phase 8 | Pending |
-| ISO-03 | Phase 8 | Pending |
+| ISO-01 | Phase 8 | Complete |
+| ISO-02 | Phase 8 | Complete |
+| ISO-03 | Phase 8 | Complete |
 
 **Coverage:**
 - v0.3.1 requirements: 10 total
