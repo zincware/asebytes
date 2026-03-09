@@ -27,7 +27,7 @@ class TestDownloadedBackend:
         assert len(backend) == 5
 
     def test_read_row(self, backend):
-        row = backend.read_row(0)
+        row = backend.get(0)
         assert "arrays.positions" in row
         assert "arrays.numbers" in row
         assert "cell" in row
@@ -39,38 +39,38 @@ class TestDownloadedBackend:
         assert row["calc.energy"] == 0.0
 
     def test_read_row_with_keys(self, backend):
-        row = backend.read_row(2, keys=["calc.energy", "arrays.positions"])
+        row = backend.get(2, keys=["calc.energy", "arrays.positions"])
         assert set(row.keys()) == {"calc.energy", "arrays.positions"}
         assert row["calc.energy"] == -2.0
 
     def test_read_row_index_error(self, backend):
         with pytest.raises(IndexError):
-            backend.read_row(100)
+            backend.get(100)
 
     def test_read_rows(self, backend):
-        rows = backend.read_rows([0, 2, 4])
+        rows = backend.get_many([0, 2, 4])
         assert len(rows) == 3
         assert rows[0]["calc.energy"] == 0.0
         assert rows[1]["calc.energy"] == -2.0
         assert rows[2]["calc.energy"] == -4.0
 
     def test_columns(self, backend):
-        cols = backend.columns(0)
+        cols = backend.keys(0)
         assert isinstance(cols, list)
         assert "arrays.positions" in cols
         assert "calc.energy" in cols
 
     def test_read_column(self, backend):
-        energies = backend.read_column("calc.energy", indices=[0, 1, 2])
+        energies = backend.get_column("calc.energy", indices=[0, 1, 2])
         assert energies == [0.0, -1.0, -2.0]
 
     def test_unmapped_columns_go_to_info(self, backend):
-        row = backend.read_row(0)
+        row = backend.get(0)
         assert "info.configuration_name" in row
         assert row["info.configuration_name"] == "config_0"
 
     def test_negative_index(self, backend):
-        row = backend.read_row(-1)
+        row = backend.get(-1)
         assert row["calc.energy"] == -4.0
 
     def test_iter_rows(self, backend):
@@ -81,8 +81,8 @@ class TestDownloadedBackend:
 
     def test_cache_hit(self, backend):
         """Reading the same row twice should hit the cache."""
-        row1 = backend.read_row(0)
-        row2 = backend.read_row(0)
+        row1 = backend.get(0)
+        row2 = backend.get(0)
         # Should return identical dicts (same object from cache)
         assert row1 is row2
 
@@ -103,8 +103,8 @@ class TestStreamingBackend:
             len(backend)
 
     def test_sequential_reads(self, backend):
-        row0 = backend.read_row(0)
-        row1 = backend.read_row(1)
+        row0 = backend.get(0)
+        row1 = backend.get(1)
         assert row0["calc.energy"] == 0.0
         assert row1["calc.energy"] == -1.0
 
@@ -114,7 +114,7 @@ class TestStreamingBackend:
         assert rows[2]["calc.energy"] == -2.0
 
     def test_columns(self, backend):
-        cols = backend.columns(0)
+        cols = backend.keys(0)
         assert "arrays.positions" in cols
         assert "calc.energy" in cols
 
@@ -122,23 +122,23 @@ class TestStreamingBackend:
         """After reading all rows, length should be discovered."""
         # Read all 5 rows
         for i in range(5):
-            backend.read_row(i)
+            backend.get(i)
         # Now try to read one past the end to trigger length discovery
         with pytest.raises(IndexError):
-            backend.read_row(5)
+            backend.get(5)
         # Length should now be known
         assert len(backend) == 5
 
     def test_backward_read_restarts_iterator(self, backend):
         """Reading backwards should restart the stream iterator."""
-        row2 = backend.read_row(2)
-        row0 = backend.read_row(0)  # should restart and re-read from cache
+        row2 = backend.get(2)
+        row0 = backend.get(0)  # should restart and re-read from cache
         assert row0["calc.energy"] == 0.0
         assert row2["calc.energy"] == -2.0
 
     def test_close_clears_iterator(self, backend):
         """close() should set the stream iterator to None."""
-        backend.read_row(0)  # starts the iterator
+        backend.get(0)  # starts the iterator
         assert backend._stream_iter is not None
         backend.close()
         assert backend._stream_iter is None
@@ -147,7 +147,7 @@ class TestStreamingBackend:
         """Backend should work as a context manager."""
         ds = _make_dataset(3).to_iterable_dataset()
         with HuggingFaceBackend(ds, mapping=COLABFIT) as b:
-            row = b.read_row(0)
+            row = b.get(0)
             assert row["calc.energy"] == 0.0
         assert b._stream_iter is None
 
@@ -155,10 +155,10 @@ class TestStreamingBackend:
         """Reading after close() should restart the stream."""
         ds = _make_dataset(3).to_iterable_dataset()
         b = HuggingFaceBackend(ds, mapping=COLABFIT)
-        b.read_row(0)
+        b.get(0)
         b.close()
         # Should restart iterator transparently
-        row = b.read_row(1)
+        row = b.get(1)
         assert row["calc.energy"] == -1.0
 
 
@@ -245,7 +245,7 @@ class TestFromUri:
         backend = HuggingFaceBackend.from_uri("optimade://provider/structures")
         assert calls[0]["path"] == "provider/structures"
         # Verify OPTIMADE mapping was applied
-        row = backend.read_row(0)
+        row = backend.get(0)
         assert "arrays.positions" in row
         np.testing.assert_array_equal(
             row["arrays.numbers"], np.array([1])  # H -> 1
@@ -333,7 +333,7 @@ class TestFromUri:
         backend = HuggingFaceBackend.from_uri(
             "colabfit://test_ds", split="train"
         )
-        row = backend.read_row(0)
+        row = backend.get(0)
         assert "arrays.positions" in row
 
     def test_malformed_uri_raises(self):

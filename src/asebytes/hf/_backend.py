@@ -7,11 +7,13 @@ from collections import OrderedDict
 from collections.abc import Iterator
 from typing import Any
 
-from .._protocols import ReadableBackend
+from .._backends import ReadBackend
 from ._mappings import COLABFIT, OPTIMADE, ColumnMapping
 
 
-def load_dataset(path: str, *, streaming: bool = False, split: str | None = None, **kwargs):
+def load_dataset(
+    path: str, *, streaming: bool = False, split: str | None = None, **kwargs
+):
     """Lazy wrapper around ``datasets.load_dataset``.
 
     Raises a helpful ImportError if the ``datasets`` library is not installed.
@@ -26,7 +28,7 @@ def load_dataset(path: str, *, streaming: bool = False, split: str | None = None
     return _hf_load_dataset(path, streaming=streaming, split=split, **kwargs)
 
 
-class HuggingFaceBackend(ReadableBackend):
+class HuggingFaceBackend(ReadBackend[str, Any]):
     """Read-only backend for HuggingFace datasets.
 
     Supports two modes:
@@ -193,7 +195,7 @@ class HuggingFaceBackend(ReadableBackend):
         # Should not reach here
         raise IndexError(index)  # pragma: no cover
 
-    # ── ReadableBackend interface ─────────────────────────────────────────
+    # ── ReadBackend interface ──────────────────────────────────────────────
 
     def __len__(self) -> int:
         if self._length is None:
@@ -204,13 +206,7 @@ class HuggingFaceBackend(ReadableBackend):
             )
         return self._length
 
-    def columns(self, index: int = 0) -> list[str]:
-        row = self.read_row(index)
-        return list(row.keys())
-
-    def read_row(
-        self, index: int, keys: list[str] | None = None
-    ) -> dict[str, Any]:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         # Handle negative indexing for downloaded mode
         if index < 0:
             if self._streaming and self._length is None:
@@ -245,20 +241,18 @@ class HuggingFaceBackend(ReadableBackend):
             return {k: row[k] for k in keys if k in row}
         return row
 
-    def read_rows(
+    def get_many(
         self, indices: list[int], keys: list[str] | None = None
     ) -> list[dict[str, Any]]:
-        return [self.read_row(i, keys) for i in indices]
+        return [self.get(i, keys) for i in indices]
 
     def iter_rows(
         self, indices: list[int], keys: list[str] | None = None
     ) -> Iterator[dict[str, Any]]:
         for i in indices:
-            yield self.read_row(i, keys)
+            yield self.get(i, keys)
 
-    def read_column(
-        self, key: str, indices: list[int] | None = None
-    ) -> list[Any]:
+    def get_column(self, key: str, indices: list[int] | None = None) -> list[Any]:
         if indices is None:
             if self._streaming and self._length is None:
                 raise TypeError(
@@ -267,7 +261,21 @@ class HuggingFaceBackend(ReadableBackend):
                     "through the dataset first."
                 )
             indices = list(range(len(self)))
-        return [self.read_row(i, [key])[key] for i in indices]
+        return [self.get(i, [key])[key] for i in indices]
+
+    def keys(self, index: int) -> list[str]:
+        """Return the list of keys available for the row at the given index."""
+        row = self.get(index)
+        return list(row.keys())
+
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        """Return the list of groups available at the given path.
+
+        For HuggingFace datasets, there are no groups — data is stored
+        as a single dataset. This method always returns an empty list.
+        """
+        return []
 
     # ── Class method: from_uri ────────────────────────────────────────────
 
@@ -338,14 +346,13 @@ class HuggingFaceBackend(ReadableBackend):
         else:
             raise ValueError(f"Unknown URI scheme: {scheme!r}")
 
-        dataset = load_dataset(
-            hf_path, streaming=streaming, split=split, **load_kwargs
-        )
+        dataset = load_dataset(hf_path, streaming=streaming, split=split, **load_kwargs)
 
         # load_dataset returns a DatasetDict when no split is specified.
         # Require the user to pick a split explicitly.
         try:
             from datasets import DatasetDict, IterableDatasetDict
+
             dict_types = (DatasetDict, IterableDatasetDict)
         except ImportError:
             dict_types = ()
@@ -359,3 +366,7 @@ class HuggingFaceBackend(ReadableBackend):
             )
 
         return cls(dataset, mapping=mapping, cache_size=cache_size)
+
+
+# Backward compatibility alias
+HuggingFaceObjectBackend = HuggingFaceBackend

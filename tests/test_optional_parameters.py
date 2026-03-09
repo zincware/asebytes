@@ -96,13 +96,13 @@ def test_decode_with_all_optional_parameters():
     numbers = np.array([1, 8], dtype=np.int32)
     positions = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
     cell = np.eye(3) * 10.0
-    pbc = np.array([True, False, True], dtype=bool).tobytes()
+    pbc = np.array([True, False, True], dtype=bool)
 
     data = {
         b"arrays.numbers": msgpack.packb(numbers, default=m.encode),
         b"arrays.positions": msgpack.packb(positions, default=m.encode),
         b"cell": msgpack.packb(cell, default=m.encode),
-        b"pbc": msgpack.packb(pbc),
+        b"pbc": msgpack.packb(pbc, default=m.encode),
     }
 
     atoms = asebytes.decode(data)
@@ -146,11 +146,11 @@ def test_decode_empty_atoms(fast):
 def test_decode_empty_with_cell_and_pbc(fast):
     """Test that decode can create empty Atoms with cell and pbc but no atoms."""
     cell = np.eye(3) * 10.0
-    pbc = np.array([True, True, True], dtype=bool).tobytes()
+    pbc = np.array([True, True, True], dtype=bool)
 
     data = {
         b"cell": msgpack.packb(cell, default=m.encode),
-        b"pbc": msgpack.packb(pbc),
+        b"pbc": msgpack.packb(pbc, default=m.encode),
     }
 
     atoms = asebytes.decode(data, fast=fast)

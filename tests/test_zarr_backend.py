@@ -11,7 +11,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 import ase.collections
 
 import asebytes
-from asebytes.zarr._backend import ZarrBackend
+from asebytes.columnar import RaggedColumnarBackend as ZarrBackend
 from asebytes._convert import atoms_to_dict, dict_to_atoms
 
 
@@ -123,12 +123,12 @@ class TestBasicRoundTrip:
         atoms = molecule("H2O")
 
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(atoms)])
+        io1.extend([atoms_to_dict(atoms)])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         assert len(io2) == 1
-        row = io2.read_row(0)
+        row = io2.get(0)
         recovered = dict_to_atoms(row)
         npt.assert_array_equal(recovered.get_atomic_numbers(), atoms.get_atomic_numbers())
         npt.assert_allclose(recovered.get_positions(), atoms.get_positions())
@@ -136,13 +136,13 @@ class TestBasicRoundTrip:
 
     def test_write_read_multiple_frames(self, zarr_path, water_frames):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in water_frames])
+        io1.extend([atoms_to_dict(a) for a in water_frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         assert len(io2) == 3
         for i, atoms in enumerate(water_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_array_equal(
                 recovered.get_atomic_numbers(), atoms.get_atomic_numbers()
@@ -152,14 +152,14 @@ class TestBasicRoundTrip:
 
     def test_append_twice(self, zarr_path, water_frames):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(water_frames[0])])
-        io1.append_rows([atoms_to_dict(a) for a in water_frames[1:]])
+        io1.extend([atoms_to_dict(water_frames[0])])
+        io1.extend([atoms_to_dict(a) for a in water_frames[1:]])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         assert len(io2) == 3
         for i, atoms in enumerate(water_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_allclose(recovered.get_positions(), atoms.get_positions())
         io2.close()
@@ -178,13 +178,13 @@ class TestBasicRoundTrip:
 class TestVariableShape:
     def test_s22_variable_sizes(self, zarr_path, s22_frames):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in s22_frames])
+        io1.extend([atoms_to_dict(a) for a in s22_frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         assert len(io2) == len(s22_frames)
         for i, atoms in enumerate(s22_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_array_equal(
                 recovered.get_atomic_numbers(), atoms.get_atomic_numbers()
@@ -201,13 +201,13 @@ class TestVariableShape:
             frames.append(atoms)
 
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in frames])
+        io1.extend([atoms_to_dict(a) for a in frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         assert len(io2) == 4
         for i, atoms in enumerate(frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             assert len(recovered) == len(atoms)
         io2.close()
@@ -221,12 +221,12 @@ class TestVariableShape:
 class TestCalculatorResults:
     def test_energy_forces(self, zarr_path, water_frames):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in water_frames])
+        io1.extend([atoms_to_dict(a) for a in water_frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         for i, atoms in enumerate(water_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             assert recovered.calc is not None
             npt.assert_allclose(
@@ -241,12 +241,12 @@ class TestCalculatorResults:
 
     def test_stress(self, zarr_path, pbc_frames):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in pbc_frames])
+        io1.extend([atoms_to_dict(a) for a in pbc_frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         for i, atoms in enumerate(pbc_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_allclose(
                 recovered.calc.results["stress"],
@@ -256,13 +256,13 @@ class TestCalculatorResults:
 
     def test_s22_with_calc_variable(self, zarr_path, s22_with_calc):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in s22_with_calc])
+        io1.extend([atoms_to_dict(a) for a in s22_with_calc])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         assert len(io2) == len(s22_with_calc)
         for i, atoms in enumerate(s22_with_calc):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_allclose(
                 recovered.calc.results["energy"],
@@ -283,12 +283,12 @@ class TestCalculatorResults:
 class TestPBCAndCell:
     def test_periodic_system(self, zarr_path, pbc_frames):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in pbc_frames])
+        io1.extend([atoms_to_dict(a) for a in pbc_frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         for i, atoms in enumerate(pbc_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_allclose(
                 recovered.get_cell().array, atoms.get_cell().array
@@ -298,12 +298,12 @@ class TestPBCAndCell:
 
     def test_mixed_pbc(self, zarr_path, mixed_pbc_frames):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in mixed_pbc_frames])
+        io1.extend([atoms_to_dict(a) for a in mixed_pbc_frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         for i, atoms in enumerate(mixed_pbc_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             npt.assert_array_equal(recovered.get_pbc(), atoms.get_pbc())
             npt.assert_allclose(
@@ -320,12 +320,12 @@ class TestPBCAndCell:
 class TestInfoAndArrays:
     def test_custom_info_and_arrays(self, zarr_path, info_arrays_calc_frames):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in info_arrays_calc_frames])
+        io1.extend([atoms_to_dict(a) for a in info_arrays_calc_frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         for i, atoms in enumerate(info_arrays_calc_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             # Info
             npt.assert_allclose(
@@ -354,23 +354,23 @@ class TestInfoAndArrays:
 class TestColumnReads:
     def test_read_energy_column(self, zarr_path, water_frames):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in water_frames])
+        io1.extend([atoms_to_dict(a) for a in water_frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
-        energies = io2.read_column("calc.energy")
+        energies = io2.get_column("calc.energy")
         assert len(energies) == 3
         for i, atoms in enumerate(water_frames):
             npt.assert_allclose(energies[i], atoms.calc.results["energy"])
         io2.close()
 
-    def test_columns_list(self, zarr_path, water_frames):
+    def test_keys_list(self, zarr_path, water_frames):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in water_frames])
+        io1.extend([atoms_to_dict(a) for a in water_frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
-        cols = io2.columns(0)
+        cols = io2.keys(0)
         assert "arrays.positions" in cols
         assert "arrays.numbers" in cols
         assert "calc.energy" in cols
@@ -386,11 +386,11 @@ class TestColumnReads:
 class TestBulkReads:
     def test_read_rows_sorted(self, zarr_path, water_frames):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in water_frames])
+        io1.extend([atoms_to_dict(a) for a in water_frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
-        rows = io2.read_rows([0, 1, 2])
+        rows = io2.get_many([0, 1, 2])
         assert len(rows) == 3
         for i, row in enumerate(rows):
             recovered = dict_to_atoms(row)
@@ -401,11 +401,11 @@ class TestBulkReads:
 
     def test_read_rows_unsorted(self, zarr_path, water_frames):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in water_frames])
+        io1.extend([atoms_to_dict(a) for a in water_frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
-        rows = io2.read_rows([2, 0, 1])
+        rows = io2.get_many([2, 0, 1])
         assert len(rows) == 3
         for j, orig_idx in enumerate([2, 0, 1]):
             recovered = dict_to_atoms(rows[j])
@@ -416,11 +416,11 @@ class TestBulkReads:
 
     def test_read_rows_duplicate(self, zarr_path, water_frames):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in water_frames])
+        io1.extend([atoms_to_dict(a) for a in water_frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
-        rows = io2.read_rows([0, 0, 1])
+        rows = io2.get_many([0, 0, 1])
         assert len(rows) == 3
         r0 = dict_to_atoms(rows[0])
         r1 = dict_to_atoms(rows[1])
@@ -443,12 +443,12 @@ class TestConnectivity:
         assert "connectivity" in frames[0].info
 
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in frames])
+        io1.extend([atoms_to_dict(a) for a in frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         for i, atoms in enumerate(frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             orig = [list(t) for t in atoms.info["connectivity"]]
             assert recovered.info["connectivity"] == orig
@@ -468,12 +468,12 @@ class TestConnectivity:
         assert "connectivity" in frames[0].info
 
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in frames])
+        io1.extend([atoms_to_dict(a) for a in frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         for i, atoms in enumerate(frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             assert recovered.info["smiles"] == atoms.info["smiles"]
             assert len(recovered.info["connectivity"]) == len(
@@ -483,7 +483,7 @@ class TestConnectivity:
 
 
 # ---------------------------------------------------------------------------
-# Variable-size appends (multiple append_rows calls)
+# Variable-size appends (multiple extend calls)
 # ---------------------------------------------------------------------------
 
 
@@ -502,13 +502,13 @@ class TestVariableSizeAppends:
 
         io1 = ZarrBackend(zarr_path)
         for batch in batches:
-            io1.append_rows([atoms_to_dict(a) for a in batch])
+            io1.extend([atoms_to_dict(a) for a in batch])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         assert len(io2) == len(all_frames)
         for i, atoms in enumerate(all_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             assert len(recovered) == len(atoms)
             npt.assert_array_equal(
@@ -560,13 +560,13 @@ class TestVariableSizeAppends:
 
         io1 = ZarrBackend(zarr_path)
         for batch in batches:
-            io1.append_rows([atoms_to_dict(a) for a in batch])
+            io1.extend([atoms_to_dict(a) for a in batch])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         assert len(io2) == len(all_frames)
         for i, atoms in enumerate(all_frames):
-            row = io2.read_row(i)
+            row = io2.get(i)
             recovered = dict_to_atoms(row)
             assert len(recovered) == len(atoms)
             npt.assert_allclose(
@@ -580,7 +580,7 @@ class TestVariableSizeAppends:
         io2.close()
 
     def test_bulk_read_variable_appends(self, zarr_path):
-        """Verify read_rows bulk path works with variable-size appended data."""
+        """Verify get_many bulk path works with variable-size appended data."""
         batches = [
             [molecule("H2O") for _ in range(3)],
             [molecule("CH4") for _ in range(2)],
@@ -590,11 +590,11 @@ class TestVariableSizeAppends:
 
         io1 = ZarrBackend(zarr_path)
         for batch in batches:
-            io1.append_rows([atoms_to_dict(a) for a in batch])
+            io1.extend([atoms_to_dict(a) for a in batch])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
-        rows = io2.read_rows(list(range(len(all_frames))))
+        rows = io2.get_many(list(range(len(all_frames))))
         assert len(rows) == len(all_frames)
         for row, atoms in zip(rows, all_frames):
             recovered = dict_to_atoms(row)
@@ -630,23 +630,23 @@ class TestASEIOIntegration:
 class TestErrorHandling:
     def test_index_error(self, zarr_path, water_frames):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(water_frames[0])])
+        io1.extend([atoms_to_dict(water_frames[0])])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
         with pytest.raises(IndexError):
-            io2.read_row(1)
+            io2.get(1)
         with pytest.raises(IndexError):
-            io2.read_row(-2)
+            io2.get(-2)
         io2.close()
 
     def test_negative_index(self, zarr_path, water_frames):
         io1 = ZarrBackend(zarr_path)
-        io1.append_rows([atoms_to_dict(a) for a in water_frames])
+        io1.extend([atoms_to_dict(a) for a in water_frames])
         io1.close()
 
         io2 = ZarrBackend(zarr_path, readonly=True)
-        row = io2.read_row(-1)
+        row = io2.get(-1)
         recovered = dict_to_atoms(row)
         npt.assert_allclose(
             recovered.get_positions(), water_frames[-1].get_positions()
@@ -656,13 +656,13 @@ class TestErrorHandling:
     def test_insert_not_implemented(self, zarr_path):
         io1 = ZarrBackend(zarr_path)
         with pytest.raises(NotImplementedError):
-            io1.insert_row(0, {})
+            io1.insert(0, {})
         io1.close()
 
     def test_delete_not_implemented(self, zarr_path):
         io1 = ZarrBackend(zarr_path)
         with pytest.raises(NotImplementedError):
-            io1.delete_row(0)
+            io1.delete(0)
         io1.close()
 
 
@@ -674,11 +674,11 @@ class TestErrorHandling:
 class TestContextManager:
     def test_context_manager(self, zarr_path, water_frames):
         with ZarrBackend(zarr_path) as io1:
-            io1.append_rows([atoms_to_dict(a) for a in water_frames])
+            io1.extend([atoms_to_dict(a) for a in water_frames])
 
         with ZarrBackend(zarr_path, readonly=True) as io2:
             assert len(io2) == 3
-            row = io2.read_row(0)
+            row = io2.get(0)
             recovered = dict_to_atoms(row)
             npt.assert_allclose(
                 recovered.get_positions(), water_frames[0].get_positions()

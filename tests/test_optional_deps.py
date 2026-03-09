@@ -36,7 +36,7 @@ class TestRegistryImportHints:
             side_effect=ImportError("No module"),
         ):
             with pytest.raises(
-                ImportError, match=rf"pip install asebytes\[{extra}\]"
+                ImportError, match=rf"uv add asebytes\[{extra}\]"
             ):
                 get_backend_cls(path)
 
@@ -46,7 +46,7 @@ class TestRegistryImportHints:
             "asebytes._registry.importlib.import_module",
             side_effect=ImportError("No module"),
         ):
-            with pytest.raises(ImportError, match=r"pip install asebytes\[lmdb\]"):
+            with pytest.raises(ImportError, match=r"uv add asebytes\[lmdb\]"):
                 get_backend_cls("test.lmdb", readonly=True)
 
     def test_error_message_mentions_backend_module(self):
@@ -73,9 +73,9 @@ class TestModuleGetattr:
     @pytest.mark.parametrize(
         ("name", "extra"),
         [
-            ("BytesIO", "lmdb"),
-            ("LMDBBackend", "lmdb"),
-            ("LMDBReadOnlyBackend", "lmdb"),
+            ("LMDBBlobBackend", "lmdb"),
+            ("LMDBObjectBackend", "lmdb"),
+            ("LMDBObjectReadBackend", "lmdb"),
             ("HuggingFaceBackend", "hf"),
             ("ColumnMapping", "hf"),
             ("COLABFIT", "hf"),
@@ -84,7 +84,7 @@ class TestModuleGetattr:
     )
     def test_optional_attr_gives_install_hint(self, name, extra):
         with pytest.raises(
-            ImportError, match=rf"pip install asebytes\[{extra}\]"
+            ImportError, match=rf"uv add asebytes\[{extra}\]"
         ):
             asebytes.__getattr__(name)
 

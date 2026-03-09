@@ -1,4 +1,4 @@
-import pathlib
+import os
 
 import ase
 import ase.build
@@ -7,8 +7,27 @@ import molify
 import numpy as np
 import pytest
 from ase.calculators.singlepoint import SinglePointCalculator
+from ase.constraints import FixAtoms
 
-LEMAT_PATH = pathlib.Path(__file__).parent / "data" / "lemat_1000.lmdb"
+# ---------------------------------------------------------------------------
+# Network backend URIs (shared across all test modules)
+# ---------------------------------------------------------------------------
+
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://root:example@localhost:27017")
+REDIS_URI = os.environ.get("REDIS_URI", "redis://localhost:6379")
+
+
+@pytest.fixture
+def mongo_uri() -> str:
+    """Return the MongoDB connection URI."""
+    return MONGO_URI
+
+
+@pytest.fixture
+def redis_uri() -> str:
+    """Return the Redis connection URI."""
+    return REDIS_URI
+
 
 EXTENSIONS = [".lmdb", ".h5", ".zarr"]
 
@@ -17,6 +36,34 @@ EXTENSIONS = [".lmdb", ".h5", ".zarr"]
 def db_path(tmp_path, request):
     """Yield a fresh path with each writable-backend extension."""
     return str(tmp_path / f"test{request.param}")
+
+
+def _attach_full_properties(
+    frames: list[ase.Atoms], seed: int = 42
+) -> list[ase.Atoms]:
+    """Attach full properties to each Atoms frame for benchmark realism.
+
+    Adds: SinglePointCalculator (energy, forces, stress), FixAtoms constraint,
+    custom info (step, label), custom array (charges).
+    """
+    rng = np.random.RandomState(seed)
+    for i, atoms in enumerate(frames):
+        n = len(atoms)
+        # Calculator with energy, forces, stress
+        atoms.calc = SinglePointCalculator(atoms)
+        atoms.calc.results = {
+            "energy": float(-i * 0.1),
+            "forces": rng.randn(n, 3) * 0.01,
+            "stress": rng.randn(6) * 0.001,
+        }
+        # Constraint
+        atoms.set_constraint(FixAtoms(indices=[0]))
+        # Custom info
+        atoms.info["step"] = i
+        atoms.info["label"] = f"frame_{i}"
+        # Custom array
+        atoms.new_array("charges", rng.randn(n))
+    return frames
 
 
 @pytest.fixture
@@ -35,39 +82,49 @@ def ethanol() -> list[ase.Atoms]:
     return frames
 
 
+# ---------------------------------------------------------------------------
+# Session-scoped benchmark data fixtures (2x2: frames x atoms)
+# ---------------------------------------------------------------------------
+
+
 @pytest.fixture(scope="session")
-def lemat() -> list[ase.Atoms]:
-    """Return 1000 LeMat-Traj frames (positions, cell, pbc, calc only).
+def ethanol_100() -> list[ase.Atoms]:
+    """100 ethanol conformers (~9 atoms) with full properties."""
+    frames = molify.smiles2conformers("CCO", numConfs=100)
+    return _attach_full_properties(frames, seed=100)
 
-    Info metadata is stripped and stress is normalized to Voigt (6,) form
-    so that all backends receive identical data for fair comparison.
-    """
-    if not LEMAT_PATH.exists():
-        pytest.skip(
-            "LeMat-Traj data not available. "
-            "Run: uv run python scripts/download_benchmark_data.py"
-        )
-    from asebytes import ASEIO
 
-    db = ASEIO(str(LEMAT_PATH), readonly=True)
-    clean = []
-    for a in db:
-        b = ase.Atoms(
-            numbers=a.numbers, positions=a.positions, cell=a.cell, pbc=a.pbc
-        )
-        if a.calc is not None:
-            results = {}
-            for k, v in a.calc.results.items():
-                if k == "stress" and isinstance(v, np.ndarray) and v.shape == (3, 3):
-                    v = np.array(
-                        [v[0, 0], v[1, 1], v[2, 2], v[1, 2], v[0, 2], v[0, 1]]
-                    )
-                results[k] = v
-            calc = SinglePointCalculator(b)
-            calc.results = results
-            b.calc = calc
-        clean.append(b)
-    return clean
+@pytest.fixture(scope="session")
+def ethanol_1000() -> list[ase.Atoms]:
+    """1000 ethanol conformers (~9 atoms) with full properties."""
+    frames = molify.smiles2conformers("CCO", numConfs=1000)
+    return _attach_full_properties(frames, seed=1000)
+
+
+@pytest.fixture(scope="session")
+def periodic_100() -> list[ase.Atoms]:
+    """100 periodic Cu FCC frames (~108 atoms) with full properties."""
+    template = ase.build.bulk("Cu", "fcc", a=3.6) * (3, 3, 3)
+    rng = np.random.RandomState(200)
+    frames = []
+    for _ in range(100):
+        atoms = template.copy()
+        atoms.positions += rng.randn(*atoms.positions.shape) * 0.01
+        frames.append(atoms)
+    return _attach_full_properties(frames, seed=200)
+
+
+@pytest.fixture(scope="session")
+def periodic_1000() -> list[ase.Atoms]:
+    """1000 periodic Cu FCC frames (~108 atoms) with full properties."""
+    template = ase.build.bulk("Cu", "fcc", a=3.6) * (3, 3, 3)
+    rng = np.random.RandomState(300)
+    frames = []
+    for _ in range(1000):
+        atoms = template.copy()
+        atoms.positions += rng.randn(*atoms.positions.shape) * 0.01
+        frames.append(atoms)
+    return _attach_full_properties(frames, seed=300)
 
 
 @pytest.fixture
@@ -141,10 +198,10 @@ def atoms_with_constraints() -> ase.Atoms:
 
 @pytest.fixture
 def bytesio_instance(tmp_path):
-    """Return a BytesIO instance for testing."""
+    """Return a BlobIO instance for testing."""
     import asebytes
 
-    return asebytes.BytesIO(str(tmp_path / "test.lmdb"))
+    return asebytes.BlobIO(asebytes.LMDBBlobBackend(str(tmp_path / "test.lmdb")))
 
 
 @pytest.fixture
@@ -339,3 +396,4 @@ def s22_info_arrays_calc_missing_inbetween() -> list[ase.Atoms]:
                 atoms.calc = calc
         images.append(atoms)
     return images
+

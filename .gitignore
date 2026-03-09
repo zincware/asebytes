@@ -15,3 +15,6 @@ tests/data/
 
 # Benchmark results (machine-specific)
 benchmark_results.json
+
+# Git worktrees
+.worktrees/

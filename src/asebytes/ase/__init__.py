@@ -1,3 +1,3 @@
-from ._backend import ASEReadOnlyBackend
+from ._backend import ASEObjectBackend, ASEReadOnlyBackend
 
-__all__ = ["ASEReadOnlyBackend"]
+__all__ = ["ASEReadOnlyBackend", "ASEObjectBackend"]

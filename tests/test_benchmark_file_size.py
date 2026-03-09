@@ -4,7 +4,7 @@ Writes each dataset once to each backend and reports the output size in bytes.
 Uses pytest-benchmark extra_info to store the size alongside timing data.
 
 Backends: asebytes LMDB, asebytes H5MD, aselmdb, znh5md, extxyz, sqlite.
-Datasets: ethanol (1000 small molecules), lemat (1000 periodic structures).
+Datasets: ethanol_100, ethanol_1000, periodic_100, periodic_1000.
 """
 
 import os
@@ -16,10 +16,10 @@ from ase.db import connect
 
 from asebytes import ASEIO
 
-DATASETS = ["ethanol", "lemat"]
+datasetS = ["ethanol_100", "ethanol_1000", "periodic_100", "periodic_1000"]
 
 
-@pytest.fixture(params=DATASETS)
+@pytest.fixture(params=datasetS)
 def dataset(request):
     return request.param, request.getfixturevalue(request.param)
 

@@ -1,4 +1,11 @@
-from ._backend import LMDBBackend, LMDBReadOnlyBackend
-from ._bytesio import BytesIO
+from ._backend import (
+    LMDBObjectBackend,
+    LMDBObjectReadBackend,
+)
+from ._blob_backend import LMDBBlobBackend
 
-__all__ = ["BytesIO", "LMDBBackend", "LMDBReadOnlyBackend"]
+__all__ = [
+    "LMDBBlobBackend",
+    "LMDBObjectBackend",
+    "LMDBObjectReadBackend",
+]

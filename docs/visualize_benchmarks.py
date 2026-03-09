@@ -3,7 +3,7 @@
 Produces one PNG per operation from pytest-benchmark JSON output.
 
 Usage:
-    uv run pytest -m benchmark --benchmark-only --benchmark-json=benchmark_results.json
+    uv run pytest tests/benchmarks/ -m benchmark --benchmark-only --benchmark-json=benchmark_results.json
     uv run python docs/visualize_benchmarks.py benchmark_results.json
 """
 
@@ -23,9 +23,10 @@ BACKEND_NAMES = {
     "asebytes_lmdb": "asebytes LMDB",
     "asebytes_zarr": "asebytes Zarr",
     "asebytes_h5md": "asebytes H5MD",
+    "asebytes_redis": "asebytes Redis",
+    "asebytes_mongodb": "asebytes MongoDB",
     "aselmdb": "aselmdb",
     "znh5md": "znh5md",
-    "h5py": "h5py",
     "extxyz": "extxyz",
     "sqlite": "sqlite",
 }
@@ -34,9 +35,10 @@ COLORS = {
     "asebytes LMDB": "#2ecc71",
     "asebytes Zarr": "#27ae60",
     "asebytes H5MD": "#1abc9c",
-    "aselmdb": "#3498db",
-    "znh5md": "#e74c3c",
-    "h5py": "#e74c3c",
+    "asebytes Redis": "#e74c3c",
+    "asebytes MongoDB": "#3498db",
+    "aselmdb": "#8e44ad",
+    "znh5md": "#d35400",
     "extxyz": "#f39c12",
     "sqlite": "#9b59b6",
 }
@@ -46,31 +48,40 @@ BACKEND_ORDER = [
     "asebytes LMDB",
     "asebytes Zarr",
     "asebytes H5MD",
+    "asebytes Redis",
+    "asebytes MongoDB",
     "aselmdb",
     "znh5md",
-    "h5py",
     "extxyz",
     "sqlite",
 ]
 
 OPERATIONS = {
-    "write": "Write Performance",
-    "read": "Sequential Read Performance",
-    "random_access": "Random Access Performance",
-    "column_access": "Column Access Performance",
-    "file_size": "File Size",
+    "write_trajectory": "Write Trajectory (bulk)",
+    "write_single": "Write Single (per-row)",
+    "read_trajectory": "Read Trajectory (bulk)",
+    "read_single": "Read Single (per-row)",
+    "random_trajectory": "Random Access Trajectory (bulk)",
+    "random_single": "Random Access Single (per-row)",
+    "read_positions_trajectory": "Read Positions Trajectory (bulk)",
+    "read_positions_single": "Read Positions Single (per-row)",
+    "column_energy": "Column Energy Access",
+    "update_property_trajectory": "Update Property Trajectory",
 }
+
+# Operations sorted by prefix for matching (longest first to avoid ambiguity)
+_OP_PREFIXES = sorted(OPERATIONS.keys(), key=len, reverse=True)
 
 
 def _parse_test_name(name: str) -> tuple[str, str, str] | None:
     """Extract (operation, backend_key, dataset) from a test name.
 
     Expected patterns:
-        test_write_asebytes_lmdb[ethanol]
-        test_read_znh5md[lemat]
-        test_random_access_aselmdb[ethanol]
-        test_column_asebytes_h5md[lemat]
-        test_size_asebytes_lmdb[ethanol]
+        test_write_trajectory_asebytes_lmdb[ethanol]
+        test_read_single_sqlite[lemat]
+        test_random_trajectory_aselmdb[ethanol]
+        test_column_energy_asebytes_h5md[lemat]
+        test_update_property_trajectory_asebytes_redis[ethanol]
     """
     # Extract dataset from brackets
     m = re.search(r"\[(\w+)\]$", name)
@@ -81,16 +92,11 @@ def _parse_test_name(name: str) -> tuple[str, str, str] | None:
     # Strip test_ prefix and [dataset] suffix
     core = name.removeprefix("test_").removesuffix(f"[{dataset}]")
 
-    # Match operation prefix
-    for op in ["write", "read", "random_access", "column", "size"]:
+    # Match operation prefix (longest first)
+    for op in _OP_PREFIXES:
         prefix = f"{op}_"
         if core.startswith(prefix):
             backend_key = core[len(prefix):]
-            # Normalize operation name
-            if op == "column":
-                op = "column_access"
-            elif op == "size":
-                op = "file_size"
             if backend_key in BACKEND_NAMES:
                 return op, backend_key, dataset
 
@@ -116,11 +122,6 @@ def parse_benchmarks(data: dict) -> dict:
             "min": stats["min"],
             "max": stats["max"],
         }
-        # File size: extract from extra_info
-        if op == "file_size" and "extra_info" in bench:
-            size = bench["extra_info"].get("file_size_bytes")
-            if size is not None:
-                entry["file_size_bytes"] = size
         results[op][dataset][backend_name] = entry
 
     return dict(results)
@@ -214,25 +215,12 @@ def create_figures(results: dict, output_dir: str = ".") -> list[str]:
             continue
 
         fig, ax = plt.subplots(figsize=(10, 5))
-
-        if op == "file_size":
-            _make_grouped_bar_chart(
-                ax,
-                results[op],
-                title,
-                ylabel="Size / MB",
-                value_key="file_size_bytes",
-                error_key=None,
-                log_scale=True,
-                format_fn=lambda v: f"{v / 1e6:.1f}MB",
-            )
-        else:
-            _make_grouped_bar_chart(
-                ax,
-                results[op],
-                title,
-                ylabel="Time / s",
-            )
+        _make_grouped_bar_chart(
+            ax,
+            results[op],
+            title,
+            ylabel="Time / s",
+        )
 
         fig.tight_layout()
         path = out / f"benchmark_{op}.png"
@@ -258,13 +246,9 @@ def print_stats(results: dict) -> None:
                 if b not in backends:
                     continue
                 s = backends[b]
-                if "file_size_bytes" in s:
-                    mb = s["file_size_bytes"] / 1e6
-                    print(f"  {b:<20} {mb:>9.2f}MB")
-                else:
-                    print(
-                        f"  {b:<20} {s['mean']:>9.4f}s {s['stddev']:>9.4f}s"
-                    )
+                print(
+                    f"  {b:<20} {s['mean']:>9.4f}s {s['stddev']:>9.4f}s"
+                )
 
 
 def main():
@@ -273,7 +257,10 @@ def main():
     )
     parser.add_argument("benchmark_json", help="Path to benchmark JSON file")
     parser.add_argument(
-        "-o", "--output-dir", default=".", help="Directory for output PNGs"
+        "-o",
+        "--output-dir",
+        default=str(Path(__file__).resolve().parent),
+        help="Directory for output PNGs (default: docs/)",
     )
     args = parser.parse_args()
 
@@ -282,7 +269,7 @@ def main():
         print(f"Error: {path} not found.")
         print("Run benchmarks first:")
         print(
-            "  uv run pytest -m benchmark --benchmark-only "
+            "  uv run pytest tests/benchmarks/ -m benchmark --benchmark-only "
             "--benchmark-json=benchmark_results.json"
         )
         return 1

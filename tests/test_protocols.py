@@ -2,10 +2,10 @@ from typing import Any
 
 import pytest
 
-from asebytes._protocols import ReadableBackend, WritableBackend
+from asebytes._backends import ReadBackend, ReadWriteBackend
 
 
-class MinimalReadable(ReadableBackend):
+class MinimalReadable(ReadBackend):
     """Minimal implementation with only abstract methods."""
 
     def __init__(self, data: list[dict[str, Any]]):
@@ -14,35 +14,40 @@ class MinimalReadable(ReadableBackend):
     def __len__(self) -> int:
         return len(self._data)
 
-    def columns(self, index: int = 0) -> list[str]:
+    def keys(self, index: int) -> list[str]:
         if not self._data:
             return []
         return list(self._data[index].keys())
 
-    def read_row(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
+    def get(self, index: int, keys: list[str] | None = None) -> dict[str, Any]:
         row = self._data[index]
         if keys is not None:
             return {k: row[k] for k in keys if k in row}
         return dict(row)
 
+    @staticmethod
+    def list_groups(path: str, **kwargs) -> list[str]:
+        return []
 
-class MinimalWritable(MinimalReadable, WritableBackend):
+
+class MinimalWritable(MinimalReadable, ReadWriteBackend):
     """Minimal writable implementation."""
 
-    def write_row(self, index: int, data: dict[str, Any]) -> None:
+    def set(self, index: int, data: dict[str, Any]) -> None:
         if index < len(self._data):
             self._data[index] = data
         elif index == len(self._data):
             self._data.append(data)
 
-    def insert_row(self, index: int, data: dict[str, Any]) -> None:
+    def insert(self, index: int, data: dict[str, Any]) -> None:
         self._data.insert(index, data)
 
-    def delete_row(self, index: int) -> None:
+    def delete(self, index: int) -> None:
         del self._data[index]
 
-    def append_rows(self, data: list[dict[str, Any]]) -> None:
+    def extend(self, data: list[dict[str, Any]]) -> int:
         self._data.extend(data)
+        return len(self._data)
 
 
 def test_readable_instantiation():
@@ -50,73 +55,73 @@ def test_readable_instantiation():
     assert len(backend) == 2
 
 
-def test_readable_read_row():
+def test_readable_get():
     backend = MinimalReadable([{"a": 1, "b": 2}])
-    assert backend.read_row(0) == {"a": 1, "b": 2}
+    assert backend.get(0) == {"a": 1, "b": 2}
 
 
-def test_readable_read_row_with_keys():
+def test_readable_get_with_keys():
     backend = MinimalReadable([{"a": 1, "b": 2}])
-    assert backend.read_row(0, keys=["a"]) == {"a": 1}
+    assert backend.get(0, keys=["a"]) == {"a": 1}
 
 
-def test_readable_columns():
+def test_readable_keys():
     backend = MinimalReadable([{"a": 1, "b": 2}])
-    assert sorted(backend.columns()) == ["a", "b"]
+    assert sorted(backend.keys(0)) == ["a", "b"]
 
 
-def test_readable_read_rows_default():
-    """Default read_rows loops over read_row."""
+def test_readable_get_many_default():
+    """Default get_many loops over get."""
     backend = MinimalReadable([{"a": 1}, {"a": 2}, {"a": 3}])
-    rows = backend.read_rows([0, 2])
+    rows = backend.get_many([0, 2])
     assert rows == [{"a": 1}, {"a": 3}]
 
 
-def test_readable_read_column_default():
-    """Default read_column extracts single key from read_row."""
+def test_readable_get_column_default():
+    """Default get_column extracts single key from get."""
     backend = MinimalReadable([{"a": 1, "b": 10}, {"a": 2, "b": 20}])
-    values = backend.read_column("a")
+    values = backend.get_column("a")
     assert values == [1, 2]
 
 
-def test_readable_read_column_with_indices():
+def test_readable_get_column_with_indices():
     backend = MinimalReadable([{"a": 1}, {"a": 2}, {"a": 3}])
-    values = backend.read_column("a", indices=[0, 2])
+    values = backend.get_column("a", indices=[0, 2])
     assert values == [1, 3]
 
 
-def test_writable_write_row():
+def test_writable_set():
     backend = MinimalWritable([{"a": 1}])
-    backend.write_row(0, {"a": 99})
-    assert backend.read_row(0) == {"a": 99}
+    backend.set(0, {"a": 99})
+    assert backend.get(0) == {"a": 99}
 
 
-def test_writable_insert_row():
+def test_writable_insert():
     backend = MinimalWritable([{"a": 1}, {"a": 3}])
-    backend.insert_row(1, {"a": 2})
+    backend.insert(1, {"a": 2})
     assert len(backend) == 3
-    assert backend.read_row(1) == {"a": 2}
+    assert backend.get(1) == {"a": 2}
 
 
-def test_writable_delete_row():
+def test_writable_delete():
     backend = MinimalWritable([{"a": 1}, {"a": 2}])
-    backend.delete_row(0)
+    backend.delete(0)
     assert len(backend) == 1
-    assert backend.read_row(0) == {"a": 2}
+    assert backend.get(0) == {"a": 2}
 
 
-def test_writable_append_rows():
+def test_writable_extend():
     backend = MinimalWritable([])
-    backend.append_rows([{"a": 1}, {"a": 2}])
+    backend.extend([{"a": 1}, {"a": 2}])
     assert len(backend) == 2
 
 
 def test_cannot_instantiate_abstract_readable():
-    """ReadableBackend cannot be instantiated without implementing abstract methods."""
+    """ReadBackend cannot be instantiated without implementing abstract methods."""
     with pytest.raises(TypeError):
-        ReadableBackend()
+        ReadBackend()
 
 
 def test_cannot_instantiate_abstract_writable():
     with pytest.raises(TypeError):
-        WritableBackend()
+        ReadWriteBackend()

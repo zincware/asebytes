@@ -101,11 +101,11 @@ class TestGetBackendClsGlobCompat:
 
     def test_lmdb_writable(self):
         cls = get_backend_cls("test.lmdb", readonly=False)
-        assert cls.__name__ == "LMDBBackend"
+        assert cls.__name__ == "LMDBObjectBackend"
 
     def test_lmdb_readonly(self):
         cls = get_backend_cls("test.lmdb", readonly=True)
-        assert cls.__name__ == "LMDBReadOnlyBackend"
+        assert cls.__name__ == "LMDBObjectReadBackend"
 
     def test_xyz_readonly(self):
         cls = get_backend_cls("data.xyz", readonly=True)

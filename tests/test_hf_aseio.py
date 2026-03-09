@@ -30,16 +30,12 @@ class TestASEIOFromBackendInstance:
     def test_getitem_int(self, io):
         atoms = io[0]
         assert len(atoms) == 1  # 1 atom per frame
-        np.testing.assert_array_almost_equal(
-            atoms.get_positions(), [[0.0, 0.0, 0.0]]
-        )
+        np.testing.assert_array_almost_equal(atoms.get_positions(), [[0.0, 0.0, 0.0]])
 
     def test_getitem_int_content(self, io):
         """Atoms from index 2 should have positions [[2.0, 0.0, 0.0]]."""
         atoms = io[2]
-        np.testing.assert_array_almost_equal(
-            atoms.get_positions(), [[2.0, 0.0, 0.0]]
-        )
+        np.testing.assert_array_almost_equal(atoms.get_positions(), [[2.0, 0.0, 0.0]])
 
     def test_getitem_slice(self, io):
         view = io[1:3]
@@ -54,8 +50,10 @@ class TestASEIOFromBackendInstance:
 
     def test_column_access(self, io):
         col = io["calc.energy"]
-        values = list(col)
-        assert values == [0.0, -1.0, -2.0, -3.0, -4.0]
+        atoms_list = list(col)
+        assert len(atoms_list) == 5
+        energies = [a.calc.results["energy"] for a in atoms_list]
+        assert energies == [0.0, -1.0, -2.0, -3.0, -4.0]
 
     def test_iteration(self, io):
         atoms_list = list(io)
@@ -84,8 +82,8 @@ class TestASEIOFromBackendInstance:
         with pytest.raises(TypeError, match="[Rr]ead.only"):
             io.insert(0, atoms)
 
-    def test_columns_property(self, io):
-        cols = io.columns
+    def test_keys_method(self, io):
+        cols = io.keys(0)
         assert "arrays.positions" in cols
         assert "arrays.numbers" in cols
         assert "calc.energy" in cols
@@ -94,9 +92,7 @@ class TestASEIOFromBackendInstance:
 
     def test_negative_index(self, io):
         atoms = io[-1]
-        np.testing.assert_array_almost_equal(
-            atoms.get_positions(), [[4.0, 0.0, 0.0]]
-        )
+        np.testing.assert_array_almost_equal(atoms.get_positions(), [[4.0, 0.0, 0.0]])
 
 
 # ── ASEIO from URI (mock load_dataset) ────────────────────────────────────
@@ -117,9 +113,7 @@ class TestASEIOFromURI:
                 return _make_dataset(3).to_iterable_dataset()
             return _make_dataset(3)
 
-        monkeypatch.setattr(
-            "asebytes.hf._backend.load_dataset", fake_load
-        )
+        monkeypatch.setattr("asebytes.hf._backend.load_dataset", fake_load)
         io = ASEIO("colabfit://test_dataset")
 
         # Verify load_dataset was called with correct path and streaming
@@ -130,25 +124,19 @@ class TestASEIOFromURI:
         # Verify data access works (streaming — iterate to get data)
         atoms = io[0]
         assert len(atoms) == 1
-        np.testing.assert_array_almost_equal(
-            atoms.get_positions(), [[0.0, 0.0, 0.0]]
-        )
+        np.testing.assert_array_almost_equal(atoms.get_positions(), [[0.0, 0.0, 0.0]])
 
     def test_hf_uri_with_mapping(self, monkeypatch):
         """ASEIO('hf://user/dataset', mapping=mapping) streams by default."""
         calls = []
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
-            calls.append(
-                {"path": path, "streaming": streaming, "split": split}
-            )
+            calls.append({"path": path, "streaming": streaming, "split": split})
             if streaming:
                 return _make_dataset(2).to_iterable_dataset()
             return _make_dataset(2)
 
-        monkeypatch.setattr(
-            "asebytes.hf._backend.load_dataset", fake_load
-        )
+        monkeypatch.setattr("asebytes.hf._backend.load_dataset", fake_load)
         mapping = ColumnMapping(positions="positions", numbers="atomic_numbers")
         io = ASEIO("hf://user/dataset", mapping=mapping)
 
@@ -158,25 +146,19 @@ class TestASEIOFromURI:
 
         # Streaming: iterate to access
         atoms = io[1]
-        np.testing.assert_array_almost_equal(
-            atoms.get_positions(), [[1.0, 0.0, 0.0]]
-        )
+        np.testing.assert_array_almost_equal(atoms.get_positions(), [[1.0, 0.0, 0.0]])
 
     def test_hf_uri_with_streaming(self, monkeypatch):
         """ASEIO('hf://user/dataset', mapping=m, streaming=True) should work."""
         calls = []
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
-            calls.append(
-                {"path": path, "streaming": streaming, "split": split}
-            )
+            calls.append({"path": path, "streaming": streaming, "split": split})
             if streaming:
                 return _make_dataset(3).to_iterable_dataset()
             return _make_dataset(3)
 
-        monkeypatch.setattr(
-            "asebytes.hf._backend.load_dataset", fake_load
-        )
+        monkeypatch.setattr("asebytes.hf._backend.load_dataset", fake_load)
         mapping = ColumnMapping(positions="positions", numbers="atomic_numbers")
         io = ASEIO("hf://user/dataset", mapping=mapping, streaming=True)
 
@@ -191,7 +173,7 @@ class TestASEIOFromURI:
         """Regular file paths should still use the old code path."""
         import asebytes
 
-        io = asebytes.ASEIO(str(tmp_path / "test.lmdb"), prefix=b"atoms/")
+        io = asebytes.ASEIO(str(tmp_path / "test.lmdb"), group="atoms")
         assert len(io) == 0  # fresh LMDB, zero rows
 
     def test_hf_uri_without_mapping_raises(self, monkeypatch):
@@ -200,9 +182,7 @@ class TestASEIOFromURI:
         def fake_load(path, *, streaming=False, split=None, **kwargs):
             return _make_dataset(2)
 
-        monkeypatch.setattr(
-            "asebytes.hf._backend.load_dataset", fake_load
-        )
+        monkeypatch.setattr("asebytes.hf._backend.load_dataset", fake_load)
         with pytest.raises(ValueError, match="mapping"):
             ASEIO("hf://user/dataset")
 
@@ -211,16 +191,12 @@ class TestASEIOFromURI:
         calls = []
 
         def fake_load(path, *, streaming=False, split=None, **kwargs):
-            calls.append(
-                {"path": path, "streaming": streaming, "split": split}
-            )
+            calls.append({"path": path, "streaming": streaming, "split": split})
             if streaming:
                 return _make_dataset(2).to_iterable_dataset()
             return _make_dataset(2)
 
-        monkeypatch.setattr(
-            "asebytes.hf._backend.load_dataset", fake_load
-        )
+        monkeypatch.setattr("asebytes.hf._backend.load_dataset", fake_load)
         io = ASEIO("colabfit://test_dataset", split="train")
 
         assert calls[0]["split"] == "train"

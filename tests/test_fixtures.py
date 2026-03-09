@@ -88,7 +88,7 @@ def test_fixture_roundtrip_with_calc(atoms_with_calc):
 
 
 def test_fixture_in_bytesio(bytesio_instance, h2o_atoms):
-    """Test using fixture with BytesIO."""
+    """Test using fixture with BlobIO."""
     byte_data = asebytes.encode(h2o_atoms)
     bytesio_instance[0] = byte_data
     recovered_data = bytesio_instance[0]
