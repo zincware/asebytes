@@ -26,6 +26,14 @@ Requirements for CI benchmark infrastructure milestone. Each maps to roadmap pha
 - [ ] **DASH-02**: README embeds live benchmark figures from GitHub Pages, replacing static visualization PNGs
 - [ ] **DASH-03**: max-items-in-chart limits data growth on gh-pages
 
+## Maintenance Requirements
+
+### Test Isolation (Phase 8)
+
+- [ ] **ISO-01**: MongoDB contract tests pass without data leaking between tests
+- [ ] **ISO-02**: Redis contract tests pass without data leaking between tests
+- [ ] **ISO-03**: All other backend contract tests remain green after isolation changes (no regressions)
+
 ## Future Requirements
 
 ### Enhanced PR Comments
@@ -64,12 +72,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DASH-01 | Phase 7 | Pending |
 | DASH-02 | Phase 7 | Pending |
 | DASH-03 | Phase 7 | Pending |
+| ISO-01 | Phase 8 | Pending |
+| ISO-02 | Phase 8 | Pending |
+| ISO-03 | Phase 8 | Pending |
 
 **Coverage:**
 - v0.3.1 requirements: 10 total
-- Mapped to phases: 10
+- Maintenance requirements: 3 total
+- Mapped to phases: 13
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-09*
-*Last updated: 2026-03-09 after roadmap creation*
+*Last updated: 2026-03-09 after phase 8 planning*

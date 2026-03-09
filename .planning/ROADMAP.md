@@ -73,6 +73,19 @@ Plans:
 Plans:
 - [ ] 07-01: TBD
 
+### Phase 8: Fix failing tests in Redis/Mongo backends (test isolation)
+**Goal:** MongoDB and Redis contract tests pass reliably with per-test data isolation via unique group names
+**Depends on:** Nothing (independent bugfix)
+**Requirements**: ISO-01, ISO-02, ISO-03
+**Success Criteria** (what must be TRUE):
+  1. MongoDB tests pass without data leaking between tests
+  2. Redis tests pass without data leaking between tests
+  3. All other backend tests remain green (no regressions)
+**Plans**: 1 plan
+
+Plans:
+- [ ] 08-01-PLAN.md — Add unique group= to all facade fixtures for per-test isolation
+
 ## Progress
 
 **Execution Order:**
@@ -87,3 +100,4 @@ Phases execute in numeric order: 5 -> 6 -> 7
 | 5. Benchmark Pipeline | 1/1 | Complete   | 2026-03-09 | - |
 | 6. PR Feedback | v0.3.1 | 0/1 | Not started | - |
 | 7. Dashboard and README | v0.3.1 | 0/? | Not started | - |
+| 8. Test Isolation Fix | Maintenance | 0/1 | Not started | - |
