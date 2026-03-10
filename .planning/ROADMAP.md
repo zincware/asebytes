@@ -55,10 +55,11 @@ Plans:
   1. PRs receive a comment with a full benchmark comparison table showing deltas (regressions and improvements) vs main
   2. The alert threshold percentage is configurable in the workflow YAML (default 150%)
   3. A PR with a benchmark regression beyond the threshold is blocked from merging
-**Plans**: 1 plan
+**Plans**: 2 plans
 
 Plans:
 - [x] 06-01-PLAN.md — Add PR trigger, comparison step, and fail-on-regression gate to benchmark.yml
+- [ ] 06-02-PLAN.md — Enable comment-always on PR benchmark step (gap closure)
 
 ### Phase 7: Dashboard and README
 **Goal**: Users can view benchmark trends over time on a public dashboard and see live figures in the README
@@ -98,6 +99,6 @@ Phases execute in numeric order: 5 -> 6 -> 7
 | 3. Contract Test Suite | v1.0 | 4/4 | Complete | 2026-03-06 |
 | 4. Benchmarks & Performance | v1.0 | 2/2 | Complete | 2026-03-06 |
 | 5. Benchmark Pipeline | 1/1 | Complete   | 2026-03-09 | - |
-| 6. PR Feedback | v0.3.1 | 1/1 | Complete | 2026-03-09 |
+| 6. PR Feedback | v0.3.1 | 1/2 | In progress | - |
 | 7. Dashboard and README | v0.3.1 | 0/1 | Not started | - |
 | 8. Test Isolation Fix | Maintenance | 1/1 | Complete | 2026-03-09 |
