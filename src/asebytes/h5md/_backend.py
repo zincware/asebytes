@@ -199,11 +199,13 @@ class H5MDBackend(PaddedColumnarBackend):
                     if col.startswith("_"):
                         continue
                     self._columns.append(col)
-                    # Per-atom detection: columns with ndim >= 2
+                    # Per-atom detection: columns in /particles/ with ndim >= 2
                     if col not in ("cell", "pbc"):
-                        shape = self._store.get_shape(col)
-                        if len(shape) >= 2 and shape[1] > 1:
-                            self._per_atom_cols.add(col)
+                        h5_path = self._store._path_cache.get(col)
+                        if h5_path is not None and h5_path.startswith("/particles/"):
+                            shape = self._store.get_shape(col)
+                            if len(shape) >= 2:
+                                self._per_atom_cols.add(col)
 
                 # Rebuild known_arrays and shapes
                 self._known_arrays = set()

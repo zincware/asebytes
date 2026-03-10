@@ -72,13 +72,15 @@ class TestAsebytesToZnH5MD:
         assert len(zio) == len(frames)
         for i, expected in enumerate(frames):
             result = zio[i]
-            n = len(expected)
+            assert len(result) == len(expected), (
+                f"Frame {i}: atom count mismatch ({len(result)} != {len(expected)})"
+            )
             np.testing.assert_allclose(
-                result.positions[:n], expected.positions, atol=1e-6,
+                result.positions, expected.positions, atol=1e-6,
                 err_msg=f"Frame {i}: positions mismatch",
             )
             np.testing.assert_array_equal(
-                result.numbers[:n], expected.numbers,
+                result.numbers, expected.numbers,
                 err_msg=f"Frame {i}: numbers mismatch",
             )
 
@@ -108,13 +110,15 @@ class TestBidirectionalRoundtrip:
         assert len(zio) == len(frames)
         for i, expected in enumerate(frames):
             result = zio[i]
-            n = len(expected)
+            assert len(result) == len(expected), (
+                f"Frame {i}: atom count mismatch ({len(result)} != {len(expected)})"
+            )
             np.testing.assert_allclose(
-                result.positions[:n], expected.positions, atol=1e-6,
+                result.positions, expected.positions, atol=1e-6,
                 err_msg=f"Frame {i}: positions mismatch",
             )
             np.testing.assert_array_equal(
-                result.numbers[:n], expected.numbers,
+                result.numbers, expected.numbers,
                 err_msg=f"Frame {i}: numbers mismatch",
             )
 
