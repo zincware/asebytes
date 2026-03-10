@@ -13,7 +13,6 @@ not be found on read.
 
 from __future__ import annotations
 
-import numpy as np
 import pytest
 import znh5md
 
@@ -34,17 +33,22 @@ S22_FIXTURES = [
 
 
 # ---------------------------------------------------------------------------
-# znh5md -> asebytes
+# znh5md -> asebytes  (*.h5md and *.h5 via content sniffing)
 # ---------------------------------------------------------------------------
 
 
 class TestZnH5MDToAsebytes:
-    """Verify asebytes can read files written by znh5md."""
+    """Verify asebytes can read files written by znh5md.
+
+    Tests both the native *.h5md extension and *.h5 files that require
+    content sniffing to route to H5MDBackend instead of ColumnarBackend.
+    """
 
     @pytest.mark.parametrize("fixture_name", S22_FIXTURES)
-    def test_read(self, tmp_path, fixture_name, request):
+    @pytest.mark.parametrize("ext", [".h5md", ".h5"])
+    def test_read(self, tmp_path, fixture_name, ext, request):
         frames = request.getfixturevalue(fixture_name)
-        path = str(tmp_path / "znh5md.h5md")
+        path = str(tmp_path / f"znh5md{ext}")
         znh5md.IO(path).extend(frames)
 
         db = ASEIO(path)
@@ -72,17 +76,7 @@ class TestAsebytesToZnH5MD:
         assert len(zio) == len(frames)
         for i, expected in enumerate(frames):
             result = zio[i]
-            assert len(result) == len(expected), (
-                f"Frame {i}: atom count mismatch ({len(result)} != {len(expected)})"
-            )
-            np.testing.assert_allclose(
-                result.positions, expected.positions, atol=1e-6,
-                err_msg=f"Frame {i}: positions mismatch",
-            )
-            np.testing.assert_array_equal(
-                result.numbers, expected.numbers,
-                err_msg=f"Frame {i}: numbers mismatch",
-            )
+            assert_atoms_equal(result, expected, atol=1e-6)
 
 
 # ---------------------------------------------------------------------------
@@ -110,40 +104,4 @@ class TestBidirectionalRoundtrip:
         assert len(zio) == len(frames)
         for i, expected in enumerate(frames):
             result = zio[i]
-            assert len(result) == len(expected), (
-                f"Frame {i}: atom count mismatch ({len(result)} != {len(expected)})"
-            )
-            np.testing.assert_allclose(
-                result.positions, expected.positions, atol=1e-6,
-                err_msg=f"Frame {i}: positions mismatch",
-            )
-            np.testing.assert_array_equal(
-                result.numbers, expected.numbers,
-                err_msg=f"Frame {i}: numbers mismatch",
-            )
-
-
-# ---------------------------------------------------------------------------
-# Registry: *.h5 files with H5MD content
-# ---------------------------------------------------------------------------
-
-
-class TestH5ExtensionWithH5MDContent:
-    """*.h5 files containing H5MD data should be readable via ASEIO.
-
-    znh5md writes valid H5MD regardless of file extension. The registry
-    currently maps *.h5 -> RaggedColumnarBackend, which can't read H5MD.
-    It should detect the h5md group and use H5MDBackend instead.
-    """
-
-    @pytest.mark.parametrize("fixture_name", S22_FIXTURES)
-    def test_h5_extension(self, tmp_path, fixture_name, request):
-        frames = request.getfixturevalue(fixture_name)
-        path = str(tmp_path / "data.h5")
-        znh5md.IO(path).extend(frames)
-
-        db = ASEIO(path)
-        assert len(db) == len(frames)
-        for i, expected in enumerate(frames):
-            result = db[i]
-            assert_atoms_equal(result, expected)
+            assert_atoms_equal(result, expected, atol=1e-6)
