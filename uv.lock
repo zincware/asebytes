@@ -194,7 +194,6 @@ wheels = [
 
 [[package]]
 name = "asebytes"
-version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "ase" },
@@ -250,7 +249,7 @@ requires-dist = [
     { name = "typing-extensions", specifier = ">=4.5.0" },
     { name = "zarr", marker = "extra == 'zarr'", specifier = ">=3.0" },
 ]
-provides-extras = ["lmdb", "hf", "h5", "zarr", "mongodb", "redis"]
+provides-extras = ["h5", "hf", "lmdb", "mongodb", "redis", "zarr"]
 
 [package.metadata.requires-dev]
 dev = [
