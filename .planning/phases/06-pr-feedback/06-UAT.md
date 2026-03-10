@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 06-pr-feedback
 source: 06-01-SUMMARY.md
 started: 2026-03-10T12:00:00Z
@@ -46,7 +46,10 @@ skipped: 1
   reason: "User reported: the summary only shows which tests were running but no diffs"
   severity: major
   test: 1
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "The comparison table is written to GITHUB_STEP_SUMMARY (workflow run Summary tab) but NOT posted as a PR comment. comment-always defaults to false, and comment-on-alert only fires on regression. User expects diffs visible on the PR page itself."
+  artifacts:
+    - path: ".github/workflows/benchmark.yml"
+      issue: "PR comparison step missing comment-always: true"
+  missing:
+    - "Add comment-always: true to PR benchmark step"
+  debug_session: ".planning/debug/bench-summary-no-diffs.md"
