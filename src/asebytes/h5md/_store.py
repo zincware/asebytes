@@ -108,6 +108,7 @@ class H5MDStore:
         self._compression_opts = compression_opts
         self._chunk_frames = chunk_frames
         self._ds_cache: dict[str, Any] = {}  # column name -> h5py.Dataset
+        self._path_cache: dict[str, str] = {}  # column name -> actual h5 path
 
     # ------------------------------------------------------------------
     # Path translation
@@ -214,7 +215,10 @@ class H5MDStore:
         """Return cached h5py.Dataset for the ``value`` sub-dataset."""
         ds = self._ds_cache.get(key)
         if ds is None:
-            h5_path, _ = self._column_to_h5(key)
+            # Check path cache first (populated by list_arrays discovery)
+            h5_path = self._path_cache.get(key)
+            if h5_path is None:
+                h5_path, _ = self._column_to_h5(key)
             if h5_path is None:
                 raise KeyError(f"Unknown column: {key!r}")
             ds = self._file[f"{h5_path}/value"]
@@ -445,9 +449,11 @@ class H5MDStore:
             if isinstance(child, h5py.Group):
                 if "value" in child:
                     # This is an H5MD element
-                    col = self._h5_to_column(f"{path}/{child_name}")
+                    h5_path = f"{path}/{child_name}"
+                    col = self._h5_to_column(h5_path)
                     if col is not None:
                         out.append(col)
+                        self._path_cache[col] = h5_path
                 else:
                     # Recurse (e.g. into box/)
                     self._walk_elements(child, f"{path}/{child_name}", out)
