@@ -23,13 +23,15 @@ Every storage backend must be fast, correct, and tested through a single paramet
 - ✓ HDF5 chunk cache tuning, MongoDB TTL cache, Redis Lua scripts — v1.0
 - ✓ Dependencies corrected (lmdb>=1.6.0, h5py>=3.12.0, no upper bounds) — v1.0
 - ✓ Dead code removed, _postprocess() consolidated — v1.0
+- ✓ CI benchmark pipeline with auto-push to gh-pages — v0.3.1
+- ✓ PR benchmark comparison with fail-on-regression gate — v0.3.1
+- ✓ GitHub Pages dashboard with Chart.js time-series charts — v0.3.1
+- ✓ github-action-benchmark selected as CI benchmark tool — v0.3.1
+- ✓ Per-test group isolation for MongoDB/Redis backends — v0.3.1
 
 ### Active
 
-- [ ] PR benchmark comments showing perf diff vs base branch (BENCH-01)
-- [ ] Benchmark JSON committed to repo, overwritten per merge/tag (BENCH-02)
-- [ ] GitHub Pages dashboard tracking performance over releases (BENCH-03)
-- [ ] Evaluate and select CI benchmark tooling (CML, github-action-benchmark, etc.) (BENCH-04)
+(None — planning next milestone)
 
 ### Backlog
 
@@ -48,9 +50,10 @@ Every storage backend must be fast, correct, and tested through a single paramet
 
 ## Context
 
-Shipped v1.0 with 12,608 LOC source (Python), 22,740 LOC tests.
-Tech stack: h5py, zarr, lmdb, pymongo, redis, ase, molify, pytest-benchmark.
-142 files changed across 174 commits since diverging from main.
+Shipped v1.0 (architecture overhaul) and v0.3.1 (CI benchmark infrastructure).
+12,608 LOC source (Python), 22,740 LOC tests.
+Tech stack: h5py, zarr, lmdb, pymongo, redis, ase, molify, pytest-benchmark, github-action-benchmark.
+CI: benchmark pipeline on gh-pages, PR regression gate at 150%, public dashboard.
 
 Backend hierarchy:
 - `BaseColumnarBackend(ReadWriteBackend[str, Any])` — shared logic (795 lines)
@@ -88,6 +91,9 @@ Known performance characteristics:
 | Constraints serialized as JSON in info column | Avoids architectural changes to columnar storage for H5MD round-trip | ✓ Good — simple, reliable |
 | TTL cache for MongoDB metadata (1s window) | Reduces redundant metadata fetches within tight loops | ✓ Good — measurable improvement |
 | Facade bounds-check elimination | Delegate IndexError to backend instead of pre-checking len() | ✓ Good — saves round-trip for positive indices |
+| github-action-benchmark for CI | Lightweight, gh-pages native, Chart.js auto-generated | ✓ Good — handles store, compare, and dashboard |
+| Dual benchmark-action steps (main vs PR) | GitHub Actions can't conditionally set `with:` inputs | ✓ Good — clean separation of concerns |
+| UUID-based group isolation in tests | Per-test unique groups prevent data leakage across backends | ✓ Good — fixed MongoDB/Redis flakiness |
 
 ---
-*Last updated: 2026-03-09 after v0.3.1 milestone start*
+*Last updated: 2026-03-10 after v0.3.1 milestone*

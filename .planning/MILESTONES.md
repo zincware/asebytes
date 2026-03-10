@@ -1,5 +1,19 @@
 # Milestones
 
+## v0.3.1 CI Benchmark Infrastructure (Shipped: 2026-03-10)
+
+**Phases completed:** 4 phases, 4 plans
+**Timeline:** 2026-03-09 → 2026-03-10 (2 days)
+
+**Key accomplishments:**
+1. Benchmark CI workflow with github-action-benchmark auto-pushing to gh-pages on every main merge
+2. PR benchmark comparison with 150% fail-on-regression gate and configurable alert threshold
+3. GitHub Pages landing page with project info and live Chart.js benchmark dashboard
+4. README updated with live dashboard link replacing 10 static PNG embeds
+5. Per-test group isolation (UUID-based) fixing MongoDB and Redis contract test flakiness
+
+---
+
 ## v1.0 Maintenance & Performance Overhaul (Shipped: 2026-03-06)
 
 **Phases completed:** 4 phases, 13 plans
