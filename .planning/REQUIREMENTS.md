@@ -22,9 +22,9 @@ Requirements for CI benchmark infrastructure milestone. Each maps to roadmap pha
 
 ### Dashboard
 
-- [ ] **DASH-01**: GitHub Pages serves auto-generated Chart.js time-series dashboard with minimal project docs (description, usage, links)
-- [ ] **DASH-02**: README embeds live benchmark figures from GitHub Pages, replacing static visualization PNGs
-- [ ] **DASH-03**: max-items-in-chart limits data growth on gh-pages
+- [x] **DASH-01**: GitHub Pages serves auto-generated Chart.js time-series dashboard with minimal project docs (description, usage, links)
+- [x] **DASH-02**: README embeds live benchmark figures from GitHub Pages, replacing static visualization PNGs
+- [x] **DASH-03**: max-items-in-chart limits data growth on gh-pages
 
 ## Maintenance Requirements
 
@@ -69,9 +69,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PR-01 | Phase 6 | Complete |
 | PR-02 | Phase 6 | Complete |
 | PR-03 | Phase 6 | Complete |
-| DASH-01 | Phase 7 | Pending |
-| DASH-02 | Phase 7 | Pending |
-| DASH-03 | Phase 7 | Pending |
+| DASH-01 | Phase 7 | Complete |
+| DASH-02 | Phase 7 | Complete |
+| DASH-03 | Phase 7 | Complete |
 | ISO-01 | Phase 8 | Complete |
 | ISO-02 | Phase 8 | Complete |
 | ISO-03 | Phase 8 | Complete |

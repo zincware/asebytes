@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 7 context gathered
-last_updated: "2026-03-10T12:28:19.695Z"
-last_activity: "2026-03-09 - Completed 06-01: PR benchmark comparison and fail-on-regression gate"
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-10T12:39:21.804Z"
+last_activity: "2026-03-10 - Completed 07-01: Dashboard landing page, README update, max-items-in-chart"
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 3
-  completed_plans: 3
+  completed_phases: 4
+  total_plans: 4
+  completed_plans: 4
   percent: 100
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 
 ## Current Position
 
-Phase: 6 of 8 (PR Feedback)
+Phase: 7 of 8 (Dashboard and README)
 Plan: 1 of 1 (complete)
-Status: Phase 6 complete
-Last activity: 2026-03-09 - Completed 06-01: PR benchmark comparison and fail-on-regression gate
+Status: Phase 7 complete
+Last activity: 2026-03-10 - Completed 07-01: Dashboard landing page, README update, max-items-in-chart
 
 Progress: [██████████] 100%
 
@@ -52,6 +52,8 @@ Recent: github-action-benchmark selected as sole CI benchmark tool (research pha
 - Dual benchmark-action steps: main auto-push vs PR compare-only (06-01)
 - 150% alert threshold as configurable YAML value (06-01)
 - Branch protection documented as manual one-time setup (06-01)
+- max-items-in-chart: 200 on store step only, PR step irrelevant (07-01)
+- gh-pages root manually managed, CI only writes /dev/bench/ (07-01)
 
 ### Pending Todos
 
@@ -71,9 +73,10 @@ None.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 1 | Make MongoDB backend cache_ttl configurable with None meaning no caching | 2026-03-09 | 4848760 | [1-make-mongodb-backend-cache-ttl-configura](./quick/1-make-mongodb-backend-cache-ttl-configura/) |
+| Phase 07 P01 | 1min | 2 tasks | 4 files |
 
 ## Session Continuity
 
-Last session: 2026-03-10T12:28:19.687Z
-Stopped at: Phase 7 context gathered
-Next action: Phase 7 (Dashboard and README)
+Last session: 2026-03-10T12:39:21.801Z
+Stopped at: Completed 07-01-PLAN.md
+Next action: Phase 7 complete, proceed to next phase or wrap up
