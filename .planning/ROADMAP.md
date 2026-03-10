@@ -68,10 +68,10 @@ Plans:
   1. GitHub Pages serves a Chart.js time-series dashboard with project description, usage, and links
   2. README displays live benchmark figures sourced from GitHub Pages, replacing any static visualization PNGs
   3. max-items-in-chart is configured to limit data growth on gh-pages
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 07-01: TBD
+- [ ] 07-01-PLAN.md — Add max-items-in-chart to workflow, create gh-pages landing page, replace README PNG embeds with dashboard link
 
 ### Phase 8: Fix failing tests in Redis/Mongo backends (test isolation)
 **Goal:** MongoDB and Redis contract tests pass reliably with per-test data isolation via unique group names
@@ -99,5 +99,5 @@ Phases execute in numeric order: 5 -> 6 -> 7
 | 4. Benchmarks & Performance | v1.0 | 2/2 | Complete | 2026-03-06 |
 | 5. Benchmark Pipeline | 1/1 | Complete   | 2026-03-09 | - |
 | 6. PR Feedback | v0.3.1 | 1/1 | Complete | 2026-03-09 |
-| 7. Dashboard and README | v0.3.1 | 0/? | Not started | - |
+| 7. Dashboard and README | v0.3.1 | 0/1 | Not started | - |
 | 8. Test Isolation Fix | Maintenance | 1/1 | Complete | 2026-03-09 |
