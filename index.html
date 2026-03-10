@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>asebytes</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: #fafafa;
+      color: #222;
+    }
+    .card {
+      text-align: center;
+      max-width: 480px;
+      padding: 3rem 2rem;
+    }
+    h1 { font-size: 2.4rem; margin-bottom: 0.5rem; }
+    .desc { font-size: 1.1rem; color: #555; margin-bottom: 1.5rem; }
+    .install {
+      display: inline-block;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      padding: 0.5rem 1.2rem;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      margin-bottom: 2rem;
+      user-select: all;
+    }
+    .links { display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap; }
+    .links a {
+      color: #0366d6;
+      text-decoration: none;
+      font-size: 1rem;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid transparent;
+    }
+    .links a:hover { border-bottom-color: #0366d6; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>asebytes</h1>
+    <p class="desc">Storage-agnostic, lazy-loading data layer for atomistic simulations</p>
+    <div class="install">pip install asebytes</div>
+    <nav class="links">
+      <a href="https://github.com/zincware/asebytes">GitHub</a>
+      <a href="https://pypi.org/project/asebytes/">PyPI</a>
+      <a href="./dev/bench/">Benchmark Dashboard</a>
+    </nav>
+  </div>
+</body>
+</html>
