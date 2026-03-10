@@ -19,3 +19,6 @@ benchmark_results.json
 
 # Git worktrees
 .worktrees/
+
+# hatch-vcs generated version file
+src/asebytes/_version.py

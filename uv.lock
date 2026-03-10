@@ -194,7 +194,6 @@ wheels = [
 
 [[package]]
 name = "asebytes"
-version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "ase" },
@@ -204,7 +203,7 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-h5md = [
+h5 = [
     { name = "h5py" },
 ]
 hf = [
@@ -227,7 +226,7 @@ zarr = [
 dev = [
     { name = "anyio" },
     { name = "ase-db-backends" },
-    { name = "asebytes", extra = ["h5md", "hf", "lmdb", "mongodb", "redis", "zarr"] },
+    { name = "asebytes", extra = ["h5", "hf", "lmdb", "mongodb", "redis", "zarr"] },
     { name = "ipykernel" },
     { name = "matplotlib" },
     { name = "molify" },
@@ -241,8 +240,8 @@ dev = [
 requires-dist = [
     { name = "ase", specifier = ">=3.26.0" },
     { name = "datasets", marker = "extra == 'hf'", specifier = ">=4.5.0" },
-    { name = "h5py", marker = "extra == 'h5md'", specifier = ">=3.8.0" },
-    { name = "lmdb", marker = "extra == 'lmdb'", specifier = ">=1.7.5" },
+    { name = "h5py", marker = "extra == 'h5'", specifier = ">=3.12.0" },
+    { name = "lmdb", marker = "extra == 'lmdb'", specifier = ">=1.6.0" },
     { name = "msgpack", specifier = ">=1.1.2" },
     { name = "msgpack-numpy", specifier = ">=0.4.8" },
     { name = "pymongo", marker = "extra == 'mongodb'", specifier = ">=4.13" },
@@ -250,13 +249,13 @@ requires-dist = [
     { name = "typing-extensions", specifier = ">=4.5.0" },
     { name = "zarr", marker = "extra == 'zarr'", specifier = ">=3.0" },
 ]
-provides-extras = ["lmdb", "hf", "h5md", "zarr", "mongodb", "redis"]
+provides-extras = ["h5", "hf", "lmdb", "mongodb", "redis", "zarr"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "anyio", specifier = ">=4.0" },
     { name = "ase-db-backends", specifier = ">=0.10.0" },
-    { name = "asebytes", extras = ["h5md"] },
+    { name = "asebytes", extras = ["h5"] },
     { name = "asebytes", extras = ["hf"] },
     { name = "asebytes", extras = ["lmdb"] },
     { name = "asebytes", extras = ["mongodb"] },
