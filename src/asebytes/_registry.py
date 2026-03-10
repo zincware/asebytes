@@ -127,6 +127,21 @@ def parse_uri(path: str) -> tuple[str | None, str]:
 # ---------------------------------------------------------------------------
 
 
+def _is_h5md_file(path: str) -> bool:
+    """Check if an HDF5 file contains H5MD metadata."""
+    from pathlib import Path
+
+    if not Path(path).is_file():
+        return False
+    try:
+        import h5py
+
+        with h5py.File(path, "r") as f:
+            return "h5md" in f
+    except Exception:
+        return False
+
+
 def _pick_class(entry: _RegistryEntry, path: str, writable: bool | None):
     """Import the module from *entry* and return the appropriate class."""
     mod = _import_module(entry.module_path)
@@ -208,6 +223,27 @@ def resolve_backend(
                 continue
 
         candidates.append(entry)
+
+    # -- Sniff *.h5 files for H5MD content ---------------------------------
+    if (
+        scheme is None
+        and layer == "object"
+        and candidates
+        and any(
+            e.match_type == "pattern" and e.match_value == "*.h5"
+            for e in candidates
+        )
+        and _is_h5md_file(path_or_uri)
+    ):
+        # Replace with H5MD backend entry
+        h5md_entries = [
+            e for e in _REGISTRY
+            if e.match_type == "pattern"
+            and e.match_value == "*.h5md"
+            and e.layer == layer
+        ]
+        if h5md_entries:
+            candidates = h5md_entries
 
     # -- No direct match -> cross-layer adapter wrapping --------------------
     if not candidates:
