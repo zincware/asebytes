@@ -74,7 +74,7 @@ jobs:
 
       - name: Install package
         run: |
-          uv sync --all-extras --dev
+          uv sync --all-extras --dev --frozen
 
       - name: Run benchmarks
         run: |
@@ -90,6 +90,7 @@ jobs:
           benchmark-data-dir-path: dev/bench
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
+          max-items-in-chart: 200
 
       - name: Compare benchmark results (PR)
         if: github.event_name == 'pull_request'
