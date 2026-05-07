@@ -93,3 +93,13 @@ def test_feature_coverage_roundtrip(fixture_name, request):
             assert np.array_equal(
                 recovered.calc.results[key], atoms.calc.results[key]
             )
+
+
+def test_encoder_rejects_unsupported_type():
+    """Unsupported types raise TypeError via super().default()."""
+
+    class Mystery:
+        pass
+
+    with pytest.raises(TypeError):
+        json.dumps(Mystery(), cls=asebytes.AtomsEncoder)
