@@ -53,3 +53,43 @@ def test_empty_list_roundtrip():
     """An empty list roundtrips to an empty list."""
     s = json.dumps([], cls=asebytes.AtomsEncoder)
     assert json.loads(s, cls=asebytes.AtomsDecoder) == []
+
+
+import numpy as np
+import pytest
+
+
+@pytest.mark.parametrize(
+    "fixture_name",
+    [
+        "simple_atoms",
+        "h2o_atoms",
+        "atoms_with_info",
+        "atoms_with_calc",
+        "atoms_with_pbc",
+        "atoms_with_constraints",
+        "empty_atoms",
+    ],
+)
+def test_feature_coverage_roundtrip(fixture_name, request):
+    """Every supported Atoms feature roundtrips via the JSON envelope."""
+    atoms = request.getfixturevalue(fixture_name)
+    s = json.dumps(atoms, cls=asebytes.AtomsEncoder)
+    recovered = json.loads(s, cls=asebytes.AtomsDecoder)
+    assert recovered == atoms
+
+    # Spot-check arrays survive bit-exact (== on Atoms compares positions
+    # but not info/calc payloads in detail).
+    for key in atoms.arrays:
+        assert np.array_equal(recovered.arrays[key], atoms.arrays[key])
+    for key in atoms.info:
+        if isinstance(atoms.info[key], np.ndarray):
+            assert np.array_equal(recovered.info[key], atoms.info[key])
+        else:
+            assert recovered.info[key] == atoms.info[key]
+    if atoms.calc is not None:
+        assert recovered.calc is not None
+        for key in atoms.calc.results:
+            assert np.array_equal(
+                recovered.calc.results[key], atoms.calc.results[key]
+            )
