@@ -24,7 +24,7 @@ def test_list_of_atoms_roundtrip(ethanol):
     recovered = json.loads(s, cls=asebytes.AtomsDecoder)
     assert isinstance(recovered, list)
     assert len(recovered) == len(frames)
-    for original, decoded in zip(frames, recovered):
+    for original, decoded in zip(frames, recovered, strict=True):
         assert decoded == original
 
 

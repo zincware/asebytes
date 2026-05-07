@@ -106,10 +106,14 @@ Serialize `ase.Atoms` through stdlib `json` using two encoder/decoder classes. T
 ```python
 import json
 
+import ase
 import asebytes
+import molify
 
-s = json.dumps([a, b, c], cls=asebytes.AtomsEncoder)
-frames = json.loads(s, cls=asebytes.AtomsDecoder)  # list[ase.Atoms]
+frames: list[ase.Atoms] = molify.smiles2conformers("CCO", numConfs=3)
+
+s = json.dumps(frames, cls=asebytes.AtomsEncoder)
+recovered = json.loads(s, cls=asebytes.AtomsDecoder)  # list[ase.Atoms]
 ```
 
 `AtomsEncoder` is a `json.JSONEncoder` subclass — override `default()` in your own subclass to handle additional types.
