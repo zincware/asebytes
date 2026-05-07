@@ -124,3 +124,24 @@ def test_decoder_passthrough_for_scalars():
     assert json.loads("42", cls=asebytes.AtomsDecoder) == 42
     assert json.loads('"hello"', cls=asebytes.AtomsDecoder) == "hello"
     assert json.loads("null", cls=asebytes.AtomsDecoder) is None
+
+
+def test_encoder_subclass_chains(simple_atoms):
+    """A subclass that adds support for one more type still serializes Atoms."""
+
+    class Extra:
+        def __init__(self, value):
+            self.value = value
+
+    class MyEncoder(asebytes.AtomsEncoder):
+        def default(self, obj):
+            if isinstance(obj, Extra):
+                return {"__extra__": obj.value}
+            return super().default(obj)
+
+    payload = {"atoms": simple_atoms, "extra": Extra(42)}
+    s = json.dumps(payload, cls=MyEncoder)
+    recovered = json.loads(s, cls=asebytes.AtomsDecoder)
+
+    assert recovered["atoms"] == simple_atoms
+    assert recovered["extra"] == {"__extra__": 42}
