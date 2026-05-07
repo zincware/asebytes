@@ -110,3 +110,17 @@ def test_decoder_rejects_unknown_version():
     forged = json.dumps({"__asebytes__": 999, "data": ""})
     with pytest.raises(ValueError, match="Unsupported asebytes envelope"):
         json.loads(forged, cls=asebytes.AtomsDecoder)
+
+
+def test_decoder_passthrough_for_regular_dicts():
+    """Dicts without the envelope marker decode as-is."""
+    s = json.dumps({"x": 1, "nested": {"y": [1, 2, 3]}})
+    recovered = json.loads(s, cls=asebytes.AtomsDecoder)
+    assert recovered == {"x": 1, "nested": {"y": [1, 2, 3]}}
+
+
+def test_decoder_passthrough_for_scalars():
+    """Non-object JSON roots decode as-is."""
+    assert json.loads("42", cls=asebytes.AtomsDecoder) == 42
+    assert json.loads('"hello"', cls=asebytes.AtomsDecoder) == "hello"
+    assert json.loads("null", cls=asebytes.AtomsDecoder) is None
