@@ -108,18 +108,8 @@ import json
 
 import asebytes
 
-# Single Atoms
-s = json.dumps(atoms, cls=asebytes.AtomsEncoder)
-atoms2 = json.loads(s, cls=asebytes.AtomsDecoder)
-
-# List of Atoms
 s = json.dumps([a, b, c], cls=asebytes.AtomsEncoder)
 frames = json.loads(s, cls=asebytes.AtomsDecoder)  # list[ase.Atoms]
-
-# Atoms nested in arbitrary structure
-payload = {"meta": {"name": "run-42"}, "frames": [a, b]}
-s = json.dumps(payload, cls=asebytes.AtomsEncoder)
-loaded = json.loads(s, cls=asebytes.AtomsDecoder)
 ```
 
 `AtomsEncoder` is a `json.JSONEncoder` subclass — override `default()` in your own subclass to handle additional types.

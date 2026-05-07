@@ -5,16 +5,12 @@ import json
 from typing import Any
 
 import ase
-import msgpack
-import msgpack_numpy as m
+from msgpack import packb, unpackb
+from msgpack_numpy import decode as m_decode
+from msgpack_numpy import encode as m_encode
 
 from .decode import decode
 from .encode import encode
-
-_packb = msgpack.packb
-_unpackb = msgpack.unpackb
-_m_encode = m.encode
-_m_decode = m.decode
 
 _ENVELOPE_VERSION = 1
 _ENVELOPE_KEY = "__asebytes__"
@@ -48,7 +44,7 @@ def _atoms_object_hook(obj: dict[str, Any]) -> Any:
             f"(expected {_ENVELOPE_VERSION})"
         )
     packed = base64.b64decode(obj["data"])
-    return decode(_unpackb(packed, object_hook=_m_decode))
+    return decode(unpackb(packed, object_hook=m_decode))
 
 
 class AtomsEncoder(json.JSONEncoder):
@@ -77,7 +73,7 @@ class AtomsEncoder(json.JSONEncoder):
             which raises ``TypeError``.
         """
         if isinstance(obj, ase.Atoms):
-            packed = _packb(encode(obj), default=_m_encode)
+            packed = packb(encode(obj), default=m_encode)
             return {
                 _ENVELOPE_KEY: _ENVELOPE_VERSION,
                 "data": base64.b64encode(packed).decode("ascii"),
