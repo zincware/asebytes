@@ -99,6 +99,31 @@ await db.extend([{b"key": b"value"}])
 row = await db[0]
 ```
 
+## JSON
+
+Serialize `ase.Atoms` through stdlib `json` using two encoder/decoder classes. The wire format is a compact base64-of-msgpack envelope — the same binary path used by `asebytes.encode` / `asebytes.decode`.
+
+```python
+import json
+
+import asebytes
+
+# Single Atoms
+s = json.dumps(atoms, cls=asebytes.AtomsEncoder)
+atoms2 = json.loads(s, cls=asebytes.AtomsDecoder)
+
+# List of Atoms
+s = json.dumps([a, b, c], cls=asebytes.AtomsEncoder)
+frames = json.loads(s, cls=asebytes.AtomsDecoder)  # list[ase.Atoms]
+
+# Atoms nested in arbitrary structure
+payload = {"meta": {"name": "run-42"}, "frames": [a, b]}
+s = json.dumps(payload, cls=asebytes.AtomsEncoder)
+loaded = json.loads(s, cls=asebytes.AtomsDecoder)
+```
+
+`AtomsEncoder` is a `json.JSONEncoder` subclass — override `default()` in your own subclass to handle additional types.
+
 ## Lazy Views
 
 Indexing with slices, lists, or strings returns lazy views — nothing is loaded until you iterate or materialize.
