@@ -62,6 +62,7 @@ from ._async_views import (
 # Utilities
 from .decode import decode
 from .encode import encode
+from ._json import AtomsEncoder, AtomsDecoder
 from .ase import ASEReadOnlyBackend
 from .memory import MemoryObjectBackend
 from .metadata import get_metadata
@@ -105,6 +106,8 @@ __all__ = [
     # Utilities
     "encode",
     "decode",
+    "AtomsEncoder",
+    "AtomsDecoder",
     "get_metadata",
     "atoms_to_dict",
     "dict_to_atoms",
