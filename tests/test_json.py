@@ -103,3 +103,10 @@ def test_encoder_rejects_unsupported_type():
 
     with pytest.raises(TypeError):
         json.dumps(Mystery(), cls=asebytes.AtomsEncoder)
+
+
+def test_decoder_rejects_unknown_version():
+    """An envelope with an unknown version raises ValueError."""
+    forged = json.dumps({"__asebytes__": 999, "data": ""})
+    with pytest.raises(ValueError, match="Unsupported asebytes envelope"):
+        json.loads(forged, cls=asebytes.AtomsDecoder)
