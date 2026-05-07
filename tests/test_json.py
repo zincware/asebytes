@@ -145,3 +145,19 @@ def test_encoder_subclass_chains(simple_atoms):
 
     assert recovered["atoms"] == simple_atoms
     assert recovered["extra"] == {"__extra__": 42}
+
+
+def test_decoder_subclass_can_override_hook():
+    """A subclass passing object_hook to super().__init__ wins via setdefault."""
+
+    sentinel = object()
+
+    def my_hook(obj):
+        return sentinel
+
+    class MyDecoder(asebytes.AtomsDecoder):
+        def __init__(self, **kwargs):
+            super().__init__(object_hook=my_hook, **kwargs)
+
+    s = json.dumps({"x": 1})
+    assert json.loads(s, cls=MyDecoder) is sentinel
