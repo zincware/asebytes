@@ -47,3 +47,9 @@ def test_deeply_nested_atoms_roundtrip(simple_atoms):
     s = json.dumps(payload, cls=asebytes.AtomsEncoder)
     recovered = json.loads(s, cls=asebytes.AtomsDecoder)
     assert recovered["a"]["b"]["c"] == simple_atoms
+
+
+def test_empty_list_roundtrip():
+    """An empty list roundtrips to an empty list."""
+    s = json.dumps([], cls=asebytes.AtomsEncoder)
+    assert json.loads(s, cls=asebytes.AtomsDecoder) == []
