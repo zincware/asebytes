@@ -161,3 +161,22 @@ def test_decoder_subclass_can_override_hook():
 
     s = json.dumps({"x": 1})
     assert json.loads(s, cls=MyDecoder) is sentinel
+
+
+def test_envelope_shape_is_pinned(simple_atoms):
+    """The envelope structure (keys, version, base64-string data) is locked.
+
+    A change to this test means the wire format has changed and the
+    version field in src/asebytes/_json.py must be bumped.
+    """
+    s = json.dumps(simple_atoms, cls=asebytes.AtomsEncoder)
+    raw = json.loads(s)  # parse with stdlib, no custom decoder
+
+    assert isinstance(raw, dict)
+    assert set(raw.keys()) == {"__asebytes__", "data"}
+    assert raw["__asebytes__"] == 1
+    assert isinstance(raw["data"], str)
+    # data must be valid base64 of non-empty bytes
+    import base64
+    payload = base64.b64decode(raw["data"])
+    assert len(payload) > 0
