@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773178042934,
+  "lastUpdate": 1778156689005,
   "repoUrl": "https://github.com/zincware/asebytes",
   "entries": {
     "Benchmark": [
@@ -10532,6 +10532,2639 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.03850463600082871",
             "extra": "mean: 2.1920116082000276 sec\nrounds: 5"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Fabian Zills",
+            "username": "PythonFZ",
+            "email": "46721498+PythonFZ@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "e9f43182169b33e3e5908bfa020adb30b491c06a",
+          "message": "feat: AtomsEncoder/AtomsDecoder for JSON serialization (#27)\n\n* docs: add design spec for AtomsEncoder/AtomsDecoder JSON support\n\nSpec for adding asebytes.AtomsEncoder and asebytes.AtomsDecoder so\nase.Atoms can be serialized via stdlib json with `cls=`. Wire format\nis a versioned base64-of-msgpack envelope reusing the existing\nencode/decode path.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* docs: add implementation plan for AtomsEncoder/AtomsDecoder\n\n13 TDD tasks covering module scaffold, single/list/nested roundtrips,\nfeature coverage across all asebytes-supported Atoms attributes,\nencoder fallthrough, decoder version mismatch, encoder subclass\nchaining, decoder subclass object_hook override, wire format snapshot,\nfull suite check, and README update.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* feat: add AtomsEncoder/AtomsDecoder for JSON serialization\n\nReuses encode/decode through a base64(msgpack) envelope. Public API\nis two stdlib JSONEncoder/JSONDecoder subclasses; no new top-level\nfunctions and no new dependencies.\n\n* test: cover list-of-atoms roundtrip\n\n* test: cover nested-atoms-in-user-json roundtrip\n\n* test: cover empty-list roundtrip\n\n* test: cover info/calc/constraints/pbc roundtrips\n\n* test: cover encoder TypeError on unsupported types\n\n* test: cover decoder ValueError on unknown envelope version\n\n* test: cover decoder passthrough for non-envelope inputs\n\n* test: cover encoder subclass chaining\n\n* test: cover decoder subclass object_hook override\n\n* test: pin wire format envelope shape\n\n* refactor: address code review feedback for AtomsEncoder/AtomsDecoder\n\n- Use module-level msgpack/m aliases to match decode.py convention\n- Add numpy-style docstring on AtomsEncoder.default\n- Consolidate test imports at top of tests/test_json.py\n\n* docs: README section for AtomsEncoder/AtomsDecoder\n\n* remove specs\n\n* refactor: use direct msgpack imports and trim README example\n\n- Drop module-level _packb/_unpackb/_m_encode/_m_decode aliases in\n  _json.py; each was used once, so direct `from msgpack import packb,\n  unpackb` reads cleaner. The aliases-for-consistency-with-decode.py\n  rationale didn't hold here (decode.py has many call sites; _json\n  has 2).\n- README JSON section: keep only the list-of-Atoms example; drop the\n  trivial single-Atoms and nested-structure variants since those are\n  basic json.dumps semantics once the encoder handles ase.Atoms.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* docs+test: runnable molify example, strict zip in test\n\n- README JSON example now generates frames via\n  molify.smiles2conformers so the snippet runs as-is instead of\n  referencing undefined a/b/c names.\n- tests/test_json.py: zip(frames, recovered, strict=True) — Ruff\n  B905. Length is already asserted on the preceding line, so strict\n  is redundant at runtime but satisfies the lint.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-05-07T12:02:05Z",
+          "url": "https://github.com/zincware/asebytes/commit/e9f43182169b33e3e5908bfa020adb30b491c06a"
+        },
+        "date": 1778156688389,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_lmdb[ethanol_100]",
+            "value": 3438.0387255447185,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000009661581183631504",
+            "extra": "mean: 290.8635067342243 usec\nrounds: 1782"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_lmdb[ethanol_1000]",
+            "value": 330.29474188062767,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003890427857384794",
+            "extra": "mean: 3.0275989084967376 msec\nrounds: 306"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_lmdb[periodic_100]",
+            "value": 3292.602496448964,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00001381660686266029",
+            "extra": "mean: 303.7111224566249 usec\nrounds: 2605"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_lmdb[periodic_1000]",
+            "value": 320.9606706958155,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00025798699662845373",
+            "extra": "mean: 3.115646530249594 msec\nrounds: 281"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_zarr[ethanol_100]",
+            "value": 143.47790287940995,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002629897883049191",
+            "extra": "mean: 6.969714359712089 msec\nrounds: 139"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_zarr[ethanol_1000]",
+            "value": 13.76978167588617,
+            "unit": "iter/sec",
+            "range": "stddev: 0.03857759260257146",
+            "extra": "mean: 72.62279268749872 msec\nrounds: 16"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_zarr[periodic_100]",
+            "value": 48.859910632349774,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0028437669017742414",
+            "extra": "mean: 20.466676812501323 msec\nrounds: 48"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_zarr[periodic_1000]",
+            "value": 5.6010261326320485,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007242483842130402",
+            "extra": "mean: 178.53871349999886 msec\nrounds: 6"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_h5md[ethanol_100]",
+            "value": 2071.967262177447,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000015786260757511162",
+            "extra": "mean: 482.63310828043296 usec\nrounds: 1099"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_h5md[ethanol_1000]",
+            "value": 235.06440389011817,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000035100112636866325",
+            "extra": "mean: 4.254153259493318 msec\nrounds: 158"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_h5md[periodic_100]",
+            "value": 1948.0510356926738,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000020224272832028876",
+            "extra": "mean: 513.333573750252 usec\nrounds: 800"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_h5md[periodic_1000]",
+            "value": 212.66839709679914,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000039837602104209554",
+            "extra": "mean: 4.70215609677462 msec\nrounds: 93"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_mongodb[ethanol_100]",
+            "value": 910.3102564080369,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006020715045233191",
+            "extra": "mean: 1.0985265660368004 msec\nrounds: 159"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_mongodb[ethanol_1000]",
+            "value": 245.8772034763313,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00009405260885301564",
+            "extra": "mean: 4.067070821782234 msec\nrounds: 101"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_mongodb[periodic_100]",
+            "value": 946.0839242667269,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000045096569495980826",
+            "extra": "mean: 1.0569886818181182 msec\nrounds: 154"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_mongodb[periodic_1000]",
+            "value": 241.02006821229062,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010087668338961821",
+            "extra": "mean: 4.149032101008284 msec\nrounds: 99"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_redis[ethanol_100]",
+            "value": 350.5325726505745,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00008590960882298134",
+            "extra": "mean: 2.852801930612143 msec\nrounds: 245"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_redis[ethanol_1000]",
+            "value": 47.785688722567784,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006885835276400449",
+            "extra": "mean: 20.926767547617857 msec\nrounds: 42"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_redis[periodic_100]",
+            "value": 338.30750648807566,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001984700416407159",
+            "extra": "mean: 2.9558906640318576 msec\nrounds: 253"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_asebytes_redis[periodic_1000]",
+            "value": 37.780332254873386,
+            "unit": "iter/sec",
+            "range": "stddev: 0.027859255989140626",
+            "extra": "mean: 26.468798454545286 msec\nrounds: 44"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_aselmdb[ethanol_100]",
+            "value": 150.99068261802825,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004112901807145506",
+            "extra": "mean: 6.622925220689083 msec\nrounds: 145"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_aselmdb[ethanol_1000]",
+            "value": 15.01755362797894,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00012869995085266708",
+            "extra": "mean: 66.58874173333516 msec\nrounds: 15"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_aselmdb[periodic_100]",
+            "value": 87.52416392520213,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00019580742757310327",
+            "extra": "mean: 11.425416195401727 msec\nrounds: 87"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_aselmdb[periodic_1000]",
+            "value": 8.722670346126813,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005797217108832064",
+            "extra": "mean: 114.64379144444416 msec\nrounds: 9"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_znh5md[ethanol_100]",
+            "value": 1769.8816096916487,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000029818303737162274",
+            "extra": "mean: 565.0095433073749 usec\nrounds: 1270"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_znh5md[ethanol_1000]",
+            "value": 240.51513553929803,
+            "unit": "iter/sec",
+            "range": "stddev: 0.01490218057912732",
+            "extra": "mean: 4.157742496154089 msec\nrounds: 260"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_znh5md[periodic_100]",
+            "value": 634.4322652642217,
+            "unit": "iter/sec",
+            "range": "stddev: 0.008668309049378004",
+            "extra": "mean: 1.5762123945312438 msec\nrounds: 768"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_znh5md[periodic_1000]",
+            "value": 108.963154942735,
+            "unit": "iter/sec",
+            "range": "stddev: 0.01645781029975106",
+            "extra": "mean: 9.177414149999095 msec\nrounds: 100"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_sqlite[ethanol_100]",
+            "value": 64.14352543371487,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00024250960973762188",
+            "extra": "mean: 15.590038016126627 msec\nrounds: 62"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_sqlite[ethanol_1000]",
+            "value": 6.678970615447126,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000703421317481253",
+            "extra": "mean: 149.7236711428554 msec\nrounds: 7"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_sqlite[periodic_100]",
+            "value": 63.89885841339667,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003187175423236443",
+            "extra": "mean: 15.6497318548393 msec\nrounds: 62"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_trajectory_sqlite[periodic_1000]",
+            "value": 6.560636619284416,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0033176878733211677",
+            "extra": "mean: 152.4242322857187 msec\nrounds: 7"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_lmdb[ethanol_100]",
+            "value": 377.94387340851574,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003352404690540095",
+            "extra": "mean: 2.645895516128952 msec\nrounds: 372"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_lmdb[ethanol_1000]",
+            "value": 38.021829539281086,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0018452795908900066",
+            "extra": "mean: 26.30068074359443 msec\nrounds: 39"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_lmdb[periodic_100]",
+            "value": 430.3339610317666,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000037122016246653994",
+            "extra": "mean: 2.3237766259544212 msec\nrounds: 393"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_lmdb[periodic_1000]",
+            "value": 42.14971365073242,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010228199403345518",
+            "extra": "mean: 23.724953585363757 msec\nrounds: 41"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_zarr[ethanol_100]",
+            "value": 1.5849433807379512,
+            "unit": "iter/sec",
+            "range": "stddev: 0.014253295789561303",
+            "extra": "mean: 630.9373647999962 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_zarr[ethanol_1000]",
+            "value": 0.15838613677041546,
+            "unit": "iter/sec",
+            "range": "stddev: 0.07532425697877852",
+            "extra": "mean: 6.313683889200002 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_zarr[periodic_100]",
+            "value": 1.687160924794462,
+            "unit": "iter/sec",
+            "range": "stddev: 0.012735669960707916",
+            "extra": "mean: 592.7116882000007 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_zarr[periodic_1000]",
+            "value": 0.16902568446646948,
+            "unit": "iter/sec",
+            "range": "stddev: 0.09549788310272038",
+            "extra": "mean: 5.916260615399994 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_h5md[ethanol_100]",
+            "value": 16.89652851488677,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002808656853677325",
+            "extra": "mean: 59.18375476471069 msec\nrounds: 17"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_h5md[ethanol_1000]",
+            "value": 1.6274689654240617,
+            "unit": "iter/sec",
+            "range": "stddev: 0.02990655645746573",
+            "extra": "mean: 614.4510409999953 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_h5md[periodic_100]",
+            "value": 21.91044004433756,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00025587887550862054",
+            "extra": "mean: 45.64034304999893 msec\nrounds: 20"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_h5md[periodic_1000]",
+            "value": 2.1800381449994317,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0038929555818733555",
+            "extra": "mean: 458.7075700000014 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_mongodb[ethanol_100]",
+            "value": 26.22066755312314,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0018724415585746764",
+            "extra": "mean: 38.13785434615642 msec\nrounds: 26"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_mongodb[ethanol_1000]",
+            "value": 2.569502412954235,
+            "unit": "iter/sec",
+            "range": "stddev: 0.006680904583373452",
+            "extra": "mean: 389.1804089999937 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_mongodb[periodic_100]",
+            "value": 24.056594453546264,
+            "unit": "iter/sec",
+            "range": "stddev: 0.005580553736328616",
+            "extra": "mean: 41.56864355555475 msec\nrounds: 27"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_mongodb[periodic_1000]",
+            "value": 2.645688398025131,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0037656207862490744",
+            "extra": "mean: 377.9734608000126 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_redis[ethanol_100]",
+            "value": 42.34341446614541,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0020071008542923317",
+            "extra": "mean: 23.61642330000393 msec\nrounds: 40"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_redis[ethanol_1000]",
+            "value": 4.086649373792064,
+            "unit": "iter/sec",
+            "range": "stddev: 0.005861834935428502",
+            "extra": "mean: 244.69924099998934 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_redis[periodic_100]",
+            "value": 43.44238304718705,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0016505194492672749",
+            "extra": "mean: 23.0189950425556 msec\nrounds: 47"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_asebytes_redis[periodic_1000]",
+            "value": 4.441843277331448,
+            "unit": "iter/sec",
+            "range": "stddev: 0.007489665058107018",
+            "extra": "mean: 225.13176119999798 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_aselmdb[ethanol_100]",
+            "value": 146.14246602929063,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006276600318666931",
+            "extra": "mean: 6.842638058396898 msec\nrounds: 137"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_aselmdb[ethanol_1000]",
+            "value": 14.441813690501649,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002134481405040396",
+            "extra": "mean: 69.2433804666583 msec\nrounds: 15"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_aselmdb[periodic_100]",
+            "value": 86.20689909681316,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00011827525346333054",
+            "extra": "mean: 11.599999657532832 msec\nrounds: 73"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_aselmdb[periodic_1000]",
+            "value": 8.54945087261717,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00015982567892662469",
+            "extra": "mean: 116.96657655556288 msec\nrounds: 9"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_znh5md[ethanol_100]",
+            "value": 2.2829203460416996,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0018210060458577892",
+            "extra": "mean: 438.03543200001513 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_znh5md[ethanol_1000]",
+            "value": 0.22441105644369033,
+            "unit": "iter/sec",
+            "range": "stddev: 0.059735696637522644",
+            "extra": "mean: 4.456108428200025 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_znh5md[periodic_100]",
+            "value": 2.572221049069306,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0013143548828366172",
+            "extra": "mean: 388.7690758000076 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_znh5md[periodic_1000]",
+            "value": 0.2521506884464691,
+            "unit": "iter/sec",
+            "range": "stddev: 0.033846636966222",
+            "extra": "mean: 3.9658824893999736 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_sqlite[ethanol_100]",
+            "value": 28.08478318602152,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002791604280910946",
+            "extra": "mean: 35.60647035714786 msec\nrounds: 28"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_sqlite[ethanol_1000]",
+            "value": 2.789374324142684,
+            "unit": "iter/sec",
+            "range": "stddev: 0.004708562465888834",
+            "extra": "mean: 358.5033357999919 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_sqlite[periodic_100]",
+            "value": 27.648514198917795,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0009123557438804898",
+            "extra": "mean: 36.16830882142454 msec\nrounds: 28"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_read_positions_single_sqlite[periodic_1000]",
+            "value": 2.770266259299149,
+            "unit": "iter/sec",
+            "range": "stddev: 0.003763855628128775",
+            "extra": "mean: 360.9761323999919 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_lmdb[ethanol_100]",
+            "value": 9626.709919705669,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000005480432264276465",
+            "extra": "mean: 103.87764961661736 usec\nrounds: 4692"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_lmdb[ethanol_1000]",
+            "value": 830.9986340282127,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000025525437815471367",
+            "extra": "mean: 1.2033714124806247 msec\nrounds: 577"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_lmdb[periodic_100]",
+            "value": 9058.46274161712,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000005652040957947578",
+            "extra": "mean: 110.39400707646776 usec\nrounds: 4522"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_lmdb[periodic_1000]",
+            "value": 752.5980812183192,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00026786048396421145",
+            "extra": "mean: 1.328730467105606 msec\nrounds: 608"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_zarr[ethanol_100]",
+            "value": 790.3609914918089,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000711486420019016",
+            "extra": "mean: 1.2652446296881337 msec\nrounds: 640"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_zarr[ethanol_1000]",
+            "value": 105.39265915187097,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00034213690874253423",
+            "extra": "mean: 9.488326872548104 msec\nrounds: 102"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_zarr[periodic_100]",
+            "value": 774.4773868979723,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00009416695773886183",
+            "extra": "mean: 1.2911932832607511 msec\nrounds: 699"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_zarr[periodic_1000]",
+            "value": 106.0247547000695,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002997332281034859",
+            "extra": "mean: 9.431759619051913 msec\nrounds: 105"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_h5md[ethanol_100]",
+            "value": 3715.672441443664,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000021550326678487513",
+            "extra": "mean: 269.1302895395877 usec\nrounds: 2017"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_h5md[ethanol_1000]",
+            "value": 475.12054343402116,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000022199005207929894",
+            "extra": "mean: 2.104729028916148 msec\nrounds: 415"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_h5md[periodic_100]",
+            "value": 3762.7204696516687,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00001210848799409651",
+            "extra": "mean: 265.7651579662984 usec\nrounds: 2203"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_h5md[periodic_1000]",
+            "value": 474.5237571466113,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000029540556686619374",
+            "extra": "mean: 2.1073760479626205 msec\nrounds: 417"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_mongodb[ethanol_100]",
+            "value": 920.9154692245869,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00005763837743018529",
+            "extra": "mean: 1.0858759934198983 msec\nrounds: 152"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_mongodb[ethanol_1000]",
+            "value": 229.22672996316064,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00013857087828064984",
+            "extra": "mean: 4.362492978723343 msec\nrounds: 94"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_mongodb[periodic_100]",
+            "value": 750.1122938367291,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0004208745495736919",
+            "extra": "mean: 1.3331337297314874 msec\nrounds: 111"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_mongodb[periodic_1000]",
+            "value": 193.33501034956353,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0008884497602049244",
+            "extra": "mean: 5.17236892682773 msec\nrounds: 82"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_redis[ethanol_100]",
+            "value": 382.07294458446285,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001071549970964689",
+            "extra": "mean: 2.6173012619032368 msec\nrounds: 252"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_redis[ethanol_1000]",
+            "value": 42.5865253662843,
+            "unit": "iter/sec",
+            "range": "stddev: 0.026704515833809943",
+            "extra": "mean: 23.48160577551365 msec\nrounds: 49"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_redis[periodic_100]",
+            "value": 388.47188889535346,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00007310888709711658",
+            "extra": "mean: 2.574188837301893 msec\nrounds: 252"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_asebytes_redis[periodic_1000]",
+            "value": 50.467251202970665,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006298888572353043",
+            "extra": "mean: 19.81482993750087 msec\nrounds: 48"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_aselmdb[ethanol_100]",
+            "value": 149.60256788162062,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00016733830114674768",
+            "extra": "mean: 6.684377241380592 msec\nrounds: 145"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_aselmdb[ethanol_1000]",
+            "value": 14.893300936842943,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0009244638355917743",
+            "extra": "mean: 67.14428213333197 msec\nrounds: 15"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_aselmdb[periodic_100]",
+            "value": 88.21030366194415,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00013127592935162892",
+            "extra": "mean: 11.33654412791033 msec\nrounds: 86"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_aselmdb[periodic_1000]",
+            "value": 8.376781714479053,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0047739750215825515",
+            "extra": "mean: 119.37758844444109 msec\nrounds: 9"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_znh5md[ethanol_100]",
+            "value": 2818.720834270785,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00001803090642766601",
+            "extra": "mean: 354.77085486498856 usec\nrounds: 1819"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_znh5md[ethanol_1000]",
+            "value": 2200.0197189460705,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00001834244169648003",
+            "extra": "mean: 454.5413804195603 usec\nrounds: 1430"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_znh5md[periodic_100]",
+            "value": 2839.9453391393467,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000017156414273414445",
+            "extra": "mean: 352.11945322266405 usec\nrounds: 1924"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_znh5md[periodic_1000]",
+            "value": 2198.8649819169505,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00001990876343342828",
+            "extra": "mean: 454.7800834629733 usec\nrounds: 1282"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_sqlite[ethanol_100]",
+            "value": 75.37402238716588,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00023320606829906973",
+            "extra": "mean: 13.267170416664301 msec\nrounds: 72"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_sqlite[ethanol_1000]",
+            "value": 7.699986059175534,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006515628645279748",
+            "extra": "mean: 129.87036499999505 msec\nrounds: 8"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_sqlite[periodic_100]",
+            "value": 75.42055872480458,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000144187849130307",
+            "extra": "mean: 13.258984246574093 msec\nrounds: 73"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_property_access.py::test_column_energy_sqlite[periodic_1000]",
+            "value": 7.604712504214164,
+            "unit": "iter/sec",
+            "range": "stddev: 0.002355448089167336",
+            "extra": "mean: 131.49741025000594 msec\nrounds: 8"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_lmdb[ethanol_100]",
+            "value": 220.20847570791994,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0019975464929681275",
+            "extra": "mean: 4.541151273969943 msec\nrounds: 219"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_lmdb[ethanol_1000]",
+            "value": 14.439241518271281,
+            "unit": "iter/sec",
+            "range": "stddev: 0.05938640097819908",
+            "extra": "mean: 69.25571531819101 msec\nrounds: 22"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_lmdb[periodic_100]",
+            "value": 216.91988922911904,
+            "unit": "iter/sec",
+            "range": "stddev: 0.013837788190648057",
+            "extra": "mean: 4.609996822116029 msec\nrounds: 208"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_lmdb[periodic_1000]",
+            "value": 21.607643014435396,
+            "unit": "iter/sec",
+            "range": "stddev: 0.004173658864706759",
+            "extra": "mean: 46.27992045832722 msec\nrounds: 24"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_zarr[ethanol_100]",
+            "value": 25.835550597427464,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0025240627302730626",
+            "extra": "mean: 38.70635526922246 msec\nrounds: 26"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_zarr[ethanol_1000]",
+            "value": 2.917231113449327,
+            "unit": "iter/sec",
+            "range": "stddev: 0.01237038178304026",
+            "extra": "mean: 342.79080439999916 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_zarr[periodic_100]",
+            "value": 11.76291587792669,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0018120610775592722",
+            "extra": "mean: 85.01293475000675 msec\nrounds: 12"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_zarr[periodic_1000]",
+            "value": 1.2799602959183538,
+            "unit": "iter/sec",
+            "range": "stddev: 0.003896145157696891",
+            "extra": "mean: 781.2742341999865 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_h5md[ethanol_100]",
+            "value": 171.51519510401968,
+            "unit": "iter/sec",
+            "range": "stddev: 0.015181339868459228",
+            "extra": "mean: 5.830387210844642 msec\nrounds: 166"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_h5md[ethanol_1000]",
+            "value": 19.715567118316333,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0070532552224852425",
+            "extra": "mean: 50.721340857142835 msec\nrounds: 21"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_h5md[periodic_100]",
+            "value": 249.80770940688453,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0008041649593080411",
+            "extra": "mean: 4.003079017754448 msec\nrounds: 169"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_h5md[periodic_1000]",
+            "value": 18.826315286772395,
+            "unit": "iter/sec",
+            "range": "stddev: 0.04696326769601879",
+            "extra": "mean: 53.117138684201926 msec\nrounds: 19"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_mongodb[ethanol_100]",
+            "value": 238.14065206075497,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0008184456344211258",
+            "extra": "mean: 4.1991990504203285 msec\nrounds: 238"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_mongodb[ethanol_1000]",
+            "value": 18.245635251238628,
+            "unit": "iter/sec",
+            "range": "stddev: 0.04238496187654929",
+            "extra": "mean: 54.80762857692849 msec\nrounds: 26"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_mongodb[periodic_100]",
+            "value": 242.5788364594964,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0012794965695303651",
+            "extra": "mean: 4.122371162279736 msec\nrounds: 228"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_mongodb[periodic_1000]",
+            "value": 19.54800488103555,
+            "unit": "iter/sec",
+            "range": "stddev: 0.04418541111383343",
+            "extra": "mean: 51.15611573077453 msec\nrounds: 26"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_redis[ethanol_100]",
+            "value": 118.90922469788799,
+            "unit": "iter/sec",
+            "range": "stddev: 0.002622409379200946",
+            "extra": "mean: 8.409776470586655 msec\nrounds: 119"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_redis[ethanol_1000]",
+            "value": 10.404150923284515,
+            "unit": "iter/sec",
+            "range": "stddev: 0.06247248938168278",
+            "extra": "mean: 96.11548384616351 msec\nrounds: 13"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_redis[periodic_100]",
+            "value": 104.72407221803049,
+            "unit": "iter/sec",
+            "range": "stddev: 0.020720191851093125",
+            "extra": "mean: 9.548902929577148 msec\nrounds: 142"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_asebytes_redis[periodic_1000]",
+            "value": 13.858026204821568,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0021636103039007794",
+            "extra": "mean: 72.16034846665782 msec\nrounds: 15"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_aselmdb[ethanol_100]",
+            "value": 71.49059071753038,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0013635203865857593",
+            "extra": "mean: 13.987854764708045 msec\nrounds: 68"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_aselmdb[ethanol_1000]",
+            "value": 5.940688038443646,
+            "unit": "iter/sec",
+            "range": "stddev: 0.07824560429640184",
+            "extra": "mean: 168.33067037500626 msec\nrounds: 8"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_aselmdb[periodic_100]",
+            "value": 49.80543896596457,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0010018201102506383",
+            "extra": "mean: 20.07812842857118 msec\nrounds: 49"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_aselmdb[periodic_1000]",
+            "value": 4.987017934549457,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00479025257418917",
+            "extra": "mean: 200.520634399993 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_znh5md[ethanol_100]",
+            "value": 2.2544473151910958,
+            "unit": "iter/sec",
+            "range": "stddev: 0.018130477182514038",
+            "extra": "mean: 443.56769539998595 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_znh5md[ethanol_1000]",
+            "value": 0.22938473777164214,
+            "unit": "iter/sec",
+            "range": "stddev: 0.030618561547857907",
+            "extra": "mean: 4.359487949000004 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_znh5md[periodic_100]",
+            "value": 2.5500063083841873,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0019017336067722519",
+            "extra": "mean: 392.1558925999875 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_znh5md[periodic_1000]",
+            "value": 0.25088997940213487,
+            "unit": "iter/sec",
+            "range": "stddev: 0.024200417739175143",
+            "extra": "mean: 3.9858108417999687 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_sqlite[ethanol_100]",
+            "value": 18.682232397139305,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006647669900059533",
+            "extra": "mean: 53.52679373334013 msec\nrounds: 15"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_sqlite[ethanol_1000]",
+            "value": 1.90131172438914,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0033177446800047926",
+            "extra": "mean: 525.9526816000061 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_sqlite[periodic_100]",
+            "value": 18.510550394114933,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0017876227058008188",
+            "extra": "mean: 54.02324505261229 msec\nrounds: 19"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_trajectory_sqlite[periodic_1000]",
+            "value": 1.8878216561531902,
+            "unit": "iter/sec",
+            "range": "stddev: 0.003207889615351943",
+            "extra": "mean: 529.7110543999679 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_lmdb[ethanol_100]",
+            "value": 227.45739441428628,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0011102751564191422",
+            "extra": "mean: 4.396427746721746 msec\nrounds: 229"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_lmdb[ethanol_1000]",
+            "value": 17.51987472680126,
+            "unit": "iter/sec",
+            "range": "stddev: 0.054393358186295516",
+            "extra": "mean: 57.07803369565405 msec\nrounds: 23"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_lmdb[periodic_100]",
+            "value": 264.53610745703946,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005373000457819877",
+            "extra": "mean: 3.7802022930363086 msec\nrounds: 273"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_lmdb[periodic_1000]",
+            "value": 19.685025405152615,
+            "unit": "iter/sec",
+            "range": "stddev: 0.04937407630904234",
+            "extra": "mean: 50.80003603847253 msec\nrounds: 26"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_zarr[ethanol_100]",
+            "value": 1.5928517421614112,
+            "unit": "iter/sec",
+            "range": "stddev: 0.037503965092433804",
+            "extra": "mean: 627.8048191999687 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_zarr[ethanol_1000]",
+            "value": 0.1606176224501899,
+            "unit": "iter/sec",
+            "range": "stddev: 0.054380106645126276",
+            "extra": "mean: 6.225966894200019 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_zarr[periodic_100]",
+            "value": 1.7471094709751076,
+            "unit": "iter/sec",
+            "range": "stddev: 0.01766830313483404",
+            "extra": "mean: 572.3739791999833 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_zarr[periodic_1000]",
+            "value": 0.1685002810181625,
+            "unit": "iter/sec",
+            "range": "stddev: 0.07608822910898669",
+            "extra": "mean: 5.934708203200034 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_h5md[ethanol_100]",
+            "value": 15.760434275296703,
+            "unit": "iter/sec",
+            "range": "stddev: 0.002819865039702639",
+            "extra": "mean: 63.45002825000989 msec\nrounds: 16"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_h5md[ethanol_1000]",
+            "value": 1.4650460011742374,
+            "unit": "iter/sec",
+            "range": "stddev: 0.1082359950199788",
+            "extra": "mean: 682.5724238000021 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_h5md[periodic_100]",
+            "value": 20.427420757650964,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0020563981516670883",
+            "extra": "mean: 48.95380634999924 msec\nrounds: 20"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_h5md[periodic_1000]",
+            "value": 1.973579271940613,
+            "unit": "iter/sec",
+            "range": "stddev: 0.03231788639135072",
+            "extra": "mean: 506.69360699998833 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_mongodb[ethanol_100]",
+            "value": 23.549722707904497,
+            "unit": "iter/sec",
+            "range": "stddev: 0.002038494723782351",
+            "extra": "mean: 42.46334499999648 msec\nrounds: 25"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_mongodb[ethanol_1000]",
+            "value": 2.302462731175484,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00532266517741275",
+            "extra": "mean: 434.3175620000011 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_mongodb[periodic_100]",
+            "value": 23.85170124987209,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0015507736365646954",
+            "extra": "mean: 41.92573056001038 msec\nrounds: 25"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_mongodb[periodic_1000]",
+            "value": 2.391447136247606,
+            "unit": "iter/sec",
+            "range": "stddev: 0.010461725347648422",
+            "extra": "mean: 418.1568494000203 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_redis[ethanol_100]",
+            "value": 31.7977400307453,
+            "unit": "iter/sec",
+            "range": "stddev: 0.004715983107802225",
+            "extra": "mean: 31.44877588888701 msec\nrounds: 36"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_redis[ethanol_1000]",
+            "value": 3.467537417833611,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00853274946728896",
+            "extra": "mean: 288.38910140002554 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_redis[periodic_100]",
+            "value": 36.400802924069026,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0026534121830772217",
+            "extra": "mean: 27.471921487170757 msec\nrounds: 39"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_asebytes_redis[periodic_1000]",
+            "value": 3.72153983670834,
+            "unit": "iter/sec",
+            "range": "stddev: 0.007839222082879216",
+            "extra": "mean: 268.7059775999842 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_aselmdb[ethanol_100]",
+            "value": 72.68392302503764,
+            "unit": "iter/sec",
+            "range": "stddev: 0.002293453543921922",
+            "extra": "mean: 13.758200691169725 msec\nrounds: 68"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_aselmdb[ethanol_1000]",
+            "value": 6.146925462863162,
+            "unit": "iter/sec",
+            "range": "stddev: 0.07705567051809556",
+            "extra": "mean: 162.68295524999132 msec\nrounds: 8"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_aselmdb[periodic_100]",
+            "value": 50.76955601843206,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0013646646428916893",
+            "extra": "mean: 19.69684351064537 msec\nrounds: 47"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_aselmdb[periodic_1000]",
+            "value": 5.120952008739871,
+            "unit": "iter/sec",
+            "range": "stddev: 0.004530791146154808",
+            "extra": "mean: 195.27619049999126 msec\nrounds: 6"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_znh5md[ethanol_100]",
+            "value": 2.3295677462586997,
+            "unit": "iter/sec",
+            "range": "stddev: 0.004254382129773195",
+            "extra": "mean: 429.2641849999882 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_znh5md[ethanol_1000]",
+            "value": 0.2320450698614536,
+            "unit": "iter/sec",
+            "range": "stddev: 0.03944196309836926",
+            "extra": "mean: 4.309507634000011 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_znh5md[periodic_100]",
+            "value": 2.5978581632081994,
+            "unit": "iter/sec",
+            "range": "stddev: 0.001594786984040492",
+            "extra": "mean: 384.93248560000666 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_znh5md[periodic_1000]",
+            "value": 0.25510193742194764,
+            "unit": "iter/sec",
+            "range": "stddev: 0.030453470971003645",
+            "extra": "mean: 3.920001588800028 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_sqlite[ethanol_100]",
+            "value": 18.74994614325072,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0026697889049949286",
+            "extra": "mean: 53.33348652630464 msec\nrounds: 19"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_sqlite[ethanol_1000]",
+            "value": 1.750831403039046,
+            "unit": "iter/sec",
+            "range": "stddev: 0.11304780279406239",
+            "extra": "mean: 571.1572218000128 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_sqlite[periodic_100]",
+            "value": 19.08192730289524,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0013762811848961934",
+            "extra": "mean: 52.40560788889878 msec\nrounds: 18"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_random_access.py::test_random_single_sqlite[periodic_1000]",
+            "value": 1.934969337653641,
+            "unit": "iter/sec",
+            "range": "stddev: 0.004325538919328708",
+            "extra": "mean: 516.804054999966 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_lmdb[ethanol_100]",
+            "value": 182.07648298676068,
+            "unit": "iter/sec",
+            "range": "stddev: 0.01520998319116649",
+            "extra": "mean: 5.492197474358689 msec\nrounds: 234"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_lmdb[ethanol_1000]",
+            "value": 15.60795628138979,
+            "unit": "iter/sec",
+            "range": "stddev: 0.056792945949132444",
+            "extra": "mean: 64.06988730435862 msec\nrounds: 23"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_lmdb[periodic_100]",
+            "value": 249.0962347490346,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0010749739842990215",
+            "extra": "mean: 4.014512708341432 msec\nrounds: 216"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_lmdb[periodic_1000]",
+            "value": 18.480978476563163,
+            "unit": "iter/sec",
+            "range": "stddev: 0.04559488840850134",
+            "extra": "mean: 54.1096891199868 msec\nrounds: 25"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_zarr[ethanol_100]",
+            "value": 25.644920591564468,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0009035264484964169",
+            "extra": "mean: 38.994076680000944 msec\nrounds: 25"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_zarr[ethanol_1000]",
+            "value": 2.666395999742191,
+            "unit": "iter/sec",
+            "range": "stddev: 0.10444281754206426",
+            "extra": "mean: 375.03806639999766 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_zarr[periodic_100]",
+            "value": 12.280891585727705,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0011889557788929402",
+            "extra": "mean: 81.4273127500087 msec\nrounds: 12"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_zarr[periodic_1000]",
+            "value": 1.2647451514995107,
+            "unit": "iter/sec",
+            "range": "stddev: 0.022712004846817777",
+            "extra": "mean: 790.6731240000227 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_h5md[ethanol_100]",
+            "value": 195.0358349032621,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006314648233458525",
+            "extra": "mean: 5.12726289759008 msec\nrounds: 166"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_h5md[ethanol_1000]",
+            "value": 15.671847805673805,
+            "unit": "iter/sec",
+            "range": "stddev: 0.05801416163115353",
+            "extra": "mean: 63.808684999988444 msec\nrounds: 21"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_h5md[periodic_100]",
+            "value": 233.54937486312923,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000490846272105856",
+            "extra": "mean: 4.281749846626849 msec\nrounds: 163"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_h5md[periodic_1000]",
+            "value": 25.65226046564616,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0029663476692192462",
+            "extra": "mean: 38.98291931579335 msec\nrounds: 19"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_mongodb[ethanol_100]",
+            "value": 180.0098910679715,
+            "unit": "iter/sec",
+            "range": "stddev: 0.014695544027320817",
+            "extra": "mean: 5.555250292454215 msec\nrounds: 212"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_mongodb[ethanol_1000]",
+            "value": 15.878143676671154,
+            "unit": "iter/sec",
+            "range": "stddev: 0.05387812810177865",
+            "extra": "mean: 62.97965431999727 msec\nrounds: 25"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_mongodb[periodic_100]",
+            "value": 258.3517730515351,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0008344219615829509",
+            "extra": "mean: 3.870691453704572 msec\nrounds: 216"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_mongodb[periodic_1000]",
+            "value": 23.874360319340827,
+            "unit": "iter/sec",
+            "range": "stddev: 0.004872912113902554",
+            "extra": "mean: 41.885939000002914 msec\nrounds: 27"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_redis[ethanol_100]",
+            "value": 105.5462457806639,
+            "unit": "iter/sec",
+            "range": "stddev: 0.017890232538567828",
+            "extra": "mean: 9.474519842971056 msec\nrounds: 121"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_redis[ethanol_1000]",
+            "value": 11.456645919757458,
+            "unit": "iter/sec",
+            "range": "stddev: 0.052729433792436144",
+            "extra": "mean: 87.28558140000284 msec\nrounds: 15"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_redis[periodic_100]",
+            "value": 143.3952841768251,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0008912302899301111",
+            "extra": "mean: 6.9737300340147135 msec\nrounds: 147"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_asebytes_redis[periodic_1000]",
+            "value": 12.64394919099651,
+            "unit": "iter/sec",
+            "range": "stddev: 0.05372435904270882",
+            "extra": "mean: 79.08921373332305 msec\nrounds: 15"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_aselmdb[ethanol_100]",
+            "value": 77.32313957756348,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0010050911872047357",
+            "extra": "mean: 12.932739222220688 msec\nrounds: 72"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_aselmdb[ethanol_1000]",
+            "value": 6.955399180040952,
+            "unit": "iter/sec",
+            "range": "stddev: 0.02102678427781606",
+            "extra": "mean: 143.7732003749801 msec\nrounds: 8"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_aselmdb[periodic_100]",
+            "value": 50.81672445239403,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0016486986380021128",
+            "extra": "mean: 19.67856076471078 msec\nrounds: 51"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_aselmdb[periodic_1000]",
+            "value": 4.386308897654696,
+            "unit": "iter/sec",
+            "range": "stddev: 0.09300081972501234",
+            "extra": "mean: 227.98211966664894 msec\nrounds: 6"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_znh5md[ethanol_100]",
+            "value": 58.855073827195625,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0010732747914716772",
+            "extra": "mean: 16.99088855000165 msec\nrounds: 60"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_znh5md[ethanol_1000]",
+            "value": 7.8787246818660295,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00315614633848122",
+            "extra": "mean: 126.9240949999989 msec\nrounds: 9"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_znh5md[periodic_100]",
+            "value": 62.588620597041384,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0013313373947932705",
+            "extra": "mean: 15.977345249996944 msec\nrounds: 64"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_znh5md[periodic_1000]",
+            "value": 8.119815946362445,
+            "unit": "iter/sec",
+            "range": "stddev: 0.004603355049190525",
+            "extra": "mean: 123.15550088890683 msec\nrounds: 9"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_extxyz[ethanol_100]",
+            "value": 32.39929576374824,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0023082900220383748",
+            "extra": "mean: 30.86486839997633 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_extxyz[ethanol_1000]",
+            "value": 3.4865524904682865,
+            "unit": "iter/sec",
+            "range": "stddev: 0.01103400418799433",
+            "extra": "mean: 286.8162755999947 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_extxyz[periodic_100]",
+            "value": 32.89813506413186,
+            "unit": "iter/sec",
+            "range": "stddev: 0.001280805950519199",
+            "extra": "mean: 30.396859823530818 msec\nrounds: 34"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_extxyz[periodic_1000]",
+            "value": 3.3330638395675862,
+            "unit": "iter/sec",
+            "range": "stddev: 0.006305480789436751",
+            "extra": "mean: 300.02425640000183 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_sqlite[ethanol_100]",
+            "value": 34.38149294494316,
+            "unit": "iter/sec",
+            "range": "stddev: 0.002121874678719339",
+            "extra": "mean: 29.08541527272684 msec\nrounds: 33"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_sqlite[ethanol_1000]",
+            "value": 2.917013705002858,
+            "unit": "iter/sec",
+            "range": "stddev: 0.13118982376416613",
+            "extra": "mean: 342.8163529999665 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_sqlite[periodic_100]",
+            "value": 35.121933027750686,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007197818955668936",
+            "extra": "mean: 28.472236969698564 msec\nrounds: 33"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_trajectory_sqlite[periodic_1000]",
+            "value": 3.5308976819316724,
+            "unit": "iter/sec",
+            "range": "stddev: 0.005000415202702423",
+            "extra": "mean: 283.21409739999126 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_lmdb[ethanol_100]",
+            "value": 235.78088594748635,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0008952161420065937",
+            "extra": "mean: 4.241225899128746 msec\nrounds: 228"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_lmdb[ethanol_1000]",
+            "value": 14.828606527285213,
+            "unit": "iter/sec",
+            "range": "stddev: 0.07445285334176469",
+            "extra": "mean: 67.43721995454942 msec\nrounds: 22"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_lmdb[periodic_100]",
+            "value": 272.3515590744852,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006618046986450759",
+            "extra": "mean: 3.6717248963003404 msec\nrounds: 270"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_lmdb[periodic_1000]",
+            "value": 23.85790941708389,
+            "unit": "iter/sec",
+            "range": "stddev: 0.006562762337404798",
+            "extra": "mean: 41.91482088887184 msec\nrounds: 27"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_zarr[ethanol_100]",
+            "value": 1.651381814028349,
+            "unit": "iter/sec",
+            "range": "stddev: 0.020439045498725862",
+            "extra": "mean: 605.553477400008 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_zarr[ethanol_1000]",
+            "value": 0.16051646717271034,
+            "unit": "iter/sec",
+            "range": "stddev: 0.06946307250823135",
+            "extra": "mean: 6.229890413199996 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_zarr[periodic_100]",
+            "value": 1.6243742850558989,
+            "unit": "iter/sec",
+            "range": "stddev: 0.04911777242213367",
+            "extra": "mean: 615.6216637999705 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_zarr[periodic_1000]",
+            "value": 0.16746012748190675,
+            "unit": "iter/sec",
+            "range": "stddev: 0.08765488577278005",
+            "extra": "mean: 5.971570755599987 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_h5md[ethanol_100]",
+            "value": 15.688952386331716,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0035709192948710014",
+            "extra": "mean: 63.73911880000378 msec\nrounds: 15"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_h5md[ethanol_1000]",
+            "value": 1.5735248928186767,
+            "unit": "iter/sec",
+            "range": "stddev: 0.006501686131971852",
+            "extra": "mean: 635.5158438000217 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_h5md[periodic_100]",
+            "value": 20.56800047105961,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0026822745827528123",
+            "extra": "mean: 48.61921319999283 msec\nrounds: 20"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_h5md[periodic_1000]",
+            "value": 1.9915119791833011,
+            "unit": "iter/sec",
+            "range": "stddev: 0.026159879800929813",
+            "extra": "mean: 502.1310494000091 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_mongodb[ethanol_100]",
+            "value": 23.01253709949073,
+            "unit": "iter/sec",
+            "range": "stddev: 0.002687241284217863",
+            "extra": "mean: 43.45457416001864 msec\nrounds: 25"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_mongodb[ethanol_1000]",
+            "value": 2.27196138937927,
+            "unit": "iter/sec",
+            "range": "stddev: 0.004367341577508001",
+            "extra": "mean: 440.1483250000183 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_mongodb[periodic_100]",
+            "value": 23.97598631959586,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0015612318173669796",
+            "extra": "mean: 41.708398839996335 msec\nrounds: 25"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_mongodb[periodic_1000]",
+            "value": 2.343586516530993,
+            "unit": "iter/sec",
+            "range": "stddev: 0.007332961669326142",
+            "extra": "mean: 426.69643000003816 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_redis[ethanol_100]",
+            "value": 33.997035934429924,
+            "unit": "iter/sec",
+            "range": "stddev: 0.003457847852650051",
+            "extra": "mean: 29.414328999995757 msec\nrounds: 29"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_redis[ethanol_1000]",
+            "value": 3.489169469676496,
+            "unit": "iter/sec",
+            "range": "stddev: 0.002962740262097167",
+            "extra": "mean: 286.6011549999939 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_redis[periodic_100]",
+            "value": 36.381773266490164,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00209854857314358",
+            "extra": "mean: 27.486290804881165 msec\nrounds: 41"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_asebytes_redis[periodic_1000]",
+            "value": 3.542959171092096,
+            "unit": "iter/sec",
+            "range": "stddev: 0.017776702062691545",
+            "extra": "mean: 282.2499362000144 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_aselmdb[ethanol_100]",
+            "value": 74.75860275849863,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0011300328069507725",
+            "extra": "mean: 13.37638697221798 msec\nrounds: 72"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_aselmdb[ethanol_1000]",
+            "value": 7.151034344245407,
+            "unit": "iter/sec",
+            "range": "stddev: 0.005565196071520251",
+            "extra": "mean: 139.83991012499075 msec\nrounds: 8"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_aselmdb[periodic_100]",
+            "value": 46.073862481470584,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0036160953698249794",
+            "extra": "mean: 21.70427973999722 msec\nrounds: 50"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_aselmdb[periodic_1000]",
+            "value": 5.027890083384194,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00583164427759577",
+            "extra": "mean: 198.89058500000374 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_znh5md[ethanol_100]",
+            "value": 2.3339988427613068,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0018924286965097486",
+            "extra": "mean: 428.44922700001007 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_znh5md[ethanol_1000]",
+            "value": 0.23204455219760164,
+            "unit": "iter/sec",
+            "range": "stddev: 0.02805631047581746",
+            "extra": "mean: 4.309517247999997 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_znh5md[periodic_100]",
+            "value": 2.5685107819282034,
+            "unit": "iter/sec",
+            "range": "stddev: 0.002704666105730576",
+            "extra": "mean: 389.3306607999875 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_znh5md[periodic_1000]",
+            "value": 0.25438659440574535,
+            "unit": "iter/sec",
+            "range": "stddev: 0.047481343506048074",
+            "extra": "mean: 3.9310247551999735 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_sqlite[ethanol_100]",
+            "value": 19.52977236960407,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0008077992161785545",
+            "extra": "mean: 51.203873812497136 msec\nrounds: 16"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_sqlite[ethanol_1000]",
+            "value": 1.93185309914086,
+            "unit": "iter/sec",
+            "range": "stddev: 0.013442138425713535",
+            "extra": "mean: 517.6377026000182 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_sqlite[periodic_100]",
+            "value": 19.418730215832575,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0014506346339141585",
+            "extra": "mean: 51.4966730000026 msec\nrounds: 20"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_read.py::test_read_single_sqlite[periodic_1000]",
+            "value": 1.910209413041202,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0077646210666767685",
+            "extra": "mean: 523.5028123999882 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_lmdb[ethanol_100]",
+            "value": 2173.3188790012173,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0011213144743151327",
+            "extra": "mean: 460.12575957540366 usec\nrounds: 1227"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_lmdb[ethanol_1000]",
+            "value": 152.6050832889436,
+            "unit": "iter/sec",
+            "range": "stddev: 0.009775405326616046",
+            "extra": "mean: 6.552861663897477 msec\nrounds: 241"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_lmdb[periodic_100]",
+            "value": 985.4613001196252,
+            "unit": "iter/sec",
+            "range": "stddev: 0.003705236438135188",
+            "extra": "mean: 1.0147531921127801 msec\nrounds: 1166"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_lmdb[periodic_1000]",
+            "value": 101.35708843494194,
+            "unit": "iter/sec",
+            "range": "stddev: 0.012905948395983724",
+            "extra": "mean: 9.866108186817836 msec\nrounds: 182"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_zarr[ethanol_100]",
+            "value": 780.1010138385693,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000642833210477411",
+            "extra": "mean: 1.2818852716001412 msec\nrounds: 648"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_zarr[ethanol_1000]",
+            "value": 104.85022540405492,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00044873880684696913",
+            "extra": "mean: 9.537413926830974 msec\nrounds: 82"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_zarr[periodic_100]",
+            "value": 789.24932741329,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00005627561918203661",
+            "extra": "mean: 1.267026737010256 msec\nrounds: 616"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_zarr[periodic_1000]",
+            "value": 105.2233049248415,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00037951733968457756",
+            "extra": "mean: 9.503598092782546 msec\nrounds: 97"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_h5md[ethanol_100]",
+            "value": 5826.500447813664,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000014129306862619111",
+            "extra": "mean: 171.6296100818528 usec\nrounds: 3411"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_h5md[ethanol_1000]",
+            "value": 2349.2136282873907,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00002153731839396946",
+            "extra": "mean: 425.6743567118729 usec\nrounds: 1811"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_h5md[periodic_100]",
+            "value": 5779.846047907386,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00001804800892441655",
+            "extra": "mean: 173.01498893072656 usec\nrounds: 3433"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_h5md[periodic_1000]",
+            "value": 2282.1252178932623,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000047538705276041566",
+            "extra": "mean: 438.1880504011727 usec\nrounds: 1746"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_mongodb[ethanol_100]",
+            "value": 382.6646062130471,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000569376658589144",
+            "extra": "mean: 2.613254489084506 msec\nrounds: 229"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_mongodb[ethanol_1000]",
+            "value": 49.38669936306041,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00043600435310421273",
+            "extra": "mean: 20.248366724178503 msec\nrounds: 29"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_mongodb[periodic_100]",
+            "value": 375.0405142449391,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00007128840426765748",
+            "extra": "mean: 2.666378596491844 msec\nrounds: 228"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_mongodb[periodic_1000]",
+            "value": 47.52013978204051,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007135231847661061",
+            "extra": "mean: 21.04370914283241 msec\nrounds: 28"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_redis[ethanol_100]",
+            "value": 507.8657674408992,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00007699247459726218",
+            "extra": "mean: 1.9690242266946472 msec\nrounds: 472"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_redis[ethanol_1000]",
+            "value": 72.15916504209152,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007706703117727736",
+            "extra": "mean: 13.85825347918986 msec\nrounds: 48"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_redis[periodic_100]",
+            "value": 512.7149701211397,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006302516340503099",
+            "extra": "mean: 1.9504014087275996 msec\nrounds: 504"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_asebytes_redis[periodic_1000]",
+            "value": 72.68898623759013,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007173950163537675",
+            "extra": "mean: 13.75724235211391 msec\nrounds: 71"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_aselmdb[ethanol_100]",
+            "value": 18.21173788873163,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007241606159790858",
+            "extra": "mean: 54.90964157894795 msec\nrounds: 19"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_aselmdb[ethanol_1000]",
+            "value": 1.7635745260566291,
+            "unit": "iter/sec",
+            "range": "stddev: 0.02121005994050406",
+            "extra": "mean: 567.0301908000511 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_aselmdb[periodic_100]",
+            "value": 12.573478992119556,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0009201641453587452",
+            "extra": "mean: 79.5324826666312 msec\nrounds: 12"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_aselmdb[periodic_1000]",
+            "value": 1.2086375953888624,
+            "unit": "iter/sec",
+            "range": "stddev: 0.019742935241469067",
+            "extra": "mean: 827.3778706000485 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_sqlite[ethanol_100]",
+            "value": 7.19255567323308,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0022839531774756726",
+            "extra": "mean: 139.03263949995903 msec\nrounds: 8"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_sqlite[ethanol_1000]",
+            "value": 0.6017197351245087,
+            "unit": "iter/sec",
+            "range": "stddev: 0.021197388890887618",
+            "extra": "mean: 1.6619032775999585 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_sqlite[periodic_100]",
+            "value": 6.7774039937283606,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0044342176232330215",
+            "extra": "mean: 147.54912071426978 msec\nrounds: 7"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_update.py::test_update_property_trajectory_sqlite[periodic_1000]",
+            "value": 0.6193692033951514,
+            "unit": "iter/sec",
+            "range": "stddev: 0.03190424445232316",
+            "extra": "mean: 1.6145458872000291 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_lmdb[ethanol_100]",
+            "value": 202.40079484794728,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0010262536775715975",
+            "extra": "mean: 4.940692059787837 msec\nrounds: 184"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_lmdb[ethanol_1000]",
+            "value": 22.49152804382797,
+            "unit": "iter/sec",
+            "range": "stddev: 0.002353885440282494",
+            "extra": "mean: 44.46118547620938 msec\nrounds: 21"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_lmdb[periodic_100]",
+            "value": 243.34283326700063,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00008928095173395116",
+            "extra": "mean: 4.1094286056198746 msec\nrounds: 213"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_lmdb[periodic_1000]",
+            "value": 19.707495521329662,
+            "unit": "iter/sec",
+            "range": "stddev: 0.03621836199888269",
+            "extra": "mean: 50.742114791688664 msec\nrounds: 24"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_zarr[ethanol_100]",
+            "value": 11.092071283180932,
+            "unit": "iter/sec",
+            "range": "stddev: 0.001060764438492804",
+            "extra": "mean: 90.15448733333642 msec\nrounds: 12"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_zarr[ethanol_1000]",
+            "value": 1.991416774645782,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0052008200946704825",
+            "extra": "mean: 502.15505499991195 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_zarr[periodic_100]",
+            "value": 6.789891479612008,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0017684477158107692",
+            "extra": "mean: 147.2777588570742 msec\nrounds: 7"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_zarr[periodic_1000]",
+            "value": 0.8497294889401322,
+            "unit": "iter/sec",
+            "range": "stddev: 0.08410757459645794",
+            "extra": "mean: 1.176845117199946 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_h5md[ethanol_100]",
+            "value": 34.45053465273037,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00017557065463311462",
+            "extra": "mean: 29.02712570589221 msec\nrounds: 34"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_h5md[ethanol_1000]",
+            "value": 4.274551191467814,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005228562551816101",
+            "extra": "mean: 233.9426889999686 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_h5md[periodic_100]",
+            "value": 46.48450835503595,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0022044157407035444",
+            "extra": "mean: 21.512543326526632 msec\nrounds: 49"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_h5md[periodic_1000]",
+            "value": 6.265185814697404,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0030122688361360404",
+            "extra": "mean: 159.6121854285814 msec\nrounds: 7"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_mongodb[ethanol_100]",
+            "value": 58.47567311134638,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0014110485275955207",
+            "extra": "mean: 17.10112849998069 msec\nrounds: 32"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_mongodb[ethanol_1000]",
+            "value": 13.43655561700173,
+            "unit": "iter/sec",
+            "range": "stddev: 0.047497048018963456",
+            "extra": "mean: 74.42383513336306 msec\nrounds: 15"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_mongodb[periodic_100]",
+            "value": 56.69446622110434,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00072640289868229",
+            "extra": "mean: 17.638405767858753 msec\nrounds: 56"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_mongodb[periodic_1000]",
+            "value": 12.74744694961313,
+            "unit": "iter/sec",
+            "range": "stddev: 0.04565511465743569",
+            "extra": "mean: 78.44708073331883 msec\nrounds: 15"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_redis[ethanol_100]",
+            "value": 134.65854535644306,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0021618205640488606",
+            "extra": "mean: 7.426190423734239 msec\nrounds: 118"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_redis[ethanol_1000]",
+            "value": 17.078083497552317,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007215939625893459",
+            "extra": "mean: 58.554579625010206 msec\nrounds: 16"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_redis[periodic_100]",
+            "value": 151.40351854770628,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00017642834711252423",
+            "extra": "mean: 6.604866317455538 msec\nrounds: 126"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_asebytes_redis[periodic_1000]",
+            "value": 15.933580259588336,
+            "unit": "iter/sec",
+            "range": "stddev: 0.007572173045405642",
+            "extra": "mean: 62.760533647058445 msec\nrounds: 17"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_aselmdb[ethanol_100]",
+            "value": 11.465848923596955,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0014938190205805565",
+            "extra": "mean: 87.21552208332166 msec\nrounds: 12"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_aselmdb[ethanol_1000]",
+            "value": 1.0716068981447837,
+            "unit": "iter/sec",
+            "range": "stddev: 0.011191044665850991",
+            "extra": "mean: 933.1780168000478 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_aselmdb[periodic_100]",
+            "value": 8.291032107518188,
+            "unit": "iter/sec",
+            "range": "stddev: 0.008027172453344085",
+            "extra": "mean: 120.61224549995586 msec\nrounds: 8"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_aselmdb[periodic_1000]",
+            "value": 0.8054307486557287,
+            "unit": "iter/sec",
+            "range": "stddev: 0.03620224635686008",
+            "extra": "mean: 1.2415716703999806 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_znh5md[ethanol_100]",
+            "value": 62.42915636206453,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010297311373603398",
+            "extra": "mean: 16.01815655173031 msec\nrounds: 58"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_znh5md[ethanol_1000]",
+            "value": 20.097029321725625,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002930915954470664",
+            "extra": "mean: 49.75859785002967 msec\nrounds: 20"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_znh5md[periodic_100]",
+            "value": 55.68769600393591,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0013078505284421186",
+            "extra": "mean: 17.95728808621067 msec\nrounds: 58"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_znh5md[periodic_1000]",
+            "value": 13.002913770939747,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000305564031013254",
+            "extra": "mean: 76.90583953843507 msec\nrounds: 13"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_extxyz[ethanol_100]",
+            "value": 62.190784737637294,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003739571746966737",
+            "extra": "mean: 16.07955268965772 msec\nrounds: 58"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_extxyz[ethanol_1000]",
+            "value": 6.2887580934025324,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0013996085271723725",
+            "extra": "mean: 159.01390785711556 msec\nrounds: 7"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_extxyz[periodic_100]",
+            "value": 38.68074172900577,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00029337659490732255",
+            "extra": "mean: 25.852658333336038 msec\nrounds: 39"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_extxyz[periodic_1000]",
+            "value": 3.904674823670642,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007991054546520621",
+            "extra": "mean: 256.10327240001425 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_sqlite[ethanol_100]",
+            "value": 5.157492136852212,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0018910476141192946",
+            "extra": "mean: 193.8926853333669 msec\nrounds: 6"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_sqlite[ethanol_1000]",
+            "value": 0.5300245066890403,
+            "unit": "iter/sec",
+            "range": "stddev: 0.051907004921583025",
+            "extra": "mean: 1.886705213400046 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_sqlite[periodic_100]",
+            "value": 5.249159477681413,
+            "unit": "iter/sec",
+            "range": "stddev: 0.003724790653824735",
+            "extra": "mean: 190.50669050003913 msec\nrounds: 6"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_trajectory_sqlite[periodic_1000]",
+            "value": 0.5332166231632318,
+            "unit": "iter/sec",
+            "range": "stddev: 0.041790906881404376",
+            "extra": "mean: 1.8754103990000204 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_lmdb[ethanol_100]",
+            "value": 230.56850326936768,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002847868333476298",
+            "extra": "mean: 4.337105831110522 msec\nrounds: 225"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_lmdb[ethanol_1000]",
+            "value": 220.36934184450647,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000262209059063011",
+            "extra": "mean: 4.537836305313305 msec\nrounds: 226"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_lmdb[periodic_100]",
+            "value": 207.9394133657242,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00022862919411328794",
+            "extra": "mean: 4.809093109449137 msec\nrounds: 201"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_lmdb[periodic_1000]",
+            "value": 205.4659551166914,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005726297111121887",
+            "extra": "mean: 4.86698635514611 msec\nrounds: 214"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_zarr[ethanol_100]",
+            "value": 1.9846853761454168,
+            "unit": "iter/sec",
+            "range": "stddev: 0.033386517974552526",
+            "extra": "mean: 503.8581993999287 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_zarr[ethanol_1000]",
+            "value": 2.0390642194027717,
+            "unit": "iter/sec",
+            "range": "stddev: 0.016773561198488742",
+            "extra": "mean: 490.4210423999757 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_zarr[periodic_100]",
+            "value": 2.3493248093828925,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0034081495431923085",
+            "extra": "mean: 425.6542117999743 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_zarr[periodic_1000]",
+            "value": 2.238985879682464,
+            "unit": "iter/sec",
+            "range": "stddev: 0.04088961518828831",
+            "extra": "mean: 446.6307755999878 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_h5md[ethanol_100]",
+            "value": 22.798279161695906,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002007516325804711",
+            "extra": "mean: 43.86295969566558 msec\nrounds: 23"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_h5md[ethanol_1000]",
+            "value": 22.74139601060033,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00021528937597054635",
+            "extra": "mean: 43.97267430433361 msec\nrounds: 23"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_h5md[periodic_100]",
+            "value": 26.2180640165603,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00014799999524328056",
+            "extra": "mean: 38.14164155554594 msec\nrounds: 27"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_h5md[periodic_1000]",
+            "value": 26.196480158088164,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001146154109769092",
+            "extra": "mean: 38.17306729626613 msec\nrounds: 27"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_mongodb[ethanol_100]",
+            "value": 38.42739164686339,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006737435900327407",
+            "extra": "mean: 26.02310375863422 msec\nrounds: 29"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_mongodb[ethanol_1000]",
+            "value": 37.698658450284185,
+            "unit": "iter/sec",
+            "range": "stddev: 0.001076737522478148",
+            "extra": "mean: 26.52614286841981 msec\nrounds: 38"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_mongodb[periodic_100]",
+            "value": 36.63760564323396,
+            "unit": "iter/sec",
+            "range": "stddev: 0.001686488489785339",
+            "extra": "mean: 27.29436005555878 msec\nrounds: 36"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_mongodb[periodic_1000]",
+            "value": 37.196819111550525,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0008464244428678894",
+            "extra": "mean: 26.8840192222102 msec\nrounds: 36"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_redis[ethanol_100]",
+            "value": 170.01470781977565,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007621663650620642",
+            "extra": "mean: 5.881844064103275 msec\nrounds: 156"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_redis[ethanol_1000]",
+            "value": 171.4395768699955,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0008488123386910819",
+            "extra": "mean: 5.832958866658373 msec\nrounds: 150"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_redis[periodic_100]",
+            "value": 182.93139427935574,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006814011601594188",
+            "extra": "mean: 5.466530247251565 msec\nrounds: 182"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_asebytes_redis[periodic_1000]",
+            "value": 154.1991047008219,
+            "unit": "iter/sec",
+            "range": "stddev: 0.013189333982200768",
+            "extra": "mean: 6.485121959301946 msec\nrounds: 172"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_aselmdb[ethanol_100]",
+            "value": 96.028234546438,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0008042933184626735",
+            "extra": "mean: 10.413603923087987 msec\nrounds: 91"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_aselmdb[ethanol_1000]",
+            "value": 98.83179042688148,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001936841177914643",
+            "extra": "mean: 10.11820180207934 msec\nrounds: 96"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_aselmdb[periodic_100]",
+            "value": 84.67767657908372,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002464036125630053",
+            "extra": "mean: 11.809487935891365 msec\nrounds: 78"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_aselmdb[periodic_1000]",
+            "value": 84.36439841675973,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00020208764361343362",
+            "extra": "mean: 11.853341205137324 msec\nrounds: 78"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_znh5md[ethanol_100]",
+            "value": 12.881129459440476,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0013681710010455303",
+            "extra": "mean: 77.63294384617089 msec\nrounds: 13"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_znh5md[ethanol_1000]",
+            "value": 12.914798170639344,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005484857973900479",
+            "extra": "mean: 77.43055576922696 msec\nrounds: 13"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_znh5md[periodic_100]",
+            "value": 15.177722853278636,
+            "unit": "iter/sec",
+            "range": "stddev: 0.002952859105483897",
+            "extra": "mean: 65.88603637494828 msec\nrounds: 16"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_znh5md[periodic_1000]",
+            "value": 15.425956838184824,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0018619878081250975",
+            "extra": "mean: 64.82580046669378 msec\nrounds: 15"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_extxyz[ethanol_100]",
+            "value": 423.5481211178767,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00005577012780609997",
+            "extra": "mean: 2.3610068139617417 msec\nrounds: 344"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_extxyz[ethanol_1000]",
+            "value": 415.9420600019005,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00012669094466692823",
+            "extra": "mean: 2.4041810053915467 msec\nrounds: 371"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_extxyz[periodic_100]",
+            "value": 296.55544554875246,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002260109452063464",
+            "extra": "mean: 3.372050707582114 msec\nrounds: 277"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_extxyz[periodic_1000]",
+            "value": 302.4353754840081,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006249241466933836",
+            "extra": "mean: 3.3064915054980966 msec\nrounds: 273"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_sqlite[ethanol_100]",
+            "value": 39.11572169784454,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000991433410183691",
+            "extra": "mean: 25.565168085729187 msec\nrounds: 35"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_sqlite[ethanol_1000]",
+            "value": 39.03179581319076,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0010074443670668519",
+            "extra": "mean: 25.62013812498094 msec\nrounds: 40"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_sqlite[periodic_100]",
+            "value": 38.17176534790412,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000994098561739319",
+            "extra": "mean: 26.197373657881048 msec\nrounds: 38"
+          },
+          {
+            "name": "tests/benchmarks/test_bench_write.py::test_write_single_sqlite[periodic_1000]",
+            "value": 37.51431768415459,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0010950525239077898",
+            "extra": "mean: 26.656489088228387 msec\nrounds: 34"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_encode_current",
+            "value": 48472.798764091676,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000016421355297303333",
+            "extra": "mean: 20.630127112461956 usec\nrounds: 9944"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_atoms_to_dict_new",
+            "value": 251449.25920411327,
+            "unit": "iter/sec",
+            "range": "stddev: 6.171075481151593e-7",
+            "extra": "mean: 3.9769455005164787 usec\nrounds: 28423"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_decode_current",
+            "value": 49049.60102325963,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000024937352898432978",
+            "extra": "mean: 20.387525670714297 usec\nrounds: 15329"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_dict_to_atoms_new",
+            "value": 163982.32960422954,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000015761459146193637",
+            "extra": "mean: 6.098218036135324 usec\nrounds: 53482"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_read_current_aseio",
+            "value": 22.701007782667325,
+            "unit": "iter/sec",
+            "range": "stddev: 0.05528366895359259",
+            "extra": "mean: 44.05090776469933 msec\nrounds: 34"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_read_new_aseio",
+            "value": 22.956407668192465,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0536709714862415",
+            "extra": "mean: 43.56082251429793 msec\nrounds: 35"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_write_current_aseio",
+            "value": 33.67243208680057,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005441127540093793",
+            "extra": "mean: 29.697884531245222 msec\nrounds: 32"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_write_new_aseio",
+            "value": 30.55285667013493,
+            "unit": "iter/sec",
+            "range": "stddev: 0.002561787256643495",
+            "extra": "mean: 32.73016368965226 msec\nrounds: 29"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_random_access_current",
+            "value": 22.90198882972563,
+            "unit": "iter/sec",
+            "range": "stddev: 0.055989589544929025",
+            "extra": "mean: 43.664330090932985 msec\nrounds: 33"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_random_access_new",
+            "value": 22.703765661081388,
+            "unit": "iter/sec",
+            "range": "stddev: 0.055021090350386596",
+            "extra": "mean: 44.04555680004185 msec\nrounds: 35"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_column_read_via_view",
+            "value": 110.66510614111638,
+            "unit": "iter/sec",
+            "range": "stddev: 0.019010969852057434",
+            "extra": "mean: 9.036272000000016 msec\nrounds: 152"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_column_read_manual_loop",
+            "value": 39.13518773772918,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00025135348083274824",
+            "extra": "mean: 25.55245184210339 msec\nrounds: 38"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_column_read_selective_keys",
+            "value": 891.6808224381297,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000028346679446208663",
+            "extra": "mean: 1.121477522938861 msec\nrounds: 654"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_row_view_iteration",
+            "value": 24.457484575932533,
+            "unit": "iter/sec",
+            "range": "stddev: 0.052274044262378326",
+            "extra": "mean: 40.887279184223765 msec\nrounds: 38"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_direct_iteration",
+            "value": 23.057378583718343,
+            "unit": "iter/sec",
+            "range": "stddev: 0.05311579630832567",
+            "extra": "mean: 43.37006465713914 msec\nrounds: 35"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_multi_column_view",
+            "value": 93.22581540508709,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0015501407833136815",
+            "extra": "mean: 10.726642568421372 msec\nrounds: 95"
+          },
+          {
+            "name": "tests/test_benchmark_backend.py::test_multi_column_manual",
+            "value": 39.12368118472187,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00043833261581707555",
+            "extra": "mean: 25.559966999999702 msec\nrounds: 39"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_asebytes_lmdb[ethanol_100]",
+            "value": 222.09125106845687,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00009228252387967744",
+            "extra": "mean: 4.502653729893045 msec\nrounds: 174"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_asebytes_lmdb[ethanol_1000]",
+            "value": 22.01608025659775,
+            "unit": "iter/sec",
+            "range": "stddev: 0.005913439374030142",
+            "extra": "mean: 45.42134605002275 msec\nrounds: 20"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_asebytes_lmdb[periodic_100]",
+            "value": 232.63886489968763,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000973541147765568",
+            "extra": "mean: 4.2985079059390765 msec\nrounds: 202"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_asebytes_lmdb[periodic_1000]",
+            "value": 21.149983919210165,
+            "unit": "iter/sec",
+            "range": "stddev: 0.03657968876132035",
+            "extra": "mean: 47.28135982608088 msec\nrounds: 23"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_asebytes_zarr[ethanol_100]",
+            "value": 10.329843293625421,
+            "unit": "iter/sec",
+            "range": "stddev: 0.014717602647015899",
+            "extra": "mean: 96.80688966667124 msec\nrounds: 9"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_asebytes_zarr[ethanol_1000]",
+            "value": 1.9440140916729167,
+            "unit": "iter/sec",
+            "range": "stddev: 0.017681909155116984",
+            "extra": "mean: 514.3995634000021 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_asebytes_zarr[periodic_100]",
+            "value": 6.791678564919406,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0035344679343092466",
+            "extra": "mean: 147.23900585714287 msec\nrounds: 7"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_asebytes_zarr[periodic_1000]",
+            "value": 0.832398274547194,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0798376955042709",
+            "extra": "mean: 1.2013479971999914 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_asebytes_h5md[ethanol_100]",
+            "value": 34.51963013693822,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00036981706635455747",
+            "extra": "mean: 28.96902417647679 msec\nrounds: 34"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_asebytes_h5md[ethanol_1000]",
+            "value": 4.280893578794786,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0010882982833310172",
+            "extra": "mean: 233.59608959995057 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_asebytes_h5md[periodic_100]",
+            "value": 48.036416010912596,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0016662348373979938",
+            "extra": "mean: 20.817539755106345 msec\nrounds: 49"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_asebytes_h5md[periodic_1000]",
+            "value": 6.307995102454202,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00292147693308371",
+            "extra": "mean: 158.52897533337304 msec\nrounds: 6"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_aselmdb[ethanol_100]",
+            "value": 11.673888250677129,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0010630338134238857",
+            "extra": "mean: 85.66126200000213 msec\nrounds: 8"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_aselmdb[ethanol_1000]",
+            "value": 1.0899310428334932,
+            "unit": "iter/sec",
+            "range": "stddev: 0.01391947414414034",
+            "extra": "mean: 917.4892362000264 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_aselmdb[periodic_100]",
+            "value": 8.320311237326493,
+            "unit": "iter/sec",
+            "range": "stddev: 0.002873104205258965",
+            "extra": "mean: 120.18781166668508 msec\nrounds: 9"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_aselmdb[periodic_1000]",
+            "value": 0.8437008910291384,
+            "unit": "iter/sec",
+            "range": "stddev: 0.027085730552895582",
+            "extra": "mean: 1.1852541708000444 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_znh5md[ethanol_100]",
+            "value": 62.391064663217534,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000976009850011827",
+            "extra": "mean: 16.027936137937825 msec\nrounds: 58"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_znh5md[ethanol_1000]",
+            "value": 19.915722279541573,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005627384088977841",
+            "extra": "mean: 50.21158590001278 msec\nrounds: 20"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_znh5md[periodic_100]",
+            "value": 56.29077819826401,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0010998201723942877",
+            "extra": "mean: 17.764899189665844 msec\nrounds: 58"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_znh5md[periodic_1000]",
+            "value": 12.78959747503313,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0029040112295395026",
+            "extra": "mean: 78.18854361539707 msec\nrounds: 13"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_extxyz[ethanol_100]",
+            "value": 60.84978791421586,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002359313806752553",
+            "extra": "mean: 16.433911017237545 msec\nrounds: 58"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_extxyz[ethanol_1000]",
+            "value": 6.238685247493429,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000785474213529794",
+            "extra": "mean: 160.29018299998046 msec\nrounds: 7"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_extxyz[periodic_100]",
+            "value": 37.8819436501273,
+            "unit": "iter/sec",
+            "range": "stddev: 0.001880425502980885",
+            "extra": "mean: 26.39780073683309 msec\nrounds: 38"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_extxyz[periodic_1000]",
+            "value": 3.820716059409806,
+            "unit": "iter/sec",
+            "range": "stddev: 0.008481748932492742",
+            "extra": "mean: 261.7310431999158 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_sqlite[ethanol_100]",
+            "value": 5.084066483173797,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0008425458852251679",
+            "extra": "mean: 196.69294320001427 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_sqlite[ethanol_1000]",
+            "value": 0.5280665124511338,
+            "unit": "iter/sec",
+            "range": "stddev: 0.06186808252506899",
+            "extra": "mean: 1.8937008433999836 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_sqlite[periodic_100]",
+            "value": 5.3634624765274985,
+            "unit": "iter/sec",
+            "range": "stddev: 0.005342599508736286",
+            "extra": "mean: 186.4467224999468 msec\nrounds: 6"
+          },
+          {
+            "name": "tests/test_benchmark_file_size.py::test_size_sqlite[periodic_1000]",
+            "value": 0.5365438608201898,
+            "unit": "iter/sec",
+            "range": "stddev: 0.04265609111800334",
+            "extra": "mean: 1.8637805276000108 sec\nrounds: 5"
           }
         ]
       }
