@@ -11,6 +11,11 @@ import msgpack_numpy as m
 from .decode import decode
 from .encode import encode
 
+_packb = msgpack.packb
+_unpackb = msgpack.unpackb
+_m_encode = m.encode
+_m_decode = m.decode
+
 _ENVELOPE_VERSION = 1
 _ENVELOPE_KEY = "__asebytes__"
 
@@ -43,7 +48,7 @@ def _atoms_object_hook(obj: dict[str, Any]) -> Any:
             f"(expected {_ENVELOPE_VERSION})"
         )
     packed = base64.b64decode(obj["data"])
-    return decode(msgpack.unpackb(packed, object_hook=m.decode))
+    return decode(_unpackb(packed, object_hook=_m_decode))
 
 
 class AtomsEncoder(json.JSONEncoder):
@@ -56,8 +61,23 @@ class AtomsEncoder(json.JSONEncoder):
     """
 
     def default(self, obj: Any) -> Any:
+        """Serialize an ase.Atoms object as an asebytes envelope.
+
+        Parameters
+        ----------
+        obj : Any
+            The object the JSON encoder cannot serialize natively.
+
+        Returns
+        -------
+        Any
+            For ``ase.Atoms`` instances, a JSON-serializable envelope
+            dict ``{"__asebytes__": 1, "data": "<base64>"}``.  For all
+            other types, delegates to :meth:`json.JSONEncoder.default`,
+            which raises ``TypeError``.
+        """
         if isinstance(obj, ase.Atoms):
-            packed = msgpack.packb(encode(obj), default=m.encode)
+            packed = _packb(encode(obj), default=_m_encode)
             return {
                 _ENVELOPE_KEY: _ENVELOPE_VERSION,
                 "data": base64.b64encode(packed).decode("ascii"),

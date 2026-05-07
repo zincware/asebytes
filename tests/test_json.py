@@ -1,6 +1,10 @@
 """Tests for asebytes JSON encoder/decoder."""
 
+import base64
 import json
+
+import numpy as np
+import pytest
 
 import asebytes
 
@@ -53,10 +57,6 @@ def test_empty_list_roundtrip():
     """An empty list roundtrips to an empty list."""
     s = json.dumps([], cls=asebytes.AtomsEncoder)
     assert json.loads(s, cls=asebytes.AtomsDecoder) == []
-
-
-import numpy as np
-import pytest
 
 
 @pytest.mark.parametrize(
@@ -177,6 +177,5 @@ def test_envelope_shape_is_pinned(simple_atoms):
     assert raw["__asebytes__"] == 1
     assert isinstance(raw["data"], str)
     # data must be valid base64 of non-empty bytes
-    import base64
     payload = base64.b64decode(raw["data"])
     assert len(payload) > 0
